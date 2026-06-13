@@ -16,9 +16,7 @@ import me.voltual.vb.core.ui.components.UpdateDialog
 import me.voltual.vb.core.utils.UpdateChecker
 import me.voltual.vb.data.UpdateInfo
 import me.voltual.vb.data.UpdateSettingsDataStore
-import org.koin.android.annotation.KoinViewModel
 
-@KoinViewModel
 class UpdateSettingsViewModel : ViewModel() {
 
   val autoCheckUpdates: Flow<Boolean> = UpdateSettingsDataStore.autoCheckUpdates

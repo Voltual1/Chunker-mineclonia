@@ -154,8 +154,6 @@ dependencies {
     // Koin 注入
     implementation(libs.koin.android.compose)
     implementation(libs.koin.core)
-    implementation(libs.koin.annotations)
-    implementation(libs.koin.workmanager)
     implementation(libs.koin.startup)
     ksp(libs.koin.ksp.compiler)
     ksp(libs.room3.compiler)
