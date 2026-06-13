@@ -1,9 +1,13 @@
 plugins {
-	kotlin("jvm") version "2.3.21"
+    kotlin("jvm") version "2.3.21"
 }
 
 version = "1.0.0"
 
+repositories {
+    mavenCentral() 
+}
+
 dependencies {
-    project(":cli")
+    implementation(project(":cli"))
 }
