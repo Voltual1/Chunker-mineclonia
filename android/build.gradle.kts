@@ -2,12 +2,12 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-    id("kotlin-parcelize")
+//    id("kotlin-parcelize")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.room3)    
-    alias(libs.plugins.shizuku.refine)
+//    alias(libs.plugins.shizuku.refine)
 }
 
 android {
@@ -17,20 +17,20 @@ android {
         keystoreProperties.load(keystorePropertiesFile.inputStream())
     }
 
-    namespace = "me.voltual.pyrolysis"
+    namespace = "me.voltual.vb"
     compileSdk = 37
 
     // AGP 9.0 新的基础包名设置方式
     base {
-        archivesName.set("Pyrolysis")
+        archivesName.set("Vector-Breakthrough")
     }
 
     defaultConfig {
         applicationId = "me.voltual.vb"
         minSdk = 24
         targetSdk = 37
-        versionCode = 668
-        versionName = "23.2"
+        versionCode = 1
+        versionName = "1.0"
         multiDexEnabled = true
         buildConfigField("String", "LICENSE", "\"GPLv3\"")
         // 此处删除了 resourceConfigurations
@@ -54,7 +54,7 @@ android {
         abi {
             isEnable = true
             reset()
-            include("armeabi-v7a", "arm64-v8a")
+            include("arm64-v8a")
             isUniversalApk = false
         }
     }
@@ -155,7 +155,6 @@ dependencies {
     implementation(libs.koin.android.compose)
     implementation(libs.koin.core)
     implementation(libs.koin.startup)
-    ksp(libs.koin.ksp.compiler)
     ksp(libs.room3.compiler)
 
     // Ktor 与 序列化
