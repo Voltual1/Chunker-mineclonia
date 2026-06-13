@@ -17,8 +17,8 @@ data class MclNode(
      * Minetest param1: (night_light << 4) | day_light
      */
     fun setLight(blockLight: Byte, skyLight: Byte) {
-        val dayLight = max(blockLight.toInt(), skyLight.toInt()) & 0x0F
-        val nightLight = blockLight.toInt() & 0x0F
+        val dayLight = max(blockLight.toInt(), skyLight.toInt()) & 0x0F;
+        val nightLight = blockLight.toInt() & 0x0F;
         this.param1 = ((nightLight shl 4) or dayLight).toByte()
     }
 }
