@@ -12,24 +12,21 @@ class MclLevelWriter(val outputDir: File) : LevelWriter {
     private lateinit var manager: MclConverterManager
 
     override fun writeLevel(chunkerLevel: ChunkerLevel): WorldWriter {
-        // 1. 初始化映射表 (AI 生成的那些)
+        // 初始化映射注册表
         MclMappingInitializer.initialize()
-        
-        // 2. 初始化管理器
+        // 初始化存储管理器
         manager = MclConverterManager(outputDir)
-        
-        // 3. 返回维度写入器
         return MclWorldWriter(manager)
     }
 
     override fun flushLevel() {
-        manager.flush()
-        manager.close()
+        if (::manager.isInitialized) {
+            manager.flush()
+            manager.close()
+        }
     }
 
-    override fun getEncodingType(): EncodingType = EncodingType.SETTINGS // 暂时借用，或自定义
-
+    override fun getEncodingType(): EncodingType = EncodingType.SETTINGS
     override fun getVersion(): Version = Version(1, 0, 0)
-
     override fun getSupportedBiomes(): Set<ChunkerBiome.ChunkerVanillaBiome> = emptySet()
 }
