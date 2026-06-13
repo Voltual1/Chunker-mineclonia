@@ -1,0 +1,41 @@
+apply plugin: 'com.android.library'
+
+android {
+    namespace "com.termux.emulator"
+    // 匹配你主项目的 SDK 版本
+    compileSdkVersion 36
+
+    defaultConfig {
+        minSdkVersion 24
+        targetSdkVersion 36
+
+        // 告知打包工具只保留 arm64-v8a 的库（因为你只有这个目录下的 so）
+        ndk {
+            abiFilters 'arm64-v8a'
+        }
+    }
+
+    sourceSets {
+        main {
+            // 关键：指定 jniLibs 目录，以便 Gradle 能找到并打包你的 libtermux.so
+            jniLibs.srcDirs = ['src/main/jni']
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation "androidx.annotation:annotation:1.9.0"
+    testImplementation "junit:junit:4.13.2"
+}

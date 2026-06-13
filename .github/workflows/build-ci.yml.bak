@@ -45,7 +45,7 @@ jobs:
             ${{ runner.os }}-gradle-            
 
       - name: Build with Gradle
-        run: ./gradlew build
+        run: ./gradlew :mcl:assemble
           
       - name: Save Gradle cache
         if: ${{ success() }}

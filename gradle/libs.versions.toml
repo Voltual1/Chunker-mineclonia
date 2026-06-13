@@ -2,6 +2,7 @@
 # https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
 
 [versions]
+# --- Chunker 原有版本 (保持原样) ---
 picocli = "4.7.7"
 caffeine = "3.2.4"
 gson = "2.14.0"
@@ -11,18 +12,47 @@ leveldb-api = "1.1.0"
 fastutil = "8.5.18"
 lz4 = "1.3.0"
 jetbrains-annotations = "26.1.0"
-
-# JUnit
 junit = "6.1.0"
 junit-platform-launcher = "6.1.0"
-
-# Plugins
 shadow = "9.4.1"
 gitVersion = "5.0.0"
 jpackage = "2.0.1"
 node = "7.1.0"
 
+# --- Android / UI 核心工具链 ---
+pyrolysis-agp = "9.2.0"
+kotlin = "2.3.21"
+pyrolysis-compose-bom = "2026.05.00"
+compose-multiplatform-lifecycle = "2.11.0-beta01"
+navigation3 = "1.0.0"
+desugar = "2.0.3"
+material = "1.9.0"
+
+# --- 异步与并发 ---
+coroutines = "1.10.2"
+
+# --- 依赖注入 (Koin) ---
+koin = "4.1.1"
+
+# --- 网络与图片加载 ---
+pyrolysis-ktor = "3.3.3"
+pyrolysis-serialization = "1.9.0"
+coil = "3.4.0"
+
+# --- 核心数据存储与加密 (本地配置缓存等) ---
+datastore = "1.3.0-alpha09"
+tink = "1.20.0"
+
+# --- Android 高级特权与系统工具 (如需操作系统底层或分块存储管理) ---
+libsu = "6.0.0"
+shizuku = "13.1.5"
+shizuku-hidden = "4.4.0"
+shizuku-refine = "4.4.0"
+simple-storage = "2.2.0"
+filekit = "0.14.1"
+
 [libraries]
+# --- Chunker 原有依赖 ---
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
@@ -35,8 +65,71 @@ jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "j
 junit = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
 
+# --- Android 基础环境兼容 ---
+android-desugar = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
+google-material = { module = "com.google.android.material:material", version.ref = "material" }
+
+# --- Jetpack Compose 官方原生 UI 库 (利用你習慣的 BOM 管理) ---
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "pyrolysis-compose-bom" }
+androidx-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose" }
+androidx-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+
+# --- 生命周管理与现代 Navigation3 导航 ---
+androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "compose-multiplatform-lifecycle" }
+androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "compose-multiplatform-lifecycle" }
+compose-navigation3 = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
+compose-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
+
+# --- 异步协程驱动 ---
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# --- Koin 依赖注入 (在 Compose 架构中极度舒适) ---
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-android-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
+koin-ksp-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotations" }
+
+# --- Ktor 异步网络与 Kotlinx 序列化 ---
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "pyrolysis-ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "pyrolysis-ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "pyrolysis-ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "pyrolysis-ktor" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "pyrolysis-serialization" }
+
+# --- Coil3 异步图片加载 (Compose 专用) ---
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+
+# --- 核心轻量化存储与安全 ---
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
+
+# --- Android 文件交互与高级 Root/Shizuku 特权 ---
+filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+simple-storage = { module = "com.anggrayudi:storage", version.ref = "simple-storage" }
+libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu" }
+shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
+shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
+shizuku-hidden = { module = "dev.rikka.hidden:stub", version.ref = "shizuku-hidden" }
+shizuku-refine = { module = "dev.rikka.tools.refine:runtime", version.ref = "shizuku-refine" }
+
 [plugins]
+# --- Chunker 原有插件 ---
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 gitVersion = { id = "com.palantir.git-version", version.ref = "gitVersion" }
 jpackage = { id = "org.panteleyev.jpackageplugin", version.ref = "jpackage" }
 node = { id = "com.github.node-gradle.node", version.ref = "node" }
+
+# --- Android 构建与 Kotlin 编译器插件 ---
+android-application = { id = "com.android.application", version.ref = "pyrolysis-agp" }
+android-library = { id = "com.android.library", version.ref = "pyrolysis-agp" }
+kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+ksp = { id = "com.google.devtools.ksp", version = "2.3.8" }
+shizuku-refine = { id = "dev.rikka.tools.refine", version.ref = "shizuku-refine" }
