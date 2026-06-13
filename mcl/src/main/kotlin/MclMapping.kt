@@ -6,13 +6,30 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.b
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.*
 
 /**
- * Mineclonia 方块数据结构模型
+ * Mineclonia 颜色数据类，用于计算蜡烛等的 param2 调色板索引
  */
-data class MclNode(
-    val name: String,
-    val param2: Byte = 0,
-    val metadata: Map<String, String> = emptyMap()
-)
+data class MclDyeColor(val name: String, val palette_index: Int)
+
+object mcl_dyes {
+    val colors = mapOf(
+        "white" to MclDyeColor("white", 0),
+        "silver" to MclDyeColor("silver", 1),
+        "grey" to MclDyeColor("grey", 2),
+        "black" to MclDyeColor("black", 3),
+        "purple" to MclDyeColor("purple", 4),
+        "blue" to MclDyeColor("blue", 5),
+        "light_blue" to MclDyeColor("light_blue", 6),
+        "cyan" to MclDyeColor("cyan", 7),
+        "green" to MclDyeColor("green", 8),
+        "lime" to MclDyeColor("lime", 9),
+        "yellow" to MclDyeColor("yellow", 10),
+        "brown" to MclDyeColor("brown", 11),
+        "orange" to MclDyeColor("orange", 12),
+        "red" to MclDyeColor("red", 13),
+        "magenta" to MclDyeColor("magenta", 14),
+        "pink" to MclDyeColor("pink", 15)
+    )
+}
 
 /**
  * 方块映射器接口
@@ -393,7 +410,6 @@ object MclMappingDsl {
     fun banner(color: String, wall: Boolean) = BlockMapper { id ->
         val nodeName = if (wall) "mcl_banners:hanging_banner" else "mcl_banners:standing_banner"
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-        val rotation = id.getState(VanillaBlockStates.ROTATION) ?: Rotation._0
         val param2 = if (wall) {
             when (facing) {
                 FacingDirectionHorizontal.SOUTH -> 3
@@ -401,13 +417,10 @@ object MclMappingDsl {
                 FacingDirectionHorizontal.NORTH -> 2
                 FacingDirectionHorizontal.EAST -> 5
             }.toByte()
-        } else 0.toByte()
-
-        val metaMap = mapOf(
-            "banner" to "mcl_banners:banner_item_$color",
-            "rotation_level" to rotation.ordinal.toString()
-        )
-        MclNode(nodeName, param2 = param2, metadata = metaMap)
+        } else {
+            0.toByte()
+        }
+        MclNode(nodeName, param2 = param2)
     }
 
     // 25. 小麦作物
@@ -660,7 +673,7 @@ object MclMappingDsl {
         }
     }
 
-    // 45. 雕孔书架 (雕版书架)
+    // 45. 门门禁书架 (雕版书架)
     fun shelf(basename: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
@@ -672,7 +685,7 @@ object MclMappingDsl {
         MclNode("mcl_books:shelf_${basename}", param2 = param2)
     }
 
-    // 46. 炼药锅
+    // 46. 堆肥桶
     fun composter() = BlockMapper { id ->
         val level = id.getState(VanillaBlockStates.COMPOSTER_LEVEL) ?: ComposterLevel._0
         val nodeName = when (level) {
@@ -681,6 +694,98 @@ object MclMappingDsl {
             else -> "mcl_composters:composter_${level.ordinal}"
         }
         MclNode(nodeName)
+    }
+
+    // 47. 围栏门 (Gate)
+    fun gate(targetName: String) = BlockMapper { id ->
+        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        val nodeName = if (open) "${targetName}_open" else targetName
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 48. 铜灯 (Copper Bulb)
+    fun copperBulb(exposure: String, waxed: Boolean) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+        val state = when {
+            lit && powered -> "on_powered"
+            lit -> "on"
+            powered -> "off_powered"
+            else -> "off"
+        }
+        val waxSuffix = if (waxed) "_preserved" else ""
+        val nodeName = "mcl_copper:bulb${exposure}_${state}${waxSuffix}"
+        MclNode(nodeName)
+    }
+
+    // 49. 避雷针 (Lightning Rod)
+    fun lightningRod(exposure: String, waxed: Boolean) = BlockMapper { id ->
+        val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
+        val powerSuffix = if (powered) "_powered" else ""
+        val waxSuffix = if (waxed) "_preserved" else ""
+        val nodeName = "mcl_lightning_rods:rod${exposure}${powerSuffix}${waxSuffix}"
+        val param2 = when (facing) {
+            FacingDirection.DOWN -> 20
+            FacingDirection.UP -> 0
+            FacingDirection.NORTH -> 8
+            FacingDirection.SOUTH -> 4
+            FacingDirection.WEST -> 16
+            FacingDirection.EAST -> 12
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 50. 木桶 (Barrel)
+    fun barrel() = BlockMapper { id ->
+        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.NORTH
+        val baseName = if (open) "mcl_barrels:barrel_open" else "mcl_barrels:barrel_closed"
+        val param2 = when (facing) {
+            FacingDirection.DOWN -> 20
+            FacingDirection.UP -> 0
+            FacingDirection.NORTH -> 8
+            FacingDirection.SOUTH -> 4
+            FacingDirection.WEST -> 16
+            FacingDirection.EAST -> 12
+        }.toByte()
+        MclNode(baseName, param2 = param2)
+    }
+
+    // 51. 蜡烛
+    fun candle(color: String?) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val count = id.getState(VanillaBlockStates.CANDLES) ?: Candles._1
+        val num = count.ordinal + 1
+        val prefix = if (lit) "mcl_candles:candle_lit_" else "mcl_candles:candle_"
+        val nodeName = "$prefix$num"
+        val param2 = if (color != null) {
+            val colorDef = mcl_dyes.colors[color]
+            if (colorDef != null) colorDef.palette_index.toByte() else 0.toByte()
+        } else {
+            0.toByte()
+        }
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 52. 蛋糕蜡烛
+    fun candleCake(color: String?) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val nodeName = if (lit) "mcl_candles:candle_cake_lit" else "mcl_candles:candle_cake"
+        val param2 = if (color != null) {
+            val colorDef = mcl_dyes.colors[color]
+            if (colorDef != null) colorDef.palette_index.toByte() else 0.toByte()
+        } else {
+            0.toByte()
+        }
+        MclNode(nodeName, param2 = param2)
     }
 }
 
@@ -968,7 +1073,7 @@ object MclMappingInitializer {
             register(ChunkerVanillaBlockType.RED_MUSHROOM_BLOCK, MclMappingDsl.mushroomBlock("red"))
             register(ChunkerVanillaBlockType.MUSHROOM_STEM, MclMappingDsl.simple("mcl_mushrooms:brown_mushroom_block_stem"))
 
-            // 滴水石锥与植物
+            // 滴水石柱与植物
             register(ChunkerVanillaBlockType.DRIPSTONE_BLOCK, MclMappingDsl.simple("mcl_dripstone:dripstone_block"))
             register(ChunkerVanillaBlockType.POINTED_DRIPSTONE, MclMappingDsl.pointedDripstone())
             register(ChunkerVanillaBlockType.CAVE_VINES_BODY, MclMappingDsl.caveVines())

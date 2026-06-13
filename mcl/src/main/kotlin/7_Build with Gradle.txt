@@ -1,0 +1,77 @@
+﻿2026-06-13T10:57:23.7516568Z ##[group]Run ./gradlew :mcl:assemble
+2026-06-13T10:57:23.7516936Z [36;1m./gradlew :mcl:assemble[0m
+2026-06-13T10:57:23.7548563Z shell: /usr/bin/bash -e {0}
+2026-06-13T10:57:23.7548843Z env:
+2026-06-13T10:57:23.7549152Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/25.0.3-9/x64
+2026-06-13T10:57:23.7549653Z   JAVA_HOME_25_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/25.0.3-9/x64
+2026-06-13T10:57:23.7550360Z   GRADLE_ACTION_ID: gradle/actions/setup-gradle
+2026-06-13T10:57:23.7550685Z   GRADLE_BUILD_ACTION_SETUP_COMPLETED: true
+2026-06-13T10:57:23.7550991Z   GRADLE_BUILD_ACTION_CACHE_RESTORED: true
+2026-06-13T10:57:23.7551422Z   DEVELOCITY_INJECTION_INIT_SCRIPT_NAME: gradle-actions.inject-develocity.init.gradle
+2026-06-13T10:57:23.7551913Z   DEVELOCITY_AUTO_INJECTION_CUSTOM_VALUE: gradle-actions
+2026-06-13T10:57:23.7552267Z   GITHUB_DEPENDENCY_GRAPH_ENABLED: false
+2026-06-13T10:57:23.7552545Z ##[endgroup]
+2026-06-13T10:57:25.7132302Z 
+2026-06-13T10:57:25.7133498Z Welcome to Gradle 9.5.1!
+2026-06-13T10:57:25.7134035Z 
+2026-06-13T10:57:25.7134717Z Here are the highlights of this release:
+2026-06-13T10:57:25.7135977Z  - Task provenance in reports and failure messages
+2026-06-13T10:57:25.7137422Z  - Type-safe accessors for precompiled Kotlin Settings plugins
+2026-06-13T10:57:25.7138118Z 
+2026-06-13T10:57:25.7139072Z For more details see https://docs.gradle.org/9.5.1/release-notes.html
+2026-06-13T10:57:25.7139743Z 
+2026-06-13T10:57:26.1126492Z Starting a Gradle Daemon (subsequent builds will be faster)
+2026-06-13T10:57:34.8141275Z > Task :mcl:checkKotlinGradlePluginConfigurationErrors SKIPPED
+2026-06-13T10:57:34.8142412Z > Task :mcl:processResources NO-SOURCE
+2026-06-13T10:57:47.7141394Z > Task :cli:compileJava
+2026-06-13T10:57:56.3160724Z 
+2026-06-13T10:57:56.3162272Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclData.kt:9:12 Redeclaration:
+2026-06-13T10:57:56.3250534Z data class MclNode : Any
+2026-06-13T10:57:56.3251041Z > Task :mcl:compileKotlin
+2026-06-13T10:57:56.3271312Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:11:12 Redeclaration:
+2026-06-13T10:57:56.3272982Z data class MclNode : Any
+2026-06-13T10:57:56.3274355Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:410:44 No parameter with name 'metadata' found.
+2026-06-13T10:57:56.3278279Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:783:76 Unresolved reference 'gate'.
+2026-06-13T10:57:56.3280399Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:820:73 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3282306Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:821:81 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3284165Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:822:83 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3286024Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:823:82 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3287865Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:824:79 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3289731Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:825:87 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3291783Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:826:89 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3293456Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:827:88 Unresolved reference 'copperBulb'.
+2026-06-13T10:57:56.3295296Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:830:75 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.3297520Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:831:83 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.3299360Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:832:85 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.3301521Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:833:84 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.4131639Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:834:81 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.4171358Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:835:89 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.4172440Z 
+2026-06-13T10:57:56.4173324Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:836:91 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.4194660Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:837:90 Unresolved reference 'lightningRod'.
+2026-06-13T10:57:56.4196780Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:843:68 Unresolved reference 'barrel'.
+2026-06-13T10:57:56.4198593Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:893:68 Unresolved reference 'candle'.
+2026-06-13T10:57:56.4200645Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:894:74 Unresolved reference 'candle'.
+2026-06-13T10:57:56.4202416Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:895:72 Unresolved reference 'candle'.
+2026-06-13T10:57:56.4204138Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:896:73 Unresolved reference 'candle'.
+2026-06-13T10:57:56.4206238Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:897:73 Unresolved reference 'candleCake'.
+2026-06-13T10:57:56.4208009Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:898:79 Unresolved reference 'candleCake'.
+2026-06-13T10:57:56.4210020Z e: file:///home/runner/work/Chunker-mineclonia/Chunker-mineclonia/mcl/src/main/kotlin/MclMapping.kt:899:77 Unresolved reference 'candleCake'.
+2026-06-13T10:57:56.4211014Z 
+2026-06-13T10:57:56.4211218Z FAILURE: Build failed with an exception.
+2026-06-13T10:57:56.4211567Z 
+2026-06-13T10:57:56.4211770Z * What went wrong:
+2026-06-13T10:57:56.4212510Z Execution failed for task ':mcl:compileKotlin' (registered by plugin 'org.jetbrains.kotlin.jvm').
+2026-06-13T10:57:56.4213854Z > A failure occurred while executing org.jetbrains.kotlin.compilerRunner.btapi.BuildToolsApiCompilationWork
+2026-06-13T10:57:56.4214924Z    > Compilation error. See log for more details
+2026-06-13T10:57:56.4215305Z 
+2026-06-13T10:57:56.4215442Z * Try:
+2026-06-13T10:57:56.4215857Z > Run with --stacktrace option to get the stack trace.
+2026-06-13T10:57:56.4216507Z > Run with --info or --debug option to get more log output.
+2026-06-13T10:57:56.4217284Z > Run with --scan to get full insights from a Build Scan (powered by Develocity).
+2026-06-13T10:57:56.4218042Z > Get more help at https://help.gradle.org.
+2026-06-13T10:57:56.4218412Z 
+2026-06-13T10:57:56.4218575Z BUILD FAILED in 32s
+2026-06-13T10:57:56.4218984Z > Task :mcl:compileKotlin FAILED
+2026-06-13T10:57:56.5130932Z 2 actionable tasks: 2 executed
+2026-06-13T10:57:56.9457041Z ##[error]Process completed with exit code 1.
