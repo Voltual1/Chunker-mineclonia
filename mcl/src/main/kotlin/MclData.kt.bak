@@ -1,27 +1,15 @@
 package me.voltual.mcl
 
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity
-import kotlin.math.max
 
 /**
  * 代表 Mineclonia 中的方块节点信息
  */
 data class MclNode(
     val name: String,
-    var param1: Byte = 0,
+    val param1: Byte = 0,
     val param2: Byte = 0
-) {
-    /**
-     * 设置光照 (Minecraft -> Minetest)
-     * Minecraft: blockLight, skyLight
-     * Minetest param1: (night_light << 4) | day_light
-     */
-    fun setLight(blockLight: Byte, skyLight: Byte) {
-        val dayLight = max(blockLight.toInt(), skyLight.toInt()) & 0x0F
-        val nightLight = blockLight.toInt() & 0x0F
-        this.param1 = ((nightLight shl 4) or dayLight).toByte()
-    }
-}
+)
 
 /**
  * Mineclonia 物品栈的内部表示
