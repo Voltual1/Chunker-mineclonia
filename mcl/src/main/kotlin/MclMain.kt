@@ -30,20 +30,21 @@ object MclMain {
         // 1. 创建 WorldConverter 实例
         val converter = WorldConverter(UUID.randomUUID())
 
-        // 2. 配置转换参数 (开启所有我们需要的功能)
-        converter.isProcessItems = true
-        converter.isProcessEntities = true
-        converter.isProcessBlockEntities = true
-        converter.isProcessBiomes = true
-        converter.isProcessLighting = true
-        converter.isProcessColumnPreTransform = true // 开启预转换以处理方块连接和实体位移
+        // 2. 配置转换参数
+        // 在 Kotlin 中调用 Java 的 setProcessXXX 方法，属性名通常不带 'is'
+        converter.setProcessItems(true)
+        converter.setProcessEntities(true)
+        converter.setProcessBlockEntities(true)
+        converter.setProcessBiomes(true)
+        converter.setProcessLighting(true)
+        converter.setProcessColumnPreTransform(true)
 
         try {
-            // 3. 自动探测输入格式 (Java 1.12-1.21 或 Bedrock)
+            // 3. 自动探测输入格式
             println("正在检测输入存档格式...")
             val readerOptional = EncodingType.findReader(inputPath, converter)
-            if (readerOptional.isEmpty) {
-                println("错误: 无法识别输入存档格式！请确保目录包含 level.dat (Java) 或 db 文件夹 (Bedrock)。")
+            if (!readerOptional.isPresent) {
+                println("错误: 无法识别输入存档格式！")
                 exitProcess(1)
             }
             val reader = readerOptional.get()
@@ -56,10 +57,12 @@ object MclMain {
             println("转换开始，请稍候...")
             val startTime = System.currentTimeMillis()
             
+            // convert 方法返回的是 TrackedTask<Void>
             val trackedTask = converter.convert(reader, writer)
             
-            // 6. 等待转换完成 (Chunker 使用 CompletableFuture)
-            trackedTask.environment.future().get()
+            // 6. 等待转换完成
+            // 根据 WorldConverter.java 的实现，trackedTask 本身拥有 future() 方法
+            trackedTask.future().get()
 
             val endTime = System.currentTimeMillis()
             println("--- 转换成功！ ---")
