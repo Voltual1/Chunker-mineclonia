@@ -1,75 +1,75 @@
 package me.voltual.mcl
 
+import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
-import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import java.io.File
-import java.nio.file.Path
-import java.util.logging.Logger
+import java.util.*
+import kotlin.system.exitProcess
 
 object MclMain {
-    private val logger = Logger.getLogger("MclMain")
-
     @JvmStatic
     fun main(args: Array<String>) {
         if (args.size < 2) {
-            println("用法: java -jar mcl.jar <输入地图路径> <输出Mineclonia路径>")
-            return
+            println("用法: java -jar mcl.jar <输入存档路径> <输出Mineclonia目录>")
+            println("示例: java -jar mcl.jar ./MyWorld ./MinecloniaSaved")
+            exitProcess(1)
         }
 
-        val inputPath = Path.of(args[0])
-        val outputPath = args[1]
+        val inputPath = File(args[0])
+        val outputPath = File(args[1])
 
-        // 1. 初始化所有映射注册表
-        logger.info("正在初始化映射注册表...")
-        MclMappingInitializer.initialize()
-
-        // 2. 使用 EncodingType 检测并创建 Reader
-        // Chunker 的标准做法是通过 EncodingType.detectReader 自动识别 Java/Bedrock
-        logger.info("正在检测输入地图格式...")
-        val readerOptional = EncodingType.detectReader(inputPath)
-        
-        if (readerOptional.isEmpty) {
-            logger.severe("无法识别输入地图格式，请检查路径是否正确。")
-            return
+        if (!inputPath.exists()) {
+            println("错误: 输入路径不存在: ${inputPath.absolutePath}")
+            exitProcess(1)
         }
-        
-        val reader = readerOptional.get()
-        logger.info("识别到格式: ${reader.encodingType} 版本: ${reader.version}")
 
-        // 3. 读取世界设置 (level.dat)
-        val level = reader.readLevel()
-        logger.info("地图名称: ${level.settings.levelName}")
+        println("--- Mineclonia 地图转换器启动 ---")
+        println("输入: ${inputPath.absolutePath}")
+        println("输出: ${outputPath.absolutePath}")
 
-        // 4. 转换维度
-        // 我们目前支持主世界，下界和末地可以后续通过偏移或子目录支持
-        val dimensions = listOf(Dimension.OVERWORLD, Dimension.NETHER, Dimension.THE_END)
-        
-        for (dim in dimensions) {
-            logger.info("正在处理维度: ${dim.identifier}...")
-            
-            // 获取该维度下所有存在的区域 (Regions)
-            val regions = reader.getRegions(dim)
-            if (regions.isEmpty()) {
-                logger.info("维度 ${dim.identifier} 为空，跳过。")
-                continue
+        // 1. 创建 WorldConverter 实例
+        val converter = WorldConverter(UUID.randomUUID())
+
+        // 2. 配置转换参数 (开启所有我们需要的功能)
+        converter.isProcessItems = true
+        converter.isProcessEntities = true
+        converter.isProcessBlockEntities = true
+        converter.isProcessBiomes = true
+        converter.isProcessLighting = true
+        converter.isProcessColumnPreTransform = true // 开启预转换以处理方块连接和实体位移
+
+        try {
+            // 3. 自动探测输入格式 (Java 1.12-1.21 或 Bedrock)
+            println("正在检测输入存档格式...")
+            val readerOptional = EncodingType.findReader(inputPath, converter)
+            if (readerOptional.isEmpty) {
+                println("错误: 无法识别输入存档格式！请确保目录包含 level.dat (Java) 或 db 文件夹 (Bedrock)。")
+                exitProcess(1)
             }
+            val reader = readerOptional.get()
+            println("识别到格式: ${reader.encodingType.name} 版本: ${reader.version}")
 
-            // 根据维度确定输出目录
-            val dimOutputFolder = when(dim) {
-                Dimension.OVERWORLD -> outputPath
-                Dimension.NETHER -> File(outputPath, "nether").absolutePath
-                Dimension.THE_END -> File(outputPath, "end").absolutePath
-                else -> outputPath
-            }
+            // 4. 创建我们的 Mineclonia Writer
+            val writer = MclLevelWriter(outputPath)
 
-            // 5. 读取区块并写入 Mineclonia
-            // readColumns 返回一个 Iterable<ChunkerColumn>
-            val columns = reader.readColumns(dim, regions)
+            // 5. 启动转换任务
+            println("转换开始，请稍候...")
+            val startTime = System.currentTimeMillis()
             
-            logger.info("正在将维度 ${dim.identifier} 写入 Mineclonia 数据库...")
-            MclConverterEntry.runConversion(columns, dimOutputFolder)
-        }
+            val trackedTask = converter.convert(reader, writer)
+            
+            // 6. 等待转换完成 (Chunker 使用 CompletableFuture)
+            trackedTask.environment.future().get()
 
-        logger.info("转换完成！存档已输出至: $outputPath")
+            val endTime = System.currentTimeMillis()
+            println("--- 转换成功！ ---")
+            println("总耗时: ${(endTime - startTime) / 1000.0} 秒")
+            println("存档已保存至: ${outputPath.absolutePath}")
+
+        } catch (e: Exception) {
+            println("转换过程中发生崩溃:")
+            e.printStackTrace()
+            exitProcess(1)
+        }
     }
 }
