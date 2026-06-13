@@ -1,14 +1,9 @@
 package me.voltual.mcl
 
-import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.encoding.base.Version
-import com.hivemc.chunker.conversion.encoding.base.reader.LevelReader
-import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
+import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import java.io.File
 import java.nio.file.Path
-import java.util.*
-import java.util.logging.Level
 import java.util.logging.Logger
 
 object MclMain {
@@ -27,18 +22,17 @@ object MclMain {
         // 1. 初始化所有映射注册表
         logger.info("正在初始化映射注册表...")
         MclMappingInitializer.initialize()
-        // MclBlockEntityRegistry 在其 object init 中已自动注册
 
-        // 2. 使用 Chunker 自动检测并创建 Reader
+        // 2. 使用 EncodingType 检测并创建 Reader
+        // Chunker 的标准做法是通过 EncodingType.detectReader 自动识别 Java/Bedrock
         logger.info("正在检测输入地图格式...")
-        val converter = Converter() // Chunker 的核心转换器上下文
+        val readerOptional = EncodingType.detectReader(inputPath)
         
-        // 尝试获取 Reader (Chunker 会自动识别 Java 或 Bedrock)
-        val readerOptional = converter.getReader(inputPath)
         if (readerOptional.isEmpty) {
             logger.severe("无法识别输入地图格式，请检查路径是否正确。")
             return
         }
+        
         val reader = readerOptional.get()
         logger.info("识别到格式: ${reader.encodingType} 版本: ${reader.version}")
 
@@ -46,8 +40,8 @@ object MclMain {
         val level = reader.readLevel()
         logger.info("地图名称: ${level.settings.levelName}")
 
-        // 4. 开始转换各个维度
-        // Mineclonia 通常将维度映射到不同的数据库或偏移，这里我们先处理主世界
+        // 4. 转换维度
+        // 我们目前支持主世界，下界和末地可以后续通过偏移或子目录支持
         val dimensions = listOf(Dimension.OVERWORLD, Dimension.NETHER, Dimension.THE_END)
         
         for (dim in dimensions) {
@@ -60,19 +54,19 @@ object MclMain {
                 continue
             }
 
-            // 为不同维度创建不同的输出子目录 (Mineclonia 规范)
+            // 根据维度确定输出目录
             val dimOutputFolder = when(dim) {
                 Dimension.OVERWORLD -> outputPath
-                Dimension.NETHER -> "$outputPath/nether" // 示例：Mineclonia 可能会有不同的处理方式
-                Dimension.THE_END -> "$outputPath/end"
+                Dimension.NETHER -> File(outputPath, "nether").absolutePath
+                Dimension.THE_END -> File(outputPath, "end").absolutePath
                 else -> outputPath
             }
 
-            // 获取所有区块的迭代器
+            // 5. 读取区块并写入 Mineclonia
+            // readColumns 返回一个 Iterable<ChunkerColumn>
             val columns = reader.readColumns(dim, regions)
             
-            // 5. 调用我们的 Entry 写入 Mineclonia 数据库
-            logger.info("正在写入 Mineclonia 数据库...")
+            logger.info("正在将维度 ${dim.identifier} 写入 Mineclonia 数据库...")
             MclConverterEntry.runConversion(columns, dimOutputFolder)
         }
 
