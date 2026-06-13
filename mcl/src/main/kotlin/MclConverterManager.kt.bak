@@ -60,17 +60,14 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                         val node = MclMappingRegistry.convert(identifier)
                         
                         // 处理光照 (如果 Chunker 提供了光照数据)
-if (blockLight != null && skyLight != null) {
-    // blockLight[localX][localY] 返回的是 ByteArray? 
-    // 使用 ?.get(localZ) 安全读取，如果为 null 则通过 ?: 降级为 0
-    val bl = blockLight[localX][localY]?.get(localZ) ?: 0
-    val sl = skyLight[localX][localY]?.get(localZ) ?: 0
-    
-    node.setLight(bl, sl)
-} else {
-    // 默认光照：如果是地下则全黑，地上则全亮
-    node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
-}
+                        if (blockLight != null && skyLight != null) {
+                            val bl = blockLight[localX][localY][localZ]
+                            val sl = skyLight[localX][localY][localZ]
+                            node.setLight(bl, sl)
+                        } else {
+                            // 默认光照：如果是地下则全黑，地上则全亮
+                            node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
+                        }
                         
                         mclNodes.add(node)
                         
