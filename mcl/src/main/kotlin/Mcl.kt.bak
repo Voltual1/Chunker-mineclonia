@@ -1,7 +1,6 @@
 package me.voltual.mcl
 
 import com.google.gson.JsonElement
-import com.google.gson.JsonObject
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
@@ -11,7 +10,13 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerItemStackIdentifier
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
+import java.util.Optional
 import java.util.logging.Logger
+
+/**
+ * 扩展函数：将 Java 的 Optional 转换为 Kotlin 的可空类型
+ */
+fun <T> Optional<T>.toNullable(): T? = if (isPresent) get() else null
 
 /**
  * Mineclonia 物品栈的内部表示
@@ -51,7 +56,6 @@ object MclItemRegistry {
         val type = identifier.itemStackType
         return when (type) {
             is ChunkerVanillaItemType -> {
-                // 这里的映射逻辑可以根据 conversions.h 进一步扩展
                 "mcl_core:${type.name.lowercase()}"
             }
             is ChunkerVanillaBlockType -> {
@@ -72,8 +76,8 @@ object MclItemRegistry {
             return MclItemStack("", 0)
         }
         val name = getItemName(itemStack.identifier)
-        val amount = itemStack.get(ChunkerItemProperty.AMOUNT).orElse(1)
-        val durability = itemStack.get(ChunkerItemProperty.DURABILITY).orElse(0)
+        val amount = itemStack.get(ChunkerItemProperty.AMOUNT).toNullable() ?: 1
+        val durability = itemStack.get(ChunkerItemProperty.DURABILITY).toNullable() ?: 0
         return MclItemStack(name, amount, durability)
     }
 }
@@ -112,7 +116,6 @@ object MclBlockEntityRegistry {
         val size = 27 // Mineclonia 单箱子为 27 格
         val items = MutableList(size) { MclItemStack("", 0) }
 
-        // 填充物品
         for ((slotByte, chunkerItem) in chest.items) {
             val slot = slotByte.toInt()
             if (slot in 0 until size) {
@@ -136,7 +139,6 @@ object MclBlockEntityRegistry {
      * 2. 熔炉转换 (Furnace)
      */
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
-        // Minecraft 熔炉槽位: 0=原料(src), 1=燃料(fuel), 2=产物(dst)
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
         val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
         val dstItem = MclItemRegistry.fromChunker(furnace.items[2])
@@ -145,8 +147,8 @@ object MclBlockEntityRegistry {
             "infotext" to if (furnace.burnTime > 0) "Furnace (active)" else "Furnace out of fuel",
             "src_totaltime" to furnace.cookTimeTotal.toString(),
             "src_time" to furnace.cookTime.toString(),
-            "fuel_totaltime" to furnace.burnTime.toString(), // 对应燃烧总时间
-            "fuel_time" to "0" // 当前燃烧进度
+            "fuel_totaltime" to furnace.burnTime.toString(),
+            "fuel_time" to "0"
         )
 
         val inventories = mapOf(
@@ -162,7 +164,6 @@ object MclBlockEntityRegistry {
      * 3. 告示牌转换 (Sign)
      */
     private fun convertSign(sign: SignBlockEntity): MclBlockEntityData {
-        // 提取正面文字
         val textBuilder = StringBuilder()
         val frontLines = sign.front.lines
         for (lineElement in frontLines) {
@@ -217,9 +218,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields)
     }
 
-    /**
-     * 辅助方法：从 Chunker 的 JsonText 中提取纯文本
-     */
     private fun extractTextFromJson(element: JsonElement?): String {
         if (element == null || element.isJsonNull) return ""
         if (element.isJsonPrimitive) {
