@@ -1,0 +1,1074 @@
+.
+├── WorldConverter.java
+├── encoding
+│   ├── EncoderLevelReaderConstructor.java
+│   ├── EncoderLevelWriterConstructor.java
+│   ├── EncodingType.java
+│   ├── base
+│   │   ├── Converter.java
+│   │   ├── LevelReaderWriter.java
+│   │   ├── Version.java
+│   │   ├── reader
+│   │   │   ├── ColumnReader.java
+│   │   │   ├── LevelReader.java
+│   │   │   └── WorldReader.java
+│   │   ├── resolver
+│   │   │   ├── biome
+│   │   │   │   └── ChunkerBiomeResolver.java
+│   │   │   ├── blockentity
+│   │   │   │   ├── BlockEntityHandler.java
+│   │   │   │   ├── BlockEntityResolver.java
+│   │   │   │   ├── CustomItemNBTBlockEntityHandler.java
+│   │   │   │   ├── DoNotProcessBlockEntityHandler.java
+│   │   │   │   ├── DoNotWriteBlockEntityHandler.java
+│   │   │   │   ├── EmptyBlockEntityHandler.java
+│   │   │   │   ├── GenerateBeforeProcessBlockEntityHandler.java
+│   │   │   │   ├── GenerateBeforeWriteBlockEntityHandler.java
+│   │   │   │   ├── UpdateBeforeProcessBlockEntityHandler.java
+│   │   │   │   └── UpdateBeforeWriteBlockEntityHandler.java
+│   │   │   ├── entity
+│   │   │   │   ├── DoNotProcessEntityHandler.java
+│   │   │   │   ├── DoNotWriteEntityHandler.java
+│   │   │   │   ├── EmptyEntityHandler.java
+│   │   │   │   ├── EntityHandler.java
+│   │   │   │   ├── EntityResolver.java
+│   │   │   │   ├── GenerateBeforeProcessEntityHandler.java
+│   │   │   │   ├── GenerateBeforeWriteEntityHandler.java
+│   │   │   │   ├── UpdateBeforeProcessEntityHandler.java
+│   │   │   │   └── UpdateBeforeWriteEntityHandler.java
+│   │   │   ├── identifier
+│   │   │   │   ├── BlockMapping.java
+│   │   │   │   ├── ChunkerBlockIdentifierResolver.java
+│   │   │   │   ├── ChunkerItemIdentifierResolver.java
+│   │   │   │   ├── ComparableItemProperty.java
+│   │   │   │   ├── ItemMapping.java
+│   │   │   │   └── state
+│   │   │   │       ├── StateLookupFunction.java
+│   │   │   │       ├── StateMapping.java
+│   │   │   │       ├── StateMappingGroup.java
+│   │   │   │       ├── TypeMapping.java
+│   │   │   │       └── VersionedStateMappingGroup.java
+│   │   │   └── itemstack
+│   │   │       └── ItemStackResolver.java
+│   │   └── writer
+│   │       ├── ColumnWriter.java
+│   │       ├── LevelWriter.java
+│   │       └── WorldWriter.java
+│   ├── bedrock
+│   │   ├── BedrockDataVersion.java
+│   │   ├── BedrockEncoders.java
+│   │   ├── BedrockLevelReaderConstructor.java
+│   │   ├── BedrockLevelWriterConstructor.java
+│   │   ├── base
+│   │   │   ├── BedrockReaderWriter.java
+│   │   │   ├── reader
+│   │   │   │   ├── BedrockChunkReader.java
+│   │   │   │   ├── BedrockColumnReader.java
+│   │   │   │   ├── BedrockLevelReader.java
+│   │   │   │   ├── BedrockWorldReader.java
+│   │   │   │   └── pretransform
+│   │   │   │       ├── BedrockReaderPreTransformManager.java
+│   │   │   │       └── handlers
+│   │   │   │           ├── BedrockChestPreTransformHandler.java
+│   │   │   │           ├── BedrockDoorPreTransformHandler.java
+│   │   │   │           ├── BedrockFenceGatePreTransformHandler.java
+│   │   │   │           ├── BedrockFirePreTransformHandler.java
+│   │   │   │           ├── BedrockHangingPlantPreTransformHandler.java
+│   │   │   │           ├── BedrockNoteBlockPreTransformHandler.java
+│   │   │   │           ├── BedrockRedstonePreTransformHandler.java
+│   │   │   │           ├── BedrockStairShapePreTransformHandler.java
+│   │   │   │           ├── BedrockStemPreTransformHandler.java
+│   │   │   │           └── BedrockWallPreTransformHandler.java
+│   │   │   ├── resolver
+│   │   │   │   ├── BedrockResolvers.java
+│   │   │   │   ├── BedrockResolversBuilder.java
+│   │   │   │   ├── biome
+│   │   │   │   │   └── BedrockBiomeIDResolver.java
+│   │   │   │   ├── blockentity
+│   │   │   │   │   ├── BedrockBlockEntityResolver.java
+│   │   │   │   │   ├── handlers
+│   │   │   │   │   │   ├── BedrockBannerBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockBeaconBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockBedBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockBrewingStandBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockBrushableBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockCampfireBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockCauldronBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockChestBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockChiseledBookshelfBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockCommandBlockBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockComparatorBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockContainerBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockCopperGolemStatueBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockCrafterBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockDecoratedPotBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockEndGatewayBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockFlowerPotBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockFurnaceBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockItemFrameBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockJigsawBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockJukeboxBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockLecternBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockLodestoneBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockNoteBlockBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockPistonArmBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockRandomizableContainerBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockSculkSensorBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockShelfBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockShulkerBoxBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockSignBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockSkullBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockSpawnerBlockEntityHandler.java
+│   │   │   │   │   │   ├── BedrockSporeBlossomBlockEntityHandler.java
+│   │   │   │   │   │   └── BedrockStructureBlockEntityHandler.java
+│   │   │   │   │   └── type
+│   │   │   │   │       ├── BedrockBedBlockEntity.java
+│   │   │   │   │       ├── BedrockBrushableBlockEntity.java
+│   │   │   │   │       ├── BedrockChestBlockEntity.java
+│   │   │   │   │       ├── BedrockCopperGolemStatueBlockEntity.java
+│   │   │   │   │       ├── BedrockFlowerPotBlockEntity.java
+│   │   │   │   │       ├── BedrockGlowItemFrameBlockEntity.java
+│   │   │   │   │       ├── BedrockItemFrameBlockEntity.java
+│   │   │   │   │       ├── BedrockLodestoneBlockEntity.java
+│   │   │   │   │       ├── BedrockMovingBlockBlockEntity.java
+│   │   │   │   │       ├── BedrockNoteBlockBlockEntity.java
+│   │   │   │   │       ├── BedrockPistonArmBlockEntity.java
+│   │   │   │   │       ├── BedrockShulkerBlockEntity.java
+│   │   │   │   │       ├── BedrockSkullBlockEntity.java
+│   │   │   │   │       └── BedrockSporeBlossomBlockEntity.java
+│   │   │   │   ├── entity
+│   │   │   │   │   ├── BedrockEntityResolver.java
+│   │   │   │   │   ├── BedrockEntityTypeIDResolver.java
+│   │   │   │   │   ├── BedrockEntityTypeResolver.java
+│   │   │   │   │   ├── BedrockPaintingMotiveResolver.java
+│   │   │   │   │   └── handlers
+│   │   │   │   │       ├── BedrockEntityHandler.java
+│   │   │   │   │       ├── BedrockHangingEntityHandler.java
+│   │   │   │   │       ├── BedrockItemFrameEntityHandler.java
+│   │   │   │   │       └── BedrockPaintingEntityHandler.java
+│   │   │   │   ├── identifier
+│   │   │   │   │   ├── BedrockBlockCompoundTag.java
+│   │   │   │   │   ├── BedrockBlockIdentifierResolver.java
+│   │   │   │   │   ├── BedrockItemIdentifierResolver.java
+│   │   │   │   │   ├── BedrockNBTBlockIdentifierResolver.java
+│   │   │   │   │   ├── BedrockStateGroups.java
+│   │   │   │   │   ├── BedrockStateTypes.java
+│   │   │   │   │   └── legacy
+│   │   │   │   │       ├── BedrockLegacyBlockIdentifierResolver.java
+│   │   │   │   │       ├── BedrockLegacyStateGroups.java
+│   │   │   │   │       ├── BedrockLegacyStateTypes.java
+│   │   │   │   │       └── BedrockNBTLegacyBlockIdentifierResolver.java
+│   │   │   │   └── itemstack
+│   │   │   │       ├── BedrockBannerPatternResolver.java
+│   │   │   │       ├── BedrockEffectIDResolver.java
+│   │   │   │       ├── BedrockEnchantmentIDResolver.java
+│   │   │   │       ├── BedrockItemStackResolver.java
+│   │   │   │       ├── BedrockPotionIDResolver.java
+│   │   │   │       ├── BedrockTrimMaterialResolver.java
+│   │   │   │       ├── BedrockTrimPatternResolver.java
+│   │   │   │       └── legacy
+│   │   │   │           └── BedrockLegacyItemStackResolver.java
+│   │   │   └── writer
+│   │   │       ├── BedrockChunkWriter.java
+│   │   │       ├── BedrockColumnWriter.java
+│   │   │       ├── BedrockLevelWriter.java
+│   │   │       ├── BedrockWorldWriter.java
+│   │   │       └── pretransform
+│   │   │           └── BedrockWriterPreTransformManager.java
+│   │   ├── util
+│   │   │   ├── ColumnUtil.java
+│   │   │   ├── LevelDBChunkType.java
+│   │   │   ├── LevelDBKey.java
+│   │   │   ├── PaletteUtil.java
+│   │   │   └── PositionTrackingDBUtil.java
+│   │   ├── v1_13
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_14
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_16
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_17
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_17_30
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_18
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_18_30
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_19
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_19_80
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20_30
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20_50
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20_60
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_100
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_110
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_40
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_50
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_60
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_80
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_90
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_26_20
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   └── v1_26_30
+│   │       ├── reader
+│   │       │   ├── ChunkReader.java
+│   │       │   ├── ColumnReader.java
+│   │       │   ├── LevelReader.java
+│   │       │   └── WorldReader.java
+│   │       └── writer
+│   │           ├── ChunkWriter.java
+│   │           ├── ColumnWriter.java
+│   │           ├── LevelWriter.java
+│   │           └── WorldWriter.java
+│   ├── java
+│   │   ├── JavaDataVersion.java
+│   │   ├── JavaEncoders.java
+│   │   ├── JavaLevelReaderConstructor.java
+│   │   ├── JavaLevelWriterConstructor.java
+│   │   ├── base
+│   │   │   ├── JavaReaderWriter.java
+│   │   │   ├── reader
+│   │   │   │   ├── JavaChunkReader.java
+│   │   │   │   ├── JavaColumnReader.java
+│   │   │   │   ├── JavaLevelReader.java
+│   │   │   │   ├── JavaWorldReader.java
+│   │   │   │   ├── pretransform
+│   │   │   │   │   ├── JavaReaderPreTransformManager.java
+│   │   │   │   │   └── legacy
+│   │   │   │   │       ├── JavaLegacyReaderPreTransformManager.java
+│   │   │   │   │       └── handlers
+│   │   │   │   │           ├── JavaLegacyChestPreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyDoorPreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyFenceGatePreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyFirePreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyNoteBlockPreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyRedstonePreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyStairShapePreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyStemPreTransformHandler.java
+│   │   │   │   │           ├── JavaLegacyTallPlantsPreTransformHandler.java
+│   │   │   │   │           └── JavaLegacyWallPreTransformHandler.java
+│   │   │   │   └── util
+│   │   │   │       └── MCAReader.java
+│   │   │   ├── resolver
+│   │   │   │   ├── JavaLevelDirectoryResolver.java
+│   │   │   │   ├── JavaResolvers.java
+│   │   │   │   ├── JavaResolversBuilder.java
+│   │   │   │   ├── biome
+│   │   │   │   │   ├── JavaBiomeIDResolver.java
+│   │   │   │   │   └── JavaNamedBiomeResolver.java
+│   │   │   │   ├── blockentity
+│   │   │   │   │   ├── JavaBlockEntityResolver.java
+│   │   │   │   │   ├── handlers
+│   │   │   │   │   │   ├── JavaBannerBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaBeaconBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaBedBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaBrewingStandBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaBrushableBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaCampfireBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaCauldronBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaChiseledBookshelfBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaCommandBlockBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaComparatorBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaContainerBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaCrafterBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaDecoratedPotBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaEnchantmentBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaEndGatewayBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaFurnaceBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaJigsawBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaJukeboxBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaLecternBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaPistonArmBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaRandomizableContainerBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaSculkSensorBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaShelfBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaSignBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaSkullBlockEntityHandler.java
+│   │   │   │   │   │   ├── JavaSpawnerBlockEntityHandler.java
+│   │   │   │   │   │   └── JavaStructureBlockEntityHandler.java
+│   │   │   │   │   ├── legacy
+│   │   │   │   │   │   ├── JavaLegacyBlockEntityResolver.java
+│   │   │   │   │   │   ├── handlers
+│   │   │   │   │   │   │   ├── JavaLegacyBannerBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyBeaconBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyBedBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyBrewingStandBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyCauldronBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyChestBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyCommandBlockBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyComparatorBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyContainerBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyEnchantmentBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyEndGatewayBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyFlowerPotBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyFurnaceBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyJukeboxBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyNoteBlockBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyPistonArmBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacyRandomizableContainerBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacySignBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacySkullBlockEntityHandler.java
+│   │   │   │   │   │   │   ├── JavaLegacySpawnerBlockEntityHandler.java
+│   │   │   │   │   │   │   └── JavaLegacyStructureBlockEntityHandler.java
+│   │   │   │   │   │   └── type
+│   │   │   │   │   │       ├── JavaLegacyBedBlockEntity.java
+│   │   │   │   │   │       ├── JavaLegacyFlowerPotBlockEntity.java
+│   │   │   │   │   │       ├── JavaLegacyNoteBlockBlockEntity.java
+│   │   │   │   │   │       └── JavaLegacySkullBlockEntity.java
+│   │   │   │   │   └── type
+│   │   │   │   │       └── JavaPistonMovingBlockEntity.java
+│   │   │   │   ├── entity
+│   │   │   │   │   ├── JavaEntityResolver.java
+│   │   │   │   │   ├── JavaEntityTypeResolver.java
+│   │   │   │   │   ├── JavaPaintingMotiveResolver.java
+│   │   │   │   │   ├── handlers
+│   │   │   │   │   │   ├── JavaEntityHandler.java
+│   │   │   │   │   │   ├── JavaHangingEntityHandler.java
+│   │   │   │   │   │   ├── JavaItemFrameEntityHandler.java
+│   │   │   │   │   │   └── JavaPaintingEntityHandler.java
+│   │   │   │   │   └── legacy
+│   │   │   │   │       ├── JavaLegacyEntityResolver.java
+│   │   │   │   │       ├── JavaLegacyEntityTypeIDResolver.java
+│   │   │   │   │       ├── JavaLegacyEntityTypeResolver.java
+│   │   │   │   │       ├── JavaLegacyPaintingMotiveResolver.java
+│   │   │   │   │       └── handlers
+│   │   │   │   │           ├── JavaLegacyEntityHandler.java
+│   │   │   │   │           ├── JavaLegacyHangingEntityHandler.java
+│   │   │   │   │           ├── JavaLegacyItemFrameEntityHandler.java
+│   │   │   │   │           └── JavaLegacyPaintingEntityHandler.java
+│   │   │   │   ├── identifier
+│   │   │   │   │   ├── JavaBlockIdentifierResolver.java
+│   │   │   │   │   ├── JavaItemIdentifierResolver.java
+│   │   │   │   │   ├── JavaNBTBlockIdentifierResolver.java
+│   │   │   │   │   ├── JavaStateGroups.java
+│   │   │   │   │   ├── JavaStateTypes.java
+│   │   │   │   │   └── legacy
+│   │   │   │   │       ├── JavaLegacyBlockIDResolver.java
+│   │   │   │   │       ├── JavaLegacyBlockIdentifierResolver.java
+│   │   │   │   │       ├── JavaLegacyItemIDResolver.java
+│   │   │   │   │       ├── JavaLegacyItemIdentifierResolver.java
+│   │   │   │   │       ├── JavaLegacyStateGroups.java
+│   │   │   │   │       └── JavaLegacyStateTypes.java
+│   │   │   │   └── itemstack
+│   │   │   │       ├── JavaBannerPatternResolver.java
+│   │   │   │       ├── JavaBannerPatternShortNameResolver.java
+│   │   │   │       ├── JavaComponentItemStackResolver.java
+│   │   │   │       ├── JavaEffectIDResolver.java
+│   │   │   │       ├── JavaEffectResolver.java
+│   │   │   │       ├── JavaEnchantmentIDResolver.java
+│   │   │   │       ├── JavaEnchantmentResolver.java
+│   │   │   │       ├── JavaHornInstrumentResolver.java
+│   │   │   │       ├── JavaItemStackResolver.java
+│   │   │   │       ├── JavaMapColorsResolver.java
+│   │   │   │       ├── JavaPotionTypeResolver.java
+│   │   │   │       ├── JavaTrimMaterialResolver.java
+│   │   │   │       ├── JavaTrimPatternResolver.java
+│   │   │   │       └── legacy
+│   │   │   │           ├── JavaLegacyItemStackResolver.java
+│   │   │   │           └── JavaLegacyPotionIDResolver.java
+│   │   │   └── writer
+│   │   │       ├── JavaChunkWriter.java
+│   │   │       ├── JavaColumnWriter.java
+│   │   │       ├── JavaLevelWriter.java
+│   │   │       ├── JavaWorldWriter.java
+│   │   │       └── pretransform
+│   │   │           ├── JavaWriterPreTransformManager.java
+│   │   │           └── legacy
+│   │   │               └── JavaLegacyWriterPreTransformManager.java
+│   │   ├── util
+│   │   │   ├── FontUtil.java
+│   │   │   └── PaletteUtil.java
+│   │   ├── v1_11
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_13
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_14
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_15
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_16
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_17
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_18
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_19_3
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20_3
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_20_5
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_11
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_2
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_4
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_6
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v1_21_9
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   ├── v26_1
+│   │   │   ├── LevelDirectoryResolver.java
+│   │   │   ├── reader
+│   │   │   │   ├── ChunkReader.java
+│   │   │   │   ├── ColumnReader.java
+│   │   │   │   ├── LevelReader.java
+│   │   │   │   └── WorldReader.java
+│   │   │   └── writer
+│   │   │       ├── ChunkWriter.java
+│   │   │       ├── ColumnWriter.java
+│   │   │       ├── LevelWriter.java
+│   │   │       └── WorldWriter.java
+│   │   └── v26_2
+│   │       ├── reader
+│   │       │   ├── ChunkReader.java
+│   │       │   ├── ColumnReader.java
+│   │       │   ├── LevelReader.java
+│   │       │   └── WorldReader.java
+│   │       └── writer
+│   │           ├── ChunkWriter.java
+│   │           ├── ColumnWriter.java
+│   │           ├── LevelWriter.java
+│   │           └── WorldWriter.java
+│   ├── preview
+│   │   ├── PreviewColumnWriter.java
+│   │   ├── PreviewLevelWriter.java
+│   │   └── PreviewWorldWriter.java
+│   └── settings
+│       ├── SettingsLevelWriter.java
+│       └── SettingsWorldWriter.java
+├── handlers
+│   ├── ColumnConversionHandler.java
+│   ├── LevelConversionHandler.java
+│   ├── WorldConversionHandler.java
+│   ├── pipeline
+│   │   └── Pipeline.java
+│   ├── pretransform
+│   │   ├── ColumnPreTransformConversionHandler.java
+│   │   ├── ColumnPreTransformWriterConversionHandler.java
+│   │   ├── Edge.java
+│   │   └── manager
+│   │       ├── PendingPreTransform.java
+│   │       ├── PreTransformManager.java
+│   │       └── handler
+│   │           ├── block
+│   │           │   ├── BlockPreTransformHandler.java
+│   │           │   ├── ConnectableBlockPreTransformHandler.java
+│   │           │   ├── HorizontalConnectableBlockPreTransformHandler.java
+│   │           │   └── SingleConnectableBlockPreTransformHandler.java
+│   │           └── entity
+│   │               └── EntityPreTransformHandler.java
+│   └── writer
+│       ├── ColumnWriterConversionHandler.java
+│       ├── LevelWriterConversionHandler.java
+│       └── WorldWriterConversionHandler.java
+├── intermediate
+│   ├── column
+│   │   ├── ChunkerColumn.java
+│   │   ├── biome
+│   │   │   ├── ChunkerBiome.java
+│   │   │   ├── ChunkerCustomBiome.java
+│   │   │   └── layout
+│   │   │       ├── ChunkerBiomes.java
+│   │   │       ├── ChunkerClusterBasedBiomes.java
+│   │   │       ├── ChunkerClusterPaletteBasedBiomes.java
+│   │   │       ├── ChunkerColumnBasedBiomes.java
+│   │   │       └── ChunkerPaletteBasedBiomes.java
+│   │   ├── blockentity
+│   │   │   ├── BannerBlockEntity.java
+│   │   │   ├── BeaconBlockEntity.java
+│   │   │   ├── BedBlockEntity.java
+│   │   │   ├── BeehiveBlockEntity.java
+│   │   │   ├── BellBlockEntity.java
+│   │   │   ├── BlockEntity.java
+│   │   │   ├── BrushableBlockEntity.java
+│   │   │   ├── CampfireBlockEntity.java
+│   │   │   ├── CauldronBlockEntity.java
+│   │   │   ├── ChiseledBookshelfBlockEntity.java
+│   │   │   ├── CommandBlockEntity.java
+│   │   │   ├── ComparatorBlockEntity.java
+│   │   │   ├── ConduitBlockEntity.java
+│   │   │   ├── CopperGolemStatueBlockEntity.java
+│   │   │   ├── CreakingHeartBlockEntity.java
+│   │   │   ├── DaylightDetectorBlockEntity.java
+│   │   │   ├── DecoratedPotBlockEntity.java
+│   │   │   ├── EnchantmentTableBlockEntity.java
+│   │   │   ├── JigsawBlockEntity.java
+│   │   │   ├── JukeboxBlockEntity.java
+│   │   │   ├── LecternBlockEntity.java
+│   │   │   ├── PotentSulfurBlockEntity.java
+│   │   │   ├── SculkCatalystBlockEntity.java
+│   │   │   ├── SculkShriekerBlockEntity.java
+│   │   │   ├── ShelfBlockEntity.java
+│   │   │   ├── SkullBlockEntity.java
+│   │   │   ├── SpawnerBlockEntity.java
+│   │   │   ├── StructureBlockEntity.java
+│   │   │   ├── TestBlockEntity.java
+│   │   │   ├── TestInstanceBlockEntity.java
+│   │   │   ├── TrialSpawnerBlockEntity.java
+│   │   │   ├── UnknownBlockEntity.java
+│   │   │   ├── VaultBlockEntity.java
+│   │   │   ├── container
+│   │   │   │   ├── BlastFurnaceBlockEntity.java
+│   │   │   │   ├── BrewingStandBlockEntity.java
+│   │   │   │   ├── ContainerBlockEntity.java
+│   │   │   │   ├── EnderChestBlockEntity.java
+│   │   │   │   ├── FurnaceBlockEntity.java
+│   │   │   │   ├── HopperBlockEntity.java
+│   │   │   │   ├── SmokerBlockEntity.java
+│   │   │   │   └── randomizable
+│   │   │   │       ├── BarrelBlockEntity.java
+│   │   │   │       ├── ChestBlockEntity.java
+│   │   │   │       ├── CrafterBlockEntity.java
+│   │   │   │       ├── DispenserBlockEntity.java
+│   │   │   │       ├── DropperBlockEntity.java
+│   │   │   │       ├── RandomizableContainerBlockEntity.java
+│   │   │   │       ├── ShulkerBoxBlockEntity.java
+│   │   │   │       └── TrappedChestBlockEntity.java
+│   │   │   ├── end
+│   │   │   │   ├── EndGatewayBlockEntity.java
+│   │   │   │   └── EndPortalBlockEntity.java
+│   │   │   ├── sculksensor
+│   │   │   │   ├── CalibratedSculkSensorBlockEntity.java
+│   │   │   │   └── SculkSensorBlockEntity.java
+│   │   │   └── sign
+│   │   │       ├── HangingSignBlockEntity.java
+│   │   │       └── SignBlockEntity.java
+│   │   ├── chunk
+│   │   │   ├── ChunkCoordPair.java
+│   │   │   ├── ChunkerChunk.java
+│   │   │   ├── RegionCoordPair.java
+│   │   │   ├── identifier
+│   │   │   │   ├── ChunkerBlockIdentifier.java
+│   │   │   │   ├── ChunkerItemStackIdentifier.java
+│   │   │   │   ├── ChunkerItemStackIdentifierType.java
+│   │   │   │   ├── PreservedIdentifier.java
+│   │   │   │   └── type
+│   │   │   │       ├── block
+│   │   │   │       │   ├── ChunkerBlockType.java
+│   │   │   │       │   ├── ChunkerCustomBlockType.java
+│   │   │   │       │   ├── ChunkerVanillaBlockGroups.java
+│   │   │   │       │   ├── ChunkerVanillaBlockType.java
+│   │   │   │       │   └── states
+│   │   │   │       │       ├── BlockState.java
+│   │   │   │       │       ├── BlockStateValue.java
+│   │   │   │       │       └── vanilla
+│   │   │   │       │           ├── VanillaBlockStateGroups.java
+│   │   │   │       │           ├── VanillaBlockStates.java
+│   │   │   │       │           └── types
+│   │   │   │       │               ├── Age_1.java
+│   │   │   │       │               ├── Age_15.java
+│   │   │   │       │               ├── Age_2.java
+│   │   │   │       │               ├── Age_25.java
+│   │   │   │       │               ├── Age_3.java
+│   │   │   │       │               ├── Age_4.java
+│   │   │   │       │               ├── Age_5.java
+│   │   │   │       │               ├── Age_7.java
+│   │   │   │       │               ├── AttachmentType.java
+│   │   │   │       │               ├── Axis.java
+│   │   │   │       │               ├── AxisHorizontal.java
+│   │   │   │       │               ├── BambooLeafSize.java
+│   │   │   │       │               ├── BedPart.java
+│   │   │   │       │               ├── BellAttachmentType.java
+│   │   │   │       │               ├── Bites.java
+│   │   │   │       │               ├── Bool.java
+│   │   │   │       │               ├── Candles.java
+│   │   │   │       │               ├── CauldronLevel.java
+│   │   │   │       │               ├── ChestType.java
+│   │   │   │       │               ├── ComparatorMode.java
+│   │   │   │       │               ├── ComposterLevel.java
+│   │   │   │       │               ├── CopperGolemPose.java
+│   │   │   │       │               ├── CoralFanDirection.java
+│   │   │   │       │               ├── Creaking.java
+│   │   │   │       │               ├── Delay.java
+│   │   │   │       │               ├── Distance.java
+│   │   │   │       │               ├── DripstoneThickness.java
+│   │   │   │       │               ├── Dusted.java
+│   │   │   │       │               ├── Eggs.java
+│   │   │   │       │               ├── FacingDirection.java
+│   │   │   │       │               ├── FacingDirectionHorizontal.java
+│   │   │   │       │               ├── FacingDirectionHorizontalDown.java
+│   │   │   │       │               ├── Flowers.java
+│   │   │   │       │               ├── GrindstoneAttachmentType.java
+│   │   │   │       │               ├── Half.java
+│   │   │   │       │               ├── Hatch.java
+│   │   │   │       │               ├── HingeSide.java
+│   │   │   │       │               ├── HoneyLevel.java
+│   │   │   │       │               ├── Layers.java
+│   │   │   │       │               ├── LightLevel.java
+│   │   │   │       │               ├── LiquidLevel.java
+│   │   │   │       │               ├── Moisture.java
+│   │   │   │       │               ├── Note.java
+│   │   │   │       │               ├── NoteBlockInstrument.java
+│   │   │   │       │               ├── Orientation.java
+│   │   │   │       │               ├── Pickles.java
+│   │   │   │       │               ├── PistonType.java
+│   │   │   │       │               ├── PotentSulfurState.java
+│   │   │   │       │               ├── Power.java
+│   │   │   │       │               ├── RailShape.java
+│   │   │   │       │               ├── RailShapeStraight.java
+│   │   │   │       │               ├── RedstoneConnection.java
+│   │   │   │       │               ├── RehydrationLevel.java
+│   │   │   │       │               ├── RespawnAnchorCharges.java
+│   │   │   │       │               ├── Rotation.java
+│   │   │   │       │               ├── SculkSensorPhase.java
+│   │   │   │       │               ├── Segments.java
+│   │   │   │       │               ├── SideChain.java
+│   │   │   │       │               ├── SlabType.java
+│   │   │   │       │               ├── StabilityDistance.java
+│   │   │   │       │               ├── Stage.java
+│   │   │   │       │               ├── StairShape.java
+│   │   │   │       │               ├── StructureBlockMode.java
+│   │   │   │       │               ├── StructureVoidType.java
+│   │   │   │       │               ├── TestBlockMode.java
+│   │   │   │       │               ├── Tilt.java
+│   │   │   │       │               ├── TrialSpawnerState.java
+│   │   │   │       │               ├── VaultState.java
+│   │   │   │       │               ├── VerticalDirection.java
+│   │   │   │       │               └── WallHeight.java
+│   │   │   │       └── item
+│   │   │   │           ├── ChunkerItemType.java
+│   │   │   │           └── ChunkerVanillaItemType.java
+│   │   │   ├── itemstack
+│   │   │   │   ├── ChunkerDyeColor.java
+│   │   │   │   ├── ChunkerItemDisplay.java
+│   │   │   │   ├── ChunkerItemProperty.java
+│   │   │   │   ├── ChunkerItemStack.java
+│   │   │   │   ├── ChunkerLodestoneData.java
+│   │   │   │   ├── banner
+│   │   │   │   │   └── ChunkerBannerPattern.java
+│   │   │   │   ├── enchantment
+│   │   │   │   │   └── ChunkerEnchantmentType.java
+│   │   │   │   ├── firework
+│   │   │   │   │   ├── ChunkerFireworkExplosion.java
+│   │   │   │   │   ├── ChunkerFireworkShape.java
+│   │   │   │   │   └── ChunkerFireworks.java
+│   │   │   │   ├── horn
+│   │   │   │   │   └── ChunkerHornInstrument.java
+│   │   │   │   ├── potion
+│   │   │   │   │   ├── ChunkerEffectType.java
+│   │   │   │   │   ├── ChunkerPotionBottleType.java
+│   │   │   │   │   └── ChunkerPotionType.java
+│   │   │   │   ├── stew
+│   │   │   │   │   └── ChunkerStewEffect.java
+│   │   │   │   └── trim
+│   │   │   │       ├── ChunkerTrim.java
+│   │   │   │       ├── ChunkerTrimMaterial.java
+│   │   │   │       └── ChunkerTrimPattern.java
+│   │   │   └── palette
+│   │   │       ├── EmptyPalette.java
+│   │   │       ├── Palette.java
+│   │   │       ├── ShortBasedPalette.java
+│   │   │       ├── SingleValuePalette.java
+│   │   │       └── WriteablePalette.java
+│   │   ├── entity
+│   │   │   ├── Entity.java
+│   │   │   ├── GlowItemFrameEntity.java
+│   │   │   ├── HangingEntity.java
+│   │   │   ├── ItemFrameEntity.java
+│   │   │   ├── PaintingEntity.java
+│   │   │   ├── UnknownEntity.java
+│   │   │   └── type
+│   │   │       ├── ChunkerCustomEntityType.java
+│   │   │       ├── ChunkerEntityType.java
+│   │   │       └── ChunkerVanillaEntityType.java
+│   │   └── heightmap
+│   │       ├── BedrockHeightMap.java
+│   │       ├── HeightMap.java
+│   │       └── JavaLegacyHeightMap.java
+│   ├── level
+│   │   ├── ChunkerGeneratorType.java
+│   │   ├── ChunkerLevel.java
+│   │   ├── ChunkerLevelPlayer.java
+│   │   ├── ChunkerLevelSettings.java
+│   │   ├── ChunkerPortal.java
+│   │   ├── annotations
+│   │   │   ├── Bedrock.java
+│   │   │   ├── Category.java
+│   │   │   ├── CustomType.java
+│   │   │   ├── Hidden.java
+│   │   │   └── Java.java
+│   │   └── map
+│   │       └── ChunkerMap.java
+│   └── world
+│       ├── ChunkerWorld.java
+│       ├── Dimension.java
+│       └── DimensionRegistry.java
+└── tree.txt
+
+228 directories, 844 files
