@@ -14,11 +14,6 @@ import java.util.Optional
 import java.util.logging.Logger
 
 /**
- * 扩展函数：将 Java 的 Optional 转换为 Kotlin 的可空类型
- */
-fun <T> Optional<T>.toNullable(): T? = if (isPresent) get() else null
-
-/**
  * Mineclonia 物品栈的内部表示
  */
 data class MclItemStack(
@@ -63,7 +58,7 @@ object MclItemRegistry {
             }
             else -> {
                 logger.warning("Unknown item type: ${type::class.java.name}")
-                "mcl_core:cobble" // 默认回退物品
+                "mcl_core:cobble"
             }
         }
     }
@@ -76,8 +71,14 @@ object MclItemRegistry {
             return MclItemStack("", 0)
         }
         val name = getItemName(itemStack.identifier)
-        val amount = itemStack.get(ChunkerItemProperty.AMOUNT).toNullable() ?: 1
-        val durability = itemStack.get(ChunkerItemProperty.DURABILITY).toNullable() ?: 0
+
+        // 显式处理 Optional 以避免 Kotlin 编译器推导错误
+        val amountOpt: Optional<Int> = itemStack.get(ChunkerItemProperty.AMOUNT)
+        val amount = if (amountOpt.isPresent) amountOpt.get() else 1
+
+        val durabilityOpt: Optional<Int> = itemStack.get(ChunkerItemProperty.DURABILITY)
+        val durability = if (durabilityOpt.isPresent) durabilityOpt.get() else 0
+
         return MclItemStack(name, amount, durability)
     }
 }
@@ -101,19 +102,13 @@ object MclBlockEntityRegistry {
         converters[clazz] = converter as (BlockEntity) -> MclBlockEntityData
     }
 
-    /**
-     * 执行方块实体转换
-     */
     fun convert(blockEntity: BlockEntity): MclBlockEntityData? {
         val converter = converters[blockEntity::class.java] ?: return null
         return converter(blockEntity)
     }
 
-    /**
-     * 1. 箱子转换 (Chest)
-     */
     private fun convertChest(chest: ChestBlockEntity): MclBlockEntityData {
-        val size = 27 // Mineclonia 单箱子为 27 格
+        val size = 27
         val items = MutableList(size) { MclItemStack("", 0) }
 
         for ((slotByte, chunkerItem) in chest.items) {
@@ -135,9 +130,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields, inventories)
     }
 
-    /**
-     * 2. 熔炉转换 (Furnace)
-     */
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
         val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
@@ -160,9 +152,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields, inventories)
     }
 
-    /**
-     * 3. 告示牌转换 (Sign)
-     */
     private fun convertSign(sign: SignBlockEntity): MclBlockEntityData {
         val textBuilder = StringBuilder()
         val frontLines = sign.front.lines
@@ -183,9 +172,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields)
     }
 
-    /**
-     * 4. 唱片机转换 (Jukebox)
-     */
     private fun convertJukebox(jukebox: JukeboxBlockEntity): MclBlockEntityData {
         val record = jukebox.record
         val fields = mutableMapOf<String, String>()
@@ -202,9 +188,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields, inventories)
     }
 
-    /**
-     * 5. 刷怪笼转换 (Spawner)
-     */
     private fun convertSpawner(spawner: SpawnerBlockEntity): MclBlockEntityData {
         val entityType = spawner.entityType
         val entityName = entityType?.let { "mcl_mobs:${it.toString().lowercase()}" } ?: "mcl_mobs:zombie"

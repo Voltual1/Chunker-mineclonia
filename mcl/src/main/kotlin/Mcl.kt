@@ -10,7 +10,6 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.Chunker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerItemStackIdentifier
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
-import java.util.Optional
 import java.util.logging.Logger
 
 /**
@@ -72,12 +71,9 @@ object MclItemRegistry {
         }
         val name = getItemName(itemStack.identifier)
 
-        // 显式处理 Optional 以避免 Kotlin 编译器推导错误
-        val amountOpt: Optional<Int> = itemStack.get(ChunkerItemProperty.AMOUNT)
-        val amount = if (amountOpt.isPresent) amountOpt.get() else 1
-
-        val durabilityOpt: Optional<Int> = itemStack.get(ChunkerItemProperty.DURABILITY)
-        val durability = if (durabilityOpt.isPresent) durabilityOpt.get() else 0
+        // 根据编译器提示，直接作为可空类型处理，并使用 Elvis 运算符提供默认值
+        val amount = itemStack.get(ChunkerItemProperty.AMOUNT) ?: 1
+        val durability = itemStack.get(ChunkerItemProperty.DURABILITY) ?: 0
 
         return MclItemStack(name, amount, durability)
     }
