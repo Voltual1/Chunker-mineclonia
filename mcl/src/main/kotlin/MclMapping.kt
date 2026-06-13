@@ -42,17 +42,63 @@ object MclMappingRegistry {
  * DSL 工具类
  */
 object MclMappingDsl {
-    fun simple(targetName: String) = BlockMapper { MclNode(targetName) }
 
+    // 1. 简单无状态方块映射
+    fun simple(targetName: String) = BlockMapper { _ ->
+        MclNode(targetName)
+    }
+
+    // 2. 朝向方块映射 (例如：熔炉、胸箱)
+    fun directional(targetName: String) = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
+        }.toByte()
+        MclNode(targetName, param2 = param2)
+    }
+
+    // 3. 楼梯方块映射 (Stairs)
+    fun stair(targetName: String) = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+        
+        // Minetest 的 facedir 楼梯朝向计算
+        val baseDir = when (facing) {
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.NORTH -> 2
+        }
+        val param2 = if (half == Half.TOP) {
+            // 倒置楼梯
+            (baseDir + 20).toByte()
+        } else {
+            baseDir.toByte()
+        }
+        MclNode(targetName, param2 = param2)
+    }
+
+    // 4. 台阶方块映射 (Slabs)
+    fun slab(bottomTarget: String, topTarget: String, doubleTarget: String) = BlockMapper { id ->
+        val type = id.getState(VanillaBlockStates.SLAB_TYPE) ?: SlabType.BOTTOM
+        when (type) {
+            SlabType.BOTTOM -> MclNode(bottomTarget)
+            SlabType.TOP -> MclNode(topTarget)
+            SlabType.DOUBLE -> MclNode(doubleTarget)
+        }
+    }
+
+    // 5. 原木轴向映射 (Log Axis)
     fun log(targetName: String) = BlockMapper { id ->
         val axis = id.getState(VanillaBlockStates.AXIS) ?: Axis.Y
-        val p2 = when (axis) {
+        val param2 = when (axis) {
             Axis.Y -> 0
             Axis.X -> 12
             Axis.Z -> 4
         }.toByte()
-        MclNode(targetName, param2 = p2)
+        MclNode(targetName, param2 = param2)
     }
-    
-    // 其他 DSL 方法 (stair, slab 等) 按需添加...
 }
