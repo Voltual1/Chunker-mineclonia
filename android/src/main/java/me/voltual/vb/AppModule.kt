@@ -19,6 +19,8 @@ import me.voltual.vb.core.database.repository.*
 import org.koin.dsl.module
 import me.voltual.vb.core.ui.theme.*
 import org.koin.core.qualifier.named
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
 val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
@@ -34,5 +36,19 @@ val appModule = module {
           single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
               single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
                   single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
-        single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }
+        single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }        
+    
+    // 1. 先把基础的 DataStore 实例批量生产并贴上标签（Qualifier）
+    val storeFiles = mapOf(
+        USER_AGREEMENT_STORE_QUALIFIER to "user_agreement_prefs.preferences_pb",
+        UPDATE_SETTINGS_STORE_QUALIFIER to "update_settings.preferences_pb",
+        DRAWER_MENU_STORE_QUALIFIER to "settings.preferences_pb",
+        THEME_SETTINGS_STORE_QUALIFIER to "theme_settings.preferences_pb"
+    )
+
+    storeFiles.forEach { (qualifier, fileName) ->
+        single<DataStore<Preferences>>(qualifier) {
+            createPreferenceDataStore(fileName, androidContext()) 
+        }
+    }
 }
