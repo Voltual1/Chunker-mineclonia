@@ -6,7 +6,7 @@
 //
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
-package me.voltual.pyrolysis.data
+package me.voltual.vb.data
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences

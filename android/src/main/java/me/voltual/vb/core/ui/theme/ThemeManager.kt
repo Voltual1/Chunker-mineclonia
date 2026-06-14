@@ -1,7 +1,7 @@
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 
-package me.voltual.pyrolysis.core.ui.theme
+package me.voltual.vb.core.ui.theme
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf

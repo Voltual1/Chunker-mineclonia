@@ -19,7 +19,7 @@ import kotlinx.coroutines.launch
 import me.voltual.vb.data.UserAgreementDataStore
 import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.database.dao.LogDao
-import me.voltual.pyrolysis.ui.*
+import me.voltual.vb.ui.*
 import org.koin.android.ext.android.inject
 
 class MainActivity : AppCompatActivity() {

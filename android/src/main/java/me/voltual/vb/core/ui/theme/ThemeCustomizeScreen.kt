@@ -1,4 +1,4 @@
-package me.voltual.pyrolysis.core.ui.theme
+package me.voltual.vb.core.ui.theme
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border

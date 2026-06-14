@@ -6,12 +6,9 @@
 //
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>。
-package me.voltual.pyrolysis.core.ui.theme
+package me.voltual.vb.core.ui.theme
 
 import androidx.compose.ui.graphics.Color
-
-val Orange = Color(0xFFFF9138)
-val LightGreen = Color(0xFFAEC300)
 
 val primaryLight = Color(0xFFA83159)
 val onPrimaryLight = Color(0xFFFFFFFF)

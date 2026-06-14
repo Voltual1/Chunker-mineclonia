@@ -1,7 +1,7 @@
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 
-package me.voltual.pyrolysis.core.ui.theme
+package me.voltual.vb.core.ui.theme
 
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
@@ -14,9 +14,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
-import org.jetbrains.compose.resources.Font
-import me.voltual.pyrolysis.Res
-import me.voltual.pyrolysis.unifont
 
 private val lightScheme = lightColorScheme(
     primary = primaryLight,
@@ -168,12 +165,9 @@ fun BBQTheme(
     } else {
         customColors?.lightSet?.toLightColorScheme() ?: lightScheme
     }
-
-    val unifontFamily = FontFamily(Font(resource = Res.font.unifont))
         
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = getAppTypography(unifontFamily),
         content = content
     )
 }
