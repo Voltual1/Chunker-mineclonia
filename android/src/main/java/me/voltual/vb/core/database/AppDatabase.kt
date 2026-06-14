@@ -19,7 +19,6 @@ import me.voltual.vb.core.database.entity.*
 import me.voltual.vb.core.database.repository.*
 
 @Database(entities = [LogEntry::class], version = 1, exportSchema = false)
-// 1. 使用 @ConstructedBy 关联 Room 3 的构造器
 @ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
   abstract fun logDao(): LogDao
@@ -30,7 +29,6 @@ abstract class AppDatabase : RoomDatabase() {
     fun getDatabase(context: Context): AppDatabase {
       return INSTANCE
         ?: synchronized(this) {
-          // 2. Room 3 的 databaseBuilder 变更为了单参数泛型形式，不再需要传入 AppDatabase::class.java
           val instance =
             Room.databaseBuilder<AppDatabase>(
                 context = context.applicationContext,
@@ -44,10 +42,7 @@ abstract class AppDatabase : RoomDatabase() {
   }
 }
 
-// 3. 声明 Room 3 必需的数据库构造器接口
-// 既然你明确表示只支持 Android，这里无需写 expect/actual，直接用普通的 object 实现接口即可
-// 这样既符合 Room 3 编译器的要求，又免去了多平台配置的繁琐
 @Suppress("KotlinNoActualForExpect")
-object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
+expect object AppDatabaseConstructor : RoomDatabaseConstructor<AppDatabase> {
     override fun initialize(): AppDatabase
 }
