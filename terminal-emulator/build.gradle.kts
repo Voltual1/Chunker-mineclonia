@@ -17,7 +17,6 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
-            // 适配 AGP 9.0：使用带 -optimize 的混淆规则文件
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt")
             )
