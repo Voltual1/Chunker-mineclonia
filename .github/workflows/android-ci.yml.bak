@@ -56,7 +56,7 @@ jobs:
           echo $ENCODED_STRING | base64 -d > android/tag_keystore.p12
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        run: ./gradlew assembleDebug
         env:
           KEYSTORE_PATH: tag_keystore.p12  # 注意路径要对应 build.gradle.kts
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
