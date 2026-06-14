@@ -1,7 +1,13 @@
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 
-package me.voltual.vb
+package me.voltual.pyrolysis
 
 import android.content.Context
 import android.content.Intent
@@ -16,6 +22,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import me.voltual.pyrolysis.data.UserAgreementDataStore
 import me.voltual.vb.data.UserAgreementDataStore
 import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.database.dao.LogDao
@@ -23,7 +30,7 @@ import me.voltual.vb.ui.*
 import org.koin.android.ext.android.inject
 
 class MainActivity : AppCompatActivity() {
-    private val agreementDataStore: UserAgreementDataStore by inject()
+    private val agreementDataStore: UserAgreementDataStore by inject()    
     
     override fun onCreate(savedInstanceState: Bundle?) {
         setTheme(R.style.Theme_BBQ_Main)

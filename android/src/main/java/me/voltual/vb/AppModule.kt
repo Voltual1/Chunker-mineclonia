@@ -34,5 +34,5 @@ val appModule = module {
           single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
               single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
                   single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
-    single { DeviceNameDataStore(get(DEVICE_INFO_STORE_QUALIFIER)) }
+        single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }
 }

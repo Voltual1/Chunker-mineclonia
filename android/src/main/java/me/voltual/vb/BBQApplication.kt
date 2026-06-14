@@ -18,10 +18,12 @@ import me.voltual.vb.core.database.*
 import me.voltual.vb.core.ui.theme.*
 import org.koin.android.ext.koin.androidContext
 import org.koin.androix.startup.KoinStartup
+import kotlinx.coroutines.runBlocking
 import org.koin.dsl.koinConfiguration
 
 class BBQApplication : Application(), KoinStartup {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+      val themeStore: ThemeColorDataStore by inject()
 
   lateinit var database: AppDatabase
     private set

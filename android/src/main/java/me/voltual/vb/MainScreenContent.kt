@@ -120,7 +120,6 @@ fun MainScreenContent(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val authRepository: AuthRepository = koinInject() 
     val themeStore: ThemeColorDataStore = koinInject()
 
     val currentRoute = navigationState.currentRoute
@@ -140,20 +139,6 @@ fun MainScreenContent(
     val drawerHeaderBackgroundUri = if (useDarkTheme) darkBgUri else lightBgUri
 
     val isLoggedIn = remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) {
-        val credentials = authRepository.credentials.first()
-        isLoggedIn.value = credentials.userId != 0L
-        if (isLoggedIn.value) {
-            tryAutoLogin(
-                username = credentials.username, 
-                password = credentials.password, 
-                authRepository = authRepository, 
-                navigator = navigator, 
-                snackbarHostState = snackbarHostState
-            )
-        }
-    }
-
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -184,19 +169,11 @@ fun MainScreenContent(
     ) {
         Scaffold(
             topBar = {
-                if (!isPlayerScreen) {
-                    TopAppBar(
-                        title = {
-                            val customContent = topAppBarController.titleContent
-                            if (customContent != null) {
-                                customContent()
-                            } else {
                                 Text(
                                     text = topAppBarController.customTitle ?: getTitleForDestination(currentRoute),
                                     color = MaterialTheme.colorScheme.onSurface,
                                     maxLines = 1
                                 )
-                            }
                         },
                         navigationIcon = {
                             if (showBackButton) {
