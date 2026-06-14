@@ -72,3 +72,4 @@ class MainActivity : AppCompatActivity() {
         """.trimIndent()
     }
 }
+}

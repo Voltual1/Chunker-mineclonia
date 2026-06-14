@@ -15,14 +15,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import me.voltual.vb.core.database.*
-import me.voltual.vb.core.ui.theme.ThemeColorStore
-import me.voltual.vb.core.ui.theme.ThemeManager
+import me.voltual.vb.core.ui.theme.*
 import org.koin.android.ext.koin.androidContext
 import org.koin.androix.startup.KoinStartup
 import org.koin.dsl.koinConfiguration
-import org.koin.core.annotation.KoinApplication
 
-@KoinApplication
 class BBQApplication : Application(), KoinStartup {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
@@ -35,8 +32,9 @@ class BBQApplication : Application(), KoinStartup {
 
     // 初始化
     database = AppDatabase.getDatabase(this)
-    ThemeManager.initialize(this)
-    ThemeManager.customColorSet = ThemeColorStore.loadColors(this)
+            runBlocking {
+            ThemeManager.updateCustomColors(themeStore.colorsFlow.first())
+        }
   }
 
   override fun onKoinStartup() = koinConfiguration {

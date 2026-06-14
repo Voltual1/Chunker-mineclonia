@@ -17,6 +17,7 @@ import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import me.voltual.vb.core.database.repository.*
 import org.koin.dsl.module
+import me.voltual.vb.core.ui.theme.*
 import org.koin.core.qualifier.named
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
