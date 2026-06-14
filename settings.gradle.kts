@@ -21,4 +21,5 @@ rootProject.name = "Vector-Breakthrough"
 include(":terminal-view")
 include(":terminal-emulator")
 include(":mcl")
+include(":android")
 include("cli", "app")
