@@ -168,6 +168,9 @@ dependencies {
     implementation(libs.ktor.io)
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
+    //termux
+        implementation(project(":terminal-view"))
+    implementation(project(":terminal-emulator"))
 
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)
