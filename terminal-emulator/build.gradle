@@ -3,7 +3,7 @@ apply plugin: 'com.android.library'
 android {
     namespace "com.termux.emulator"
     // 匹配你主项目的 SDK 版本
-    compileSdkVersion 36
+    compileSdkVersion 37
 
     defaultConfig {
         minSdkVersion 24
@@ -25,7 +25,7 @@ android {
     buildTypes {
         release {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'),
         }
     }
 
