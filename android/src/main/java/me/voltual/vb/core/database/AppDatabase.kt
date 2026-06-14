@@ -19,7 +19,6 @@ import me.voltual.vb.core.database.entity.*
 import me.voltual.vb.core.database.repository.*
 
 @Database(entities = [LogEntry::class], version = 1, exportSchema = false)
-@ConstructedBy(AppDatabaseConstructor::class)
 abstract class AppDatabase : RoomDatabase() {
   abstract fun logDao(): LogDao
 
