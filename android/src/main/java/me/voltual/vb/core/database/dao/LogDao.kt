@@ -14,6 +14,7 @@ import androidx.room3.Insert
 import androidx.room3.OnConflictStrategy
 import androidx.room3.Query
 import kotlinx.coroutines.flow.Flow
+import me.voltual.vb.core.database.entity.LogEntry
 
 @Dao
 interface LogDao {

@@ -9,6 +9,7 @@
 package me.voltual.vb.core.database.repository
 
 import org.koin.core.annotation.Single
+import me.voltual.vb.core.database.entity.LogEntry
 
 /**
  * 日志仓库，作为日志数据源的唯一入口。
