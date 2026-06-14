@@ -137,8 +137,7 @@ fun NavigationDrawerItems(
                             isDragged = false,
                             scope = scope,
                             drawerState = drawerState,
-                            navigator = navigator,
-                            authRepository = authRepository
+                            navigator = navigator
                         )
                         PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
                     } else {
@@ -150,8 +149,7 @@ fun NavigationDrawerItems(
                             isDragged = false,
                             scope = scope,
                             drawerState = drawerState,
-                            navigator = navigator,
-                            authRepository = authRepository
+                            navigator = navigator
                         )
                     }
                 } else {
@@ -162,8 +160,7 @@ fun NavigationDrawerItems(
                         isDragged = isBeingDragged,
                         scope = scope,
                         drawerState = drawerState,
-                        navigator = navigator,
-                        authRepository = authRepository,
+                        navigator = navigator
                         modifier = Modifier
                             .onSizeChanged { itemHeight = it.height }
                             .pointerInput(Unit) {
@@ -216,8 +213,7 @@ fun NavigationDrawerItems(
                     isDragged = false,
                     scope = scope,
                     drawerState = drawerState,
-                    navigator = navigator,
-                    authRepository = authRepository
+                    navigator = navigator
                 )
             }
         }
@@ -233,7 +229,6 @@ private fun ItemContent(
     scope: CoroutineScope,
     drawerState: DrawerState,
     navigator: Navigator,
-    authRepository: AuthRepository,
     modifier: Modifier = Modifier
 ) {
     val isSelected = selectedItemId == item.id

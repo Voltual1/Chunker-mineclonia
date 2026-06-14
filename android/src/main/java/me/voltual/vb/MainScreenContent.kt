@@ -131,8 +131,6 @@ fun MainScreenContent(
 
     val topAppBarController = LocalTopAppBarController.current
 
-    val isPlayerScreen = remember(currentRoute) { currentRoute is Player }
-
     val useDarkTheme = ThemeManager.isAppDarkTheme
     val lightBgUri by themeStore.drawerHeaderLightBackgroundUriFlow.collectAsState(initial = null)
     val darkBgUri by themeStore.drawerHeaderDarkBackgroundUriFlow.collectAsState(initial = null)
@@ -208,10 +206,8 @@ fun MainScreenContent(
             },
             snackbarHost = { BBQSnackbarHost(hostState = snackbarHostState) },
             content = { innerPadding ->
-                val contentPadding = when {
-                    isPlayerScreen -> PaddingValues(0.dp)
-                    else -> innerPadding
-                }
+                val contentPadding = innerPadding
+                
 
                 val currentBackStack = navigationState.backStacks[currentTopLevelRoute]
                     ?: navigationState.backStacks[navigationState.startRoute]!!
