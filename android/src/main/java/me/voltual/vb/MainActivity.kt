@@ -10,6 +10,7 @@
 package me.voltual.vb
 
 import android.content.Context
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import android.content.Intent
 import android.app.ActivityOptions
 import android.os.Bundle

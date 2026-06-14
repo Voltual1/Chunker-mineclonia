@@ -175,6 +175,7 @@ dependencies {
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)
     implementation(libs.kotlinx.collections.immutable)
+    implementation(project(":cli"))
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
