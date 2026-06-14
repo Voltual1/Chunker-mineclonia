@@ -1,5 +1,3 @@
-// termux-emulator/build.gradle.kts
-
 plugins {
     id("com.android.library")
 }
@@ -17,16 +15,10 @@ android {
         }
     }
 
-    sourceSets {
-        getByName("main") {
-            jniLibs.setSrcDirs(listOf("src/main/jni"))
-        }
-    }
-
     buildTypes {
         release {
             isMinifyEnabled = false
-            // AGP 9.0 强制要求使用 -optimize 版本
+            // 适配 AGP 9.0：使用带 -optimize 的混淆规则文件
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt")
             )
