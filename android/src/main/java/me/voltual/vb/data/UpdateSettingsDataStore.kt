@@ -14,9 +14,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.koin.core.annotation.Single
 
-@Single
 class UpdateSettingsDataStore(private val dataStore: DataStore<Preferences>) {
     
     companion object {

@@ -12,14 +12,12 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import org.koin.core.annotation.Single
 
 object AgreementVersions {
     const val USER_AGREEMENT = 3
     const val XIAOQU_AGREEMENT = 2 
 }
 
-@Single
 class UserAgreementDataStore(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {

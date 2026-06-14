@@ -85,8 +85,13 @@ fun BBQNavDisplay(
         is ThemeCustomize ->
           NavEntry(key) { ThemeCustomizeScreen(modifier = Modifier.fillMaxSize()) }
 
-        is UpdateSettings ->
-          NavEntry(key) { UpdateSettingsScreen(snackbarHostState = snackbarHostState) }
+                                is UpdateSettings -> {
+                            val viewModel: UpdateSettingsViewModel = koinViewModel()
+                            UpdateSettingsScreen(
+                                viewModel = viewModel,
+                                snackbarHostState = snackbarHostState
+                            )
+                        }
         // 保底逻辑
         else ->
           NavEntry(key) {
@@ -100,4 +105,6 @@ fun BBQNavDisplay(
       }
     },
   )
+}
+}
 }

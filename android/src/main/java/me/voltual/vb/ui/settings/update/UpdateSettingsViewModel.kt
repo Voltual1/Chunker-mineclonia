@@ -20,7 +20,6 @@ import me.voltual.vb.data.UpdateSettingsDataStore
 import me.voltual.vb.KtorClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import me.voltual.vb.shared.BuildConfig
 import me.voltual.vb.data.UpdateInfo
 import kotlinx.serialization.json.Json
 import io.ktor.client.call.body

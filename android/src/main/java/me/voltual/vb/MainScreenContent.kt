@@ -1,4 +1,4 @@
-//Copyright (C) 2025 Voltual
+// Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 
 package me.voltual.vb
@@ -65,7 +65,7 @@ val topLevelRoutes: Set<NavKey> = setOf(Home)
 
 @Composable
 fun PyrolysisApp(
-    agreementDataStore: UserAgreementDataStore = koinInject(), 
+    agreementDataStore: UserAgreementDataStore = koinInject(),
     modifier: Modifier = Modifier,
     platformEntryProvider: @Composable (NavKey, Navigator) -> (@Composable () -> Unit)? = { _, _ -> null }
 ) {
@@ -73,7 +73,7 @@ fun PyrolysisApp(
         startRoute = Home,
         topLevelRoutes = topLevelRoutes
     )
-    val focusManager = LocalFocusManager.current 
+    val focusManager = LocalFocusManager.current
     val topAppBarController = remember { TopAppBarController() }
     val navigator = remember(focusManager, topAppBarController, navigationState) {
         Navigator(navigationState, focusManager, topAppBarController)
@@ -128,7 +128,7 @@ fun MainScreenContent(
     val showBackButton = remember(currentRoute) {
         currentRoute != Home && currentRoute != Login
     }
-    
+
     val topAppBarController = LocalTopAppBarController.current
 
     val isPlayerScreen = remember(currentRoute) { currentRoute is Player }
@@ -139,6 +139,7 @@ fun MainScreenContent(
     val drawerHeaderBackgroundUri = if (useDarkTheme) darkBgUri else lightBgUri
 
     val isLoggedIn = remember { mutableStateOf(false) }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -169,39 +170,41 @@ fun MainScreenContent(
     ) {
         Scaffold(
             topBar = {
-                                Text(
-                                    text = topAppBarController.customTitle ?: getTitleForDestination(currentRoute),
-                                    color = MaterialTheme.colorScheme.onSurface,
-                                    maxLines = 1
-                                )
-                        },
-                        navigationIcon = {
-                            if (showBackButton) {
-                                IconButton(onClick = { navigator.goBack() }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = "返回", // 彻底移除 Android R 依赖
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            } else {
-                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                    Icon(
-                                        imageVector = Icons.Default.Menu,
-                                        contentDescription = "打开菜单", // 彻底移除 Android R 依赖
-                                        tint = MaterialTheme.colorScheme.onSurface
-                                    )
-                                }
-                            }
-                        },
-                        actions = {                            
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(
-                            containerColor = MaterialTheme.colorScheme.surface,
-                            titleContentColor = MaterialTheme.colorScheme.onSurface
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = topAppBarController.customTitle ?: getTitleForDestination(currentRoute),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1
                         )
+                    },
+                    navigationIcon = {
+                        if (showBackButton) {
+                            IconButton(onClick = { navigator.goBack() }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "返回",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                Icon(
+                                    imageVector = Icons.Default.Menu,
+                                    contentDescription = "打开菜单",
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    },
+                    actions = {
+                        // Actions can be added here
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
-                }
+                )
             },
             snackbarHost = { BBQSnackbarHost(hostState = snackbarHostState) },
             content = { innerPadding ->
@@ -210,13 +213,14 @@ fun MainScreenContent(
                     else -> innerPadding
                 }
 
-                val currentBackStack = navigationState.backStacks[currentTopLevelRoute] 
-                    ?: navigationState.backStacks[navigationState.startRoute]!! 
+                val currentBackStack = navigationState.backStacks[currentTopLevelRoute]
+                    ?: navigationState.backStacks[navigationState.startRoute]!!
 
-                Box(modifier = Modifier
-                    .fillMaxSize()
-                    .padding(contentPadding) 
-                    .roundScreenPadding()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(contentPadding)
+                        .roundScreenPadding()
                 ) {
                     BBQNavDisplay(
                         backStack = currentBackStack,
@@ -224,7 +228,6 @@ fun MainScreenContent(
                         snackbarHostState = snackbarHostState,
                         modifier = Modifier.fillMaxSize(),
                         platformEntryProvider = { key ->
-                            // 优先调用外部平台注入的页面提供器
                             platformEntryProvider(key, navigator)
                         }
                     )
@@ -244,27 +247,26 @@ fun MainScreenContent(
 
 @Composable
 fun getTitleForDestination(route: NavKey?): String {
-  return when (route) {
-    Home -> "主页"
-    ThemeCustomize -> "主题定制"
-    UpdateSettings -> "更新设置"
-    else -> "在~ $route ~里~哦"
-  }
+    return when (route) {
+        Home -> "主页"
+        ThemeCustomize -> "主题定制"
+        UpdateSettings -> "更新设置"
+        else -> "在~ $route ~里~哦"
+    }
 }
-
 
 @Composable
 fun CheckForUpdates(snackbarHostState: SnackbarHostState) {
     val coroutineScope = rememberCoroutineScope()
     var updateInfo by remember { mutableStateOf<UpdateInfo?>(null) }
     val updateSettingsDataStore: UpdateSettingsDataStore = koinInject()
-    
+
     var showDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val autoCheckUpdates = updateSettingsDataStore.autoCheckUpdates.first()
         if (autoCheckUpdates) {
-            UpdateChecker.checkForUpdates() { result ->
+            UpdateChecker.checkForUpdates { result ->
                 when (result) {
                     is UpdateCheckResult.Success -> {
                         updateInfo = result.updateInfo

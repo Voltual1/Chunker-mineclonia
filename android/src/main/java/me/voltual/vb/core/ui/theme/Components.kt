@@ -105,63 +105,6 @@ fun BBQCard(
   }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BBQBackgroundCard(
-  modifier: Modifier = Modifier,
-  onClick: (() -> Unit)? = null,
-  border: BorderStroke? = null,
-  shape: Shape = AppShapes.medium,
-  backgroundAlpha: Float = 0.9f,
-  content: @Composable () -> Unit,
-) {
-  val context = LocalContext.current
-  val globalBackgroundUriState =
-    ThemeColorStore.getGlobalBackgroundUriFlow(context).collectAsState(initial = null)
-  val globalBackgroundUri by globalBackgroundUriState
-
-  if (globalBackgroundUri == null) {
-    BBQCard(
-      modifier = modifier,
-      onClick = onClick,
-      border = border,
-      shape = shape,
-      content = content,
-    )
-    return
-  }
-
-  Card(
-    modifier = modifier,
-    onClick = onClick ?: {},
-    shape = shape,
-    colors =
-      CardDefaults.cardColors(
-        containerColor = Color.Transparent,
-        contentColor = MaterialTheme.colorScheme.onSurface,
-      ),
-    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    border = border,
-  ) {
-    Box(modifier = Modifier.fillMaxSize()) {
-      Image(
-        painter = rememberAsyncImagePainter(model = globalBackgroundUri),
-        contentDescription = "Global Background",
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize().matchParentSize(),
-      )
-
-      Box(
-        modifier =
-          Modifier.fillMaxSize()
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = backgroundAlpha))
-      ) {
-        content()
-      }
-    }
-  }
-}
-
 // 图标按钮组件
 @Composable
 fun BBQIconButton(

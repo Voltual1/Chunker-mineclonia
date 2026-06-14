@@ -1,7 +1,7 @@
-// Copyright (C) 2025 Voltual
+//Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-// （或任意更新的版本）的条款重新分发和/或修改它。
-// 本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
@@ -19,228 +19,264 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import me.voltual.vb.core.ui.icons.drawable.* // 导入转换后的图标
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.NavKey        
 import coil3.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import me.voltual.vb.R
 import me.voltual.vb.data.DrawerMenuDataStore
+import org.koin.compose.koinInject 
 
 sealed class IconSource {
-  data class Resource(val resId: Int) : IconSource()
-
-  data class Vector(val imageVector: ImageVector) : IconSource()
-
-  data class Remote(val url: String) : IconSource()
+    data class Vector(val imageVector: ImageVector) : IconSource()
+    data class Remote(val url: String) : IconSource()
 }
 
 data class DrawerItem(
-  val id: String,
-  val label: String,
-  val icon: IconSource,
-  val route: AppDestination,
+    val id: String, 
+    val label: String,
+    val icon: IconSource, 
+    val route: AppDestination
 )
 
 @Composable
 fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
-  Box(modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer)) {
-    if (backgroundUri != null) {
-      AsyncImage(
-        model = backgroundUri,
-        contentDescription = "Drawer Header Background",
-        contentScale = ContentScale.Crop,
-        modifier = Modifier.fillMaxSize(),
-      )
+    Box(
+        modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer)
+    ) {
+        if (backgroundUri != null) {
+            AsyncImage(
+                model = backgroundUri,
+                contentDescription = "Drawer Header Background",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+        }
     }
-  }
 }
 
 @Composable
 fun NavigationDrawerItems(
-  navigator: Navigator,
-  currentTopLevelRoute: NavKey?,
-  drawerState: DrawerState,
-  scope: CoroutineScope,
+    navigator: Navigator,
+    currentTopLevelRoute: NavKey?,           
+    drawerState: DrawerState,
+    scope: CoroutineScope
 ) {
-  val context = LocalContext.current
+    val authRepository: AuthRepository = koinInject()
 
-  val allDrawerItems = remember {
-    mutableListOf(
-      DrawerItem("home", "首页", IconSource.Resource(R.drawable.ic_menu_home), Home),
-      DrawerItem(
-        "settings",
-        "主题设置",
-        IconSource.Resource(R.drawable.ic_menu_settings),
-        ThemeCustomize,
-      ),
-      DrawerItem(
-        "update_settings",
-        "更新设置",
-        IconSource.Resource(R.drawable.asusupdate),
-        UpdateSettings,
-      ),
-    )
-  }
-  val allItemsMap = remember { allDrawerItems.associateBy { it.id } }
-
-  var orderedItems by remember { mutableStateOf<List<DrawerItem>>(emptyList()) }
-  var draggedItem by remember { mutableStateOf<DrawerItem?>(null) }
-  var dragOffsetY by remember { mutableStateOf(0f) }
-  var itemHeight by remember { mutableStateOf(0) }
-
-  LaunchedEffect(Unit) {
-    val savedOrder = DrawerMenuDataStore.loadMenuOrder(context).first()
-    orderedItems =
-      if (savedOrder.isEmpty()) {
-        allDrawerItems
-      } else {
-        val ordered = savedOrder.mapNotNull { allItemsMap[it] }
-        val newItems = allDrawerItems.filter { it.id !in savedOrder }
-        ordered + newItems
-      }
-  }
-
-  val placeholderIndex by
-    remember(draggedItem, dragOffsetY) {
-      derivedStateOf {
-        draggedItem?.let {
-          val initialIndex = orderedItems.indexOf(it)
-          val displacement = (dragOffsetY / itemHeight).toInt()
-          (initialIndex + displacement).coerceIn(0, orderedItems.size - 1)
-        }
-      }
+    val allDrawerItems = remember {
+        mutableListOf(
+            DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
+            DrawerItem("update_settings", "更新设置", IconSource.Vector(Asusupdate), UpdateSettings),
+            DrawerItem("settings", "主题设置", IconSource.Vector(IcMenuSettings), ThemeCustomize),
+        )
     }
+    val allItemsMap = remember { allDrawerItems.associateBy { it.id } }
 
-  Box(modifier = Modifier.fillMaxSize()) {
-    LazyColumn(
-      modifier = Modifier.fillMaxSize().padding(vertical = 8.dp),
-      contentPadding = PaddingValues(horizontal = 12.dp),
-    ) {
-      items(orderedItems, key = { it.id }) { item ->
-        val isBeingDragged = item.id == draggedItem?.id
-        val index = orderedItems.indexOf(item)
-        val showPlaceholder =
-          placeholderIndex == index && placeholderIndex != orderedItems.indexOf(draggedItem)
+    var orderedItems by remember { mutableStateOf<List<DrawerItem>>(emptyList()) }
+    var draggedItem by remember { mutableStateOf<DrawerItem?>(null) }
+    var dragOffsetY by remember { mutableStateOf(0f) }
+    var itemHeight by remember { mutableStateOf(0) }
+    val drawerMenuDataStore: DrawerMenuDataStore = koinInject()
 
-        if (showPlaceholder) {
-          if (placeholderIndex!! > orderedItems.indexOf(draggedItem)) {
-            ItemContent(item, currentTopLevelRoute, false, scope, drawerState, navigator)
-            PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
-          } else {
-            PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
-            ItemContent(item, currentTopLevelRoute, false, scope, drawerState, navigator)
-          }
+    var selectedItemId by remember { mutableStateOf("home") }
+
+    LaunchedEffect(Unit) {
+        val savedOrder = drawerMenuDataStore.loadMenuOrder().first()
+        orderedItems = if (savedOrder.isEmpty()) {
+            allDrawerItems
         } else {
-          ItemContent(
-            item = item,
-            currentTopLevelRoute = currentTopLevelRoute,
-            isDragged = isBeingDragged,
-            scope = scope,
-            drawerState = drawerState,
-            navigator = navigator,
-            modifier =
-              Modifier.onSizeChanged { itemHeight = it.height }
-                .pointerInput(Unit) {
-                  detectDragGesturesAfterLongPress(
-                    onDragStart = { draggedItem = item },
-                    onDrag = { change, dragAmount ->
-                      change.consume()
-                      dragOffsetY += dragAmount.y
-                    },
-                    onDragEnd = {
-                      placeholderIndex?.let { toIndex ->
-                        val fromIndex = orderedItems.indexOf(draggedItem!!)
-                        if (fromIndex != toIndex) {
-                          val newList =
-                            orderedItems.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
-                          orderedItems = newList
-                          scope.launch {
-                            DrawerMenuDataStore.saveMenuOrder(context, newList.map { it.id })
-                          }
-                        }
-                      }
-                      draggedItem = null
-                      dragOffsetY = 0f
-                    },
-                    onDragCancel = {
-                      draggedItem = null
-                      dragOffsetY = 0f
-                    },
-                  )
-                },
-          )
+            val ordered = savedOrder.mapNotNull { allItemsMap[it] }
+            val newItems = allDrawerItems.filter { it.id !in savedOrder }
+            ordered + newItems
         }
-      }
     }
 
-    draggedItem?.let { item ->
-      Box(
-        modifier =
-          Modifier.graphicsLayer {
-              translationY = dragOffsetY
-              shadowElevation = 8f
+    LaunchedEffect(currentTopLevelRoute) {
+        currentTopLevelRoute?.let { currentRoute ->
+            val matchedItem = orderedItems.find { it.route == currentRoute && it.id != "logout" }
+            if (matchedItem != null && matchedItem.id != selectedItemId) {
+                selectedItemId = matchedItem.id
             }
-            .padding(horizontal = 12.dp)
-      ) {
-        ItemContent(item, currentTopLevelRoute, false, scope, drawerState, navigator)
-      }
+        }
     }
-  }
+
+    val placeholderIndex by remember(draggedItem, dragOffsetY) {
+        derivedStateOf {
+            draggedItem?.let {
+                val initialIndex = orderedItems.indexOf(it)
+                val displacement = (dragOffsetY / itemHeight).toInt()
+                (initialIndex + displacement).coerceIn(0, orderedItems.size - 1)
+            }
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(vertical = 8.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp)
+        ) {
+            items(orderedItems, key = { it.id }) { item ->
+                val isBeingDragged = item.id == draggedItem?.id
+                val index = orderedItems.indexOf(item)
+                val showPlaceholder = placeholderIndex == index && placeholderIndex != orderedItems.indexOf(draggedItem)
+
+                if (showPlaceholder) {
+                    if (placeholderIndex!! > orderedItems.indexOf(draggedItem)) {
+                        ItemContent(
+                            item = item,
+                            selectedItemId = selectedItemId,
+                            onItemClick = { selectedItemId = it },
+                            isDragged = false,
+                            scope = scope,
+                            drawerState = drawerState,
+                            navigator = navigator,
+                            authRepository = authRepository
+                        )
+                        PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
+                    } else {
+                        PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
+                        ItemContent(
+                            item = item,
+                            selectedItemId = selectedItemId,
+                            onItemClick = { selectedItemId = it },
+                            isDragged = false,
+                            scope = scope,
+                            drawerState = drawerState,
+                            navigator = navigator,
+                            authRepository = authRepository
+                        )
+                    }
+                } else {
+                    ItemContent(
+                        item = item,
+                        selectedItemId = selectedItemId,
+                        onItemClick = { selectedItemId = it },
+                        isDragged = isBeingDragged,
+                        scope = scope,
+                        drawerState = drawerState,
+                        navigator = navigator,
+                        authRepository = authRepository,
+                        modifier = Modifier
+                            .onSizeChanged { itemHeight = it.height }
+                            .pointerInput(Unit) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { draggedItem = item },
+                                    onDrag = { change, dragAmount ->
+                                        change.consume()
+                                        dragOffsetY += dragAmount.y
+                                    },
+                                    onDragEnd = {
+                                        placeholderIndex?.let { toIndex ->
+                                            val fromIndex = orderedItems.indexOf(draggedItem!!)
+                                            if (fromIndex != toIndex) {
+                                                val newList = orderedItems.toMutableList().apply {
+                                                    add(toIndex, removeAt(fromIndex))
+                                                }
+                                                orderedItems = newList
+                                                scope.launch {
+                                                    drawerMenuDataStore.saveMenuOrder(newList.map { it.id })
+                                                }
+                                            }
+                                        }
+                                        draggedItem = null
+                                        dragOffsetY = 0f
+                                    },
+                                    onDragCancel = {
+                                        draggedItem = null
+                                        dragOffsetY = 0f
+                                    }
+                                )
+                            }
+                    )
+                }
+            }
+        }
+
+        draggedItem?.let { item ->
+            Box(
+                modifier = Modifier
+                    .graphicsLayer {
+                        translationY = dragOffsetY
+                        shadowElevation = 8f
+                    }
+                    .padding(horizontal = 12.dp)
+            ) {
+                ItemContent(
+                    item = item,
+                    selectedItemId = selectedItemId,
+                    onItemClick = { selectedItemId = it },
+                    isDragged = false,
+                    scope = scope,
+                    drawerState = drawerState,
+                    navigator = navigator,
+                    authRepository = authRepository
+                )
+            }
+        }
+    }
 }
 
 @Composable
 private fun ItemContent(
-  item: DrawerItem,
-  currentTopLevelRoute: NavKey?,
-  isDragged: Boolean,
-  scope: CoroutineScope,
-  drawerState: DrawerState,
-  navigator: Navigator,
-  modifier: Modifier = Modifier,
+    item: DrawerItem,
+    selectedItemId: String,
+    onItemClick: (String) -> Unit,
+    isDragged: Boolean,
+    scope: CoroutineScope,
+    drawerState: DrawerState,
+    navigator: Navigator,
+    authRepository: AuthRepository,
+    modifier: Modifier = Modifier
 ) {
-  val context = LocalContext.current
+    val isSelected = selectedItemId == item.id
 
-  val isSelected = currentTopLevelRoute == item.route
-
-  NavigationDrawerItem(
-    label = { Text(item.label) },
-    icon = {
-      val iconModifier = Modifier.size(24.dp)
-      when (val source = item.icon) {
-        is IconSource.Resource -> Icon(painterResource(source.resId), null, modifier = iconModifier)
-        is IconSource.Vector -> Icon(source.imageVector, null, modifier = iconModifier)
-        is IconSource.Remote ->
-          AsyncImage(model = source.url, contentDescription = null, modifier = iconModifier)
-      }
-    },
-    selected = isSelected,
-    onClick = {
-    scope.launch { drawerState.close() }
+    NavigationDrawerItem(
+        label = { Text(item.label) },
+        icon = {
+            val iconModifier = Modifier.size(24.dp)
+            when (val source = item.icon) {
+                is IconSource.Vector -> Icon(source.imageVector, null, modifier = iconModifier)
+                is IconSource.Remote -> AsyncImage(
+                    model = source.url,
+                    contentDescription = null,
+                    modifier = iconModifier
+                )
+            }
+        },
+        selected = isSelected,
+        onClick = {
+    onItemClick(item.id)
+    
+    scope.launch { drawerState.close() }    
     navigator.navigate(item.route)
 },
-    modifier =
-      modifier.padding(vertical = 4.dp).graphicsLayer { alpha = if (isDragged) 0f else 1f },
-    colors =
-      NavigationDrawerItemDefaults.colors(
-        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
-        unselectedContainerColor = Color.Transparent,
-      ),
-  )
+        modifier = modifier
+            .padding(vertical = 4.dp)
+            .graphicsLayer { alpha = if (isDragged) 0f else 1f },
+        colors = NavigationDrawerItemDefaults.colors(
+            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f),
+            unselectedContainerColor = Color.Transparent
+        )
+    )
 }
 
 @Composable
 private fun PlaceholderItem(modifier: Modifier = Modifier) {
-  Card(
-    modifier = modifier.fillMaxWidth().height(56.dp).padding(vertical = 4.dp),
-    shape = MaterialTheme.shapes.medium,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
-  ) {}
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(56.dp)
+            .padding(vertical = 4.dp),
+        shape = MaterialTheme.shapes.medium,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+    ) {}
 }

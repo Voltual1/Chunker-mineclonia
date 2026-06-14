@@ -19,7 +19,9 @@ import me.voltual.vb.core.ui.theme.*
 import org.koin.android.ext.koin.androidContext
 import org.koin.androix.startup.KoinStartup
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.koin.dsl.koinConfiguration
+import org.koin.android.ext.android.inject
 
 class BBQApplication : Application(), KoinStartup {
   val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
