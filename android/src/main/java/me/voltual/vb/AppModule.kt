@@ -15,6 +15,7 @@ import me.voltual.vb.ui.settings.update.*
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
+import me.voltual.vb.core.database.repository.*
 import org.koin.dsl.module
 
 val appModule = module {

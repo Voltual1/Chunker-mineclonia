@@ -8,14 +8,13 @@
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.vb.core.database.repository
 
-import org.koin.core.annotation.Single
 import me.voltual.vb.core.database.entity.LogEntry
+import me.voltual.vb.core.database.dao.LogDao
 
 /**
  * 日志仓库，作为日志数据源的唯一入口。
  * 它封装了对 LogDao 的直接访问。
  */
-@Single
 class LogRepository(
 
     private val logDao: LogDao

@@ -128,6 +128,8 @@ dependencies {
     implementation(libs.compose.adaptive)
     implementation(libs.compose.adaptive.layout)
     implementation(libs.compose.adaptive.navigation)
+    //MarkDown
+    implementation(libs.markdown)
 
     // 图片与异步
     implementation(libs.coil.compose)
