@@ -1,8 +1,5 @@
-# This file indicates the versions of libraries used in the build process
-# https://docs.gradle.org/current/userguide/platforms.html#sub::toml-dependencies-format
-
 [versions]
-# --- Chunker 原有版本 (保持原样) ---
+# --- Chunker 原有核心依赖与工程插件版本 ---
 picocli = "4.7.7"
 caffeine = "3.2.4"
 gson = "2.14.0"
@@ -19,41 +16,60 @@ gitVersion = "5.0.0"
 jpackage = "2.0.1"
 node = "7.1.0"
 
-# --- Android / UI 核心工具链 ---
+# --- Android / UI 核心工具链 (现代预览链) ---
 pyrolysis-agp = "9.2.0"
 kotlin = "2.3.21"
 pyrolysis-compose-bom = "2026.05.00"
-pyrolysis-room3 = "3.0.0-alpha05"
-compose-multiplatform-lifecycle = "2.11.0-beta01"
-navigation3 = "1.0.0"
+compose-multiplatform = "1.12.0-alpha01"
+
+# --- 功能库基础 ---
 desugar = "2.0.3"
 material = "1.9.0"
-
-# --- 异步与并发 ---
+okhttp = "5.3.2"
+coil = "3.4.0"
 coroutines = "1.10.2"
-
-# --- 依赖注入 (Koin) ---
+filekit = "0.14.1"
+ijkplayer = "0.0.2"
+fragment = "1.8.5"
+pyrolysis-room = "2.7.2"
+datastore = "1.3.0-alpha09"
+pyrolysis-room3 = "3.0.0-alpha05"
+multiplatform-nav3-ui = "1.0.0-alpha05"
+androidx-sqlite = "2.7.0-alpha05"
+biometric = "1.2.0-alpha05"
 koin = "4.1.1"
-
-# --- 网络与图片加载 ---
+koin-annotations = "2.3.1"
 pyrolysis-ktor = "3.3.3"
 pyrolysis-serialization = "1.9.0"
-coil = "3.4.0"
-
-# --- 核心数据存储与加密 (本地配置缓存等) ---
-datastore = "1.3.0-alpha09"
-tink = "1.20.0"
-
-# --- Android 高级特权与系统工具 (如需操作系统底层或分块存储管理) ---
 libsu = "6.0.0"
+navigation3 = "1.0.0"
+compose-multiplatform-navigation3-browser = "0.2.0"
 shizuku = "13.1.5"
+compose-adaptive = "1.3.0-beta02" 
 shizuku-hidden = "4.4.0"
-shizuku-refine = "4.4.0"
+shizuku-refine = "4.4.0"    
+tink = "1.20.0"
+protobuf = "4.32.1"
+vico = "2.3.6"
+compose-multiplatform-adaptive = "1.3.0-alpha02"
+compose-multiplatform-lifecycle = "2.11.0-beta01"
+zxing = "3.5.4"
 simple-storage = "2.2.0"
-filekit = "0.14.1"
+work = "2.11.0"
+protobuf-plugin = "0.10.0"
+markdown = "0.7.3"
+
+# --- Neo Store 兼容层 ---
+kotlinx-datetime = "0.7.1"
+kotlinx-collections = "0.4.0"
+html-converter = "1.1.0"
+kotlinx-io = "0.9.0" 
+
+# --- 加密核心库 ---
+cryptography = "0.6.0"
 
 [libraries]
-# --- Chunker 原有依赖 ---
+# --- Chunker 原有底层数据解析与通用依赖 ---
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
@@ -69,8 +85,19 @@ junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher
 # --- Android 基础环境兼容 ---
 android-desugar = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
+okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
+work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
+biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 
-# --- Jetpack Compose 官方原生 UI 库 (利用你習慣的 BOM 管理) ---
+# --- Room 3 (基于 SQLite 现代驱动) ---
+room3-runtime = { group = "androidx.room3", name = "room3-runtime", version.ref = "pyrolysis-room3" }
+room3-compiler = { group = "androidx.room3", name = "room3-compiler", version.ref = "pyrolysis-room3" }
+room3-paging = { group = "androidx.room3", name = "room3-paging", version.ref = "pyrolysis-room3" }
+sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
+sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
+sqlite-web = { module = "androidx.sqlite:sqlite-web", version.ref = "androidx-sqlite" }
+
+# --- Jetpack Compose 官方原生 API 链 ---
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "pyrolysis-compose-bom" }
 androidx-ui = { group = "androidx.compose.ui", name = "ui" }
 androidx-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
@@ -79,57 +106,119 @@ androidx-material3 = { group = "androidx.compose.material3", name = "material3" 
 androidx-activity-compose = { group = "androidx.activity", name = "activity-compose" }
 androidx-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 
-# --- 生命周管理与现代 Navigation3 导航 ---
+# --- Compose 现代架构（生命周期、M3 Adaptive 响应式与新一代 Navigation3） ---
 androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "compose-multiplatform-lifecycle" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "compose-multiplatform-lifecycle" }
+androidx-lifecycle-viewmodel-navigation3 = { module = "androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "compose-multiplatform-lifecycle" }
 compose-navigation3 = { module = "androidx.navigation3:navigation3-runtime", version.ref = "navigation3" }
 compose-navigation3-ui = { module = "androidx.navigation3:navigation3-ui", version.ref = "navigation3" }
+compose-adaptive = { module = "androidx.compose.material3.adaptive:adaptive", version.ref = "compose-adaptive" }
+compose-adaptive-layout = { module = "androidx.compose.material3.adaptive:adaptive-layout", version.ref = "compose-adaptive" }
+compose-adaptive-navigation = { module = "androidx.compose.material3.adaptive:adaptive-navigation", version.ref = "compose-adaptive" }
 
-# --- 异步协程驱动 ---
-kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
-kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+# --- Compose Multiplatform 跨平台组件桥接 ---
+compose-runtime = { module = "org.jetbrains.compose.runtime:runtime", version.ref = "compose-multiplatform" }
+compose-foundation = { module = "org.jetbrains.compose.foundation:foundation", version.ref = "compose-multiplatform" }
+compose-material3 = { module = "org.jetbrains.compose.material3:material3", version.ref = "compose-multiplatform" }
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
+compose-components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+components-resources = { module = "org.jetbrains.compose.components:components-resources", version.ref = "compose-multiplatform" }
+material-icons-extended = { module = "org.jetbrains.compose.material:material-icons-extended", version = "1.7.3" }
+material-icons-core = { module = "org.jetbrains.compose.material:material-icons-core", version = "1.7.3" }
+jetbrains-navigation3-ui = { module = "org.jetbrains.androidx.navigation3:navigation3-ui", version.ref = "multiplatform-nav3-ui" }
+jetbrains-material3-adaptiveNavigation3 = { module = "org.jetbrains.compose.material3.adaptive:adaptive-navigation3", version.ref = "compose-multiplatform-adaptive" }
+jetbrains-lifecycle-viewmodelNavigation3 = { module = "org.jetbrains.androidx.lifecycle:lifecycle-viewmodel-navigation3", version.ref = "compose-multiplatform-lifecycle" }
+navigation3-browser = { module = "com.github.terrakok:navigation3-browser", version.ref = "compose-multiplatform-navigation3-browser" }
 
-# --- Koin 依赖注入 (在 Compose 架构中极度舒适) ---
-koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
-koin-android-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
-koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
-
-# --- Ktor 异步网络与 Kotlinx 序列化 ---
-ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "pyrolysis-ktor" }
-ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "pyrolysis-ktor" }
-ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "pyrolysis-ktor" }
-ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "pyrolysis-ktor" }
-kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "pyrolysis-serialization" }
-
-# --- Coil3 异步图片加载 (Compose 专用) ---
-coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
-
-# --- 核心轻量化存储与安全 ---
-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
-tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
-
-# --- Android 文件交互与高级 Root/Shizuku 特权 ---
-filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
-filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
-simple-storage = { module = "com.anggrayudi:storage", version.ref = "simple-storage" }
+# --- 高级特权与系统调用工具 (Shizuku & Libsu & FileKit) ---
 libsu-core = { module = "com.github.topjohnwu.libsu:core", version.ref = "libsu" }
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
 shizuku-hidden = { module = "dev.rikka.hidden:stub", version.ref = "shizuku-hidden" }
 shizuku-refine = { module = "dev.rikka.tools.refine:runtime", version.ref = "shizuku-refine" }
+filekit-core = { module = "io.github.vinceglb:filekit-core", version.ref = "filekit" }
+filekit-dialogs = { module = "io.github.vinceglb:filekit-dialogs", version.ref = "filekit" }
+filekit-dialogs-compose = { module = "io.github.vinceglb:filekit-dialogs-compose", version.ref = "filekit" }
+simple-storage = { module = "com.anggrayudi:storage", version.ref = "simple-storage" }
+
+# --- 异步协程驱动 ---
+kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
+
+# --- Coil3 异步图片加载与网络引擎扩展 ---
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
+coil-compose-wasm = { module = "io.coil-kt.coil3:coil-compose-wasm-js", version.ref = "coil" }
+coil-network-ktor = { module = "io.coil-kt.coil3:coil-network-ktor3", version.ref = "coil" }
+coil-network-ktor-wasm = { module = "io.coil-kt.coil3:coil-network-ktor3-wasm-js", version.ref = "coil" }
+
+# --- 媒体、图表与 UI 增强组件 ---
+ijkplayer = { module = "com.sdtv.haikan:ijkplayer", version.ref = "ijkplayer" }
+markdown = { module = "org.jetbrains:markdown", version.ref = "markdown" }
+vico-compose = { group = "com.patrykandpatrick.vico", name = "compose", version.ref = "vico" }
+vico-compose-m3 = { group = "com.patrykandpatrick.vico", name = "compose-m3", version.ref = "vico" }
+zxing-core = { module = "com.google.zxing:core", version.ref = "zxing" }
+fragment = { module = "androidx.fragment:fragment-ktx", version.ref = "fragment" }
+
+# --- 经典本地化持久层（Room 2 ＆ DataStore） ---
+room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "pyrolysis-room" }
+room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "pyrolysis-room" }
+room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "pyrolysis-room" }
+datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastore" }
+datastore-core = { module = "androidx.datastore:datastore-preferences-core", version.ref = "datastore" }
+
+# --- Koin 依赖注入生态 ---
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-android-compose = { module = "io.insert-koin:koin-androidx-compose", version.ref = "koin" }
+koin-compose = { module = "io.insert-koin:koin-compose", version.ref = "koin" }
+koin-compose-viewmodel = { module = "io.insert-koin:koin-compose-viewmodel", version.ref = "koin" }
+koin-workmanager = { module = "io.insert-koin:koin-androidx-workmanager", version.ref = "koin" }
+koin-startup = { module = "io.insert-koin:koin-androidx-startup", version.ref = "koin" }
+koin-annotations = { module = "io.insert-koin:koin-annotations", version.ref = "koin-annotations" }
+koin-ksp-compiler = { module = "io.insert-koin:koin-ksp-compiler", version.ref = "koin-annotations" }
+
+# --- Ktor 3 异步网络与跨平台序列化 ---
+ktor-client-core = { module = "io.ktor:ktor-client-core", version.ref = "pyrolysis-ktor" }
+ktor-client-okhttp = { module = "io.ktor:ktor-client-okhttp", version.ref = "pyrolysis-ktor" }
+ktor-client-js-wasm = { module = "io.ktor:ktor-client-js-wasm-js", version.ref = "pyrolysis-ktor" }
+ktor-client-content-negotiation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "pyrolysis-ktor" }
+ktor-serialization-json = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "pyrolysis-ktor" }
+ktor-io = { module = "io.ktor:ktor-io", version.ref = "pyrolysis-ktor" }
+ktor-client-logging = { module = "io.ktor:ktor-client-logging", version.ref = "pyrolysis-ktor" }
+kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "pyrolysis-serialization" }
+kotlinx-io = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
+
+# --- 现代数据流安全性与格式规范 (Protobuf & Tink) ---
+tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
+protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
+protoc-artifact = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }
+
+# --- Neo Store 兼容性拓展层依赖 ---
+kotlinx-datetime = { module = "org.jetbrains.kotlinx:kotlinx-datetime", version.ref = "kotlinx-datetime" }
+kotlinx-collections-immutable = { module = "org.jetbrains.kotlinx:kotlinx-collections-immutable", version.ref = "kotlinx-collections" }
+compose-html-converter = { module = "be.digitalia.compose.htmlconverter:htmlconverter", version.ref = "html-converter" }
+
+# --- dev.whyoleg 声明式加密核心库 ---
+cryptography-core = { group = "dev.whyoleg.cryptography", name = "cryptography-core", version.ref = "cryptography" }
+cryptography-provider-optimal = { group = "dev.whyoleg.cryptography", name = "cryptography-provider-optimal", version.ref = "cryptography" }
 
 [plugins]
-# --- Chunker 原有插件 ---
+# --- Chunker 原有跨端打包与构建相关工具插件 ---
 shadow = { id = "com.gradleup.shadow", version.ref = "shadow" }
 gitVersion = { id = "com.palantir.git-version", version.ref = "gitVersion" }
 jpackage = { id = "org.panteleyev.jpackageplugin", version.ref = "jpackage" }
 node = { id = "com.github.node-gradle.node", version.ref = "node" }
 
-# --- Android 构建与 Kotlin 编译器插件 ---
+# --- Android 构建与 Kotlin 编译器专属插件 ---
 android-application = { id = "com.android.application", version.ref = "pyrolysis-agp" }
 android-library = { id = "com.android.library", version.ref = "pyrolysis-agp" }
+android-multiplatform-library = { id = "com.android.kotlin.multiplatform.library", version.ref = "pyrolysis-agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
 androidx-room3 = { id = "androidx.room3", version.ref = "pyrolysis-room3" }
 ksp = { id = "com.google.devtools.ksp", version = "2.3.8" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
+shizuku-refine = { id = "dev.rikka.tools.refine", version.ref = "shizuku-refine" }
