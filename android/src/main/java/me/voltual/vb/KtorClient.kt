@@ -60,17 +60,15 @@ object KtorClient {
 
   // ===== API 接口定义 =====
 
-  interface ApiService {
-    // 兼容 UpdateChecker.kt
-    suspend fun getLatestRelease(url: String): Result<UpdateInfo>
-    
+  interface ApiService {   
+    suspend fun getLatestRelease(): Result<UpdateInfo>
   }
 
   object ApiServiceImpl : ApiService {
-
-    override suspend fun getLatestRelease(url: String): Result<UpdateInfo> {
-      return safeApiCall { httpClient.get(url) }
-    }
+private const val GITHUB_RELEASE_URL = "https://gitee.com/api/v5/repos/Voltula/VB/releases/latest"
+            override suspend fun getLatestRelease(): Result<UpdateInfo> = safeApiCall {
+            httpClient.get(GITHUB_RELEASE_URL)
+        }
 
   /** 安全地执行 Ktor 请求 */
   private suspend inline fun <reified T> safeApiCall(block: suspend () -> HttpResponse): Result<T> {

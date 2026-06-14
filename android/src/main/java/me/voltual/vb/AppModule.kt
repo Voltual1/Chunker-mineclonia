@@ -10,13 +10,14 @@ package me.voltual.vb
 
 import me.voltual.vb.core.database.*
 import me.voltual.vb.core.database.dao.*
-import me.voltual.vb.data.UserAgreementDataStore
+import me.voltual.vb.data.*
 import me.voltual.vb.ui.settings.update.*
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
 import me.voltual.vb.core.database.repository.*
 import org.koin.dsl.module
+import org.koin.core.qualifier.named
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
 val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
