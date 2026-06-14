@@ -126,7 +126,7 @@ fun MainScreenContent(
     val currentTopLevelRoute = navigationState.topLevelRoute
 
     val showBackButton = remember(currentRoute) {
-        currentRoute != Home && currentRoute
+        currentRoute != Home 
     }
 
     val topAppBarController = LocalTopAppBarController.current
