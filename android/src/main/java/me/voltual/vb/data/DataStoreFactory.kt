@@ -1,4 +1,4 @@
-package me.voltual.pyrolysis.core.proto
+package me.voltual.pyrolysis.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
@@ -9,7 +9,7 @@ import androidx.datastore.preferences.core.Preferences
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import java.io.File
-
+/*
 fun createDataStore(
     serializer: UserCredentialsSerializer,
     context: Any?
@@ -25,7 +25,7 @@ fun createDataStore(
         )
     )
 }
-
+*/
 fun createPreferenceDataStore(
     fileName: String,
     context: Any?
