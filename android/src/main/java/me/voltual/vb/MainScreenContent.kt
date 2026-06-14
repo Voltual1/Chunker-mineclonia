@@ -87,7 +87,6 @@ fun PyrolysisApp(
         val snackbarHostState = remember { SnackbarHostState() }
 
         val userAccepted by agreementDataStore.isUserAgreementAccepted.collectAsState(initial = true)
-        val xiaoquAccepted by agreementDataStore.isXiaoquAccepted.collectAsState(initial = true)
 
         var isAgreementDataLoaded by remember { mutableStateOf(false) }
         LaunchedEffect(Unit) {
@@ -95,7 +94,7 @@ fun PyrolysisApp(
             isAgreementDataLoaded = true
         }
 
-        val showAgreementDialog = isAgreementDataLoaded && !(userAccepted && xiaoquAccepted)
+        val showAgreementDialog = isAgreementDataLoaded && !(userAccepted)
 
         BBQTheme() {
             MainScreenContent(
