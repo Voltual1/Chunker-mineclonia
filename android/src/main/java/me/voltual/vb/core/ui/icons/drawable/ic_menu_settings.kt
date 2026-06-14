@@ -1,4 +1,4 @@
-package me.voltual.pyrolysis.core.ui.icons.drawable
+package me.voltual.vb.core.ui.icons.drawable
 
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor

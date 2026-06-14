@@ -23,7 +23,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.voltual.vb.data.UserAgreementDataStore
-import me.voltual.vb.data.UserAgreementDataStore
 import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.database.dao.LogDao
 import me.voltual.vb.ui.*

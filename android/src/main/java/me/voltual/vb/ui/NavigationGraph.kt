@@ -8,44 +8,36 @@
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.vb.ui
 
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.material3.SnackbarHostState
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.navigation3.runtime.NavBackStack
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.*
 import androidx.navigation3.scene.DialogSceneStrategy
-import kotlinx.coroutines.launch
-import me.voltual.vb.KtorClient
+import androidx.navigation3.ui.NavDisplay
+import me.voltual.vb.core.ui.animation.*
+import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
-import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
-import androidx.compose.foundation.*
-import androidx.navigation3.ui.NavDisplay
 import org.koin.compose.viewmodel.koinViewModel
-import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
-import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
-import androidx.compose.material3.*
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.foundation.layout.*
-import me.voltual.vb.core.ui.animation.*
 
+@OptIn(ExperimentalNavigation3Api::class)
 @Composable
 fun BBQNavDisplay(
     backStack: List<NavKey>,
     onBack: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
-    // 平台页面注入器：允许 Android 壳工程注入所有高耦合页面
+    // 平台页面注入器：允许 注入所有高耦合页面
     platformEntryProvider: @Composable (NavKey) -> (@Composable () -> Unit)? = { null }
 ) {
     val mySceneStrategy = remember { DialogSceneStrategy<NavKey>() }
     val slideDistance = rememberSlideDistance()
-    
+
     val decorators = listOf(
         rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
         rememberViewModelStoreNavEntryDecorator<NavKey>()
@@ -57,20 +49,21 @@ fun BBQNavDisplay(
         entryDecorators = decorators,
         modifier = modifier.fillMaxSize(),
         sceneStrategy = mySceneStrategy,
-        
+
         transitionSpec = {
             materialSharedAxisX(
-                forward = true, 
+                forward = true,
                 slideDistance = slideDistance
             )
         },
 
         popTransitionSpec = {
             materialSharedAxisX(
-                forward = false, 
+                forward = false,
                 slideDistance = slideDistance
             )
         },
+
         // 统一在 NavEntry 内部处理 Composable 作用域与平台注入
         entryProvider = { key ->
             NavEntry(key) {
@@ -80,31 +73,34 @@ fun BBQNavDisplay(
                 } else {
                     // 匹配通用页面或提供跨平台保底
                     when (key) {
-        is Home -> NavEntry(key) {  }
+                        is Home -> {
+                            // 主页的具体内容
+                        }
 
-        is ThemeCustomize ->
-          NavEntry(key) { ThemeCustomizeScreen(modifier = Modifier.fillMaxSize()) }
+                        is ThemeCustomize -> {
+                            ThemeCustomizeScreen(modifier = Modifier.fillMaxSize())
+                        }
 
-                                is UpdateSettings -> {
+                        is UpdateSettings -> {
                             val viewModel: UpdateSettingsViewModel = koinViewModel()
                             UpdateSettingsScreen(
                                 viewModel = viewModel,
                                 snackbarHostState = snackbarHostState
                             )
                         }
-        // 保底逻辑
-        else ->
-          NavEntry(key) {
-            Box(
-              modifier = Modifier.fillMaxSize(),
-              contentAlignment = androidx.compose.ui.Alignment.Center,
-            ) {
-              Text("Unknown Key: ${key::class.simpleName}", color = Color.Red)
+
+                        // 保底逻辑
+                        else -> {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Text("Unknown Key: ${key::class.simpleName}", color = Color.Red)
+                            }
+                        }
+                    }
+                }
             }
-          }
-      }
-    },
-  )
-}
-}
+        }
+    )
 }

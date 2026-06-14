@@ -68,7 +68,6 @@ fun NavigationDrawerItems(
     drawerState: DrawerState,
     scope: CoroutineScope
 ) {
-    val authRepository: AuthRepository = koinInject()
 
     val allDrawerItems = remember {
         mutableListOf(

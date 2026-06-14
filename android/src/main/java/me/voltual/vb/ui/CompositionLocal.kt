@@ -6,7 +6,7 @@
 //
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
-package me.voltual.pyrolysis.ui
+package me.voltual.vb.ui
 
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
