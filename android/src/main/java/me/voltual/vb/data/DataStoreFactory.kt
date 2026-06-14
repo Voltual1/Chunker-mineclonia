@@ -1,4 +1,4 @@
-package me.voltual.pyrolysis.data
+package me.voltual.vb.data
 
 import android.content.Context
 import androidx.datastore.core.DataStore
