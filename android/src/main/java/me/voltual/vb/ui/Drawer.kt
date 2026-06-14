@@ -160,7 +160,7 @@ fun NavigationDrawerItems(
                         isDragged = isBeingDragged,
                         scope = scope,
                         drawerState = drawerState,
-                        navigator = navigator
+                        navigator = navigator,
                         modifier = Modifier
                             .onSizeChanged { itemHeight = it.height }
                             .pointerInput(Unit) {
@@ -248,11 +248,10 @@ private fun ItemContent(
         },
         selected = isSelected,
         onClick = {
-    onItemClick(item.id)
-    
-    scope.launch { drawerState.close() }    
-    navigator.navigate(item.route)
-},
+            onItemClick(item.id)
+            scope.launch { drawerState.close() }    
+            navigator.navigate(item.route)
+        },
         modifier = modifier
             .padding(vertical = 4.dp)
             .graphicsLayer { alpha = if (isDragged) 0f else 1f },

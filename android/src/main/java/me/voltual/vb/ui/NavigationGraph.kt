@@ -25,7 +25,6 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalNavigation3Api::class)
 @Composable
 fun BBQNavDisplay(
     backStack: List<NavKey>,
