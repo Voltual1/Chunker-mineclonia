@@ -19,8 +19,8 @@ import me.voltual.vb.core.ui.theme.ThemeColorStore
 import me.voltual.vb.core.ui.theme.ThemeManager
 import org.koin.android.ext.koin.androidContext
 import org.koin.androix.startup.KoinStartup
-import org.koin.core.annotation.KoinApplication
 import org.koin.dsl.koinConfiguration
+import org.koin.core.annotation.KoinApplication
 
 @KoinApplication
 class BBQApplication : Application(), KoinStartup {

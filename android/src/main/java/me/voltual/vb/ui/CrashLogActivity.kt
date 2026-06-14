@@ -63,7 +63,7 @@ class CrashLogActivity : ComponentActivity() {
         }
       }
 
-      BBQTheme(appDarkTheme = ThemeManager.isAppDarkTheme) {
+      BBQTheme() {
         Scaffold(
           snackbarHost = { BBQSnackbarHost(snackbarHostState) },
           modifier = Modifier.fillMaxSize(),

@@ -18,10 +18,20 @@ import org.koin.core.module.dsl.viewModel
 import me.voltual.vb.core.database.repository.*
 import org.koin.dsl.module
 
+val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
+val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
+val DRAWER_MENU_STORE_QUALIFIER = named("drawer_menu_store")
+val THEME_SETTINGS_STORE_QUALIFIER = named("theme_settings_store")
+
 val appModule = module {
-  viewModel { UpdateSettingsViewModel() }
+      viewModel { UpdateSettingsViewModel(get()) }
   single { UserAgreementDataStore(androidContext()) }
   single { BBQApplication.instance.database }
   single { get<AppDatabase>().logDao() }
       single { LogRepository(get()) }
+      
+          single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
+              single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
+                  single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
+    single { DeviceNameDataStore(get(DEVICE_INFO_STORE_QUALIFIER)) }
 }
