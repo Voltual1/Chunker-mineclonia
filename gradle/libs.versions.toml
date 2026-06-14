@@ -127,7 +127,8 @@ node = { id = "com.github.node-gradle.node", version.ref = "node" }
 # --- Android 构建与 Kotlin 编译器插件 ---
 android-application = { id = "com.android.application", version.ref = "pyrolysis-agp" }
 android-library = { id = "com.android.library", version.ref = "pyrolysis-agp" }
+kotlin-jvm = { id = "org.jetbrains.kotlin.jvm", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
-kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+androidx-room3 = { id = "androidx.room3", version.ref = "pyrolysis-room3" }
 ksp = { id = "com.google.devtools.ksp", version = "2.3.8" }
-shizuku-refine = { id = "dev.rikka.tools.refine", version.ref = "shizuku-refine" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
