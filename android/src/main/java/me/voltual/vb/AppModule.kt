@@ -20,6 +20,7 @@ import org.koin.dsl.module
 import me.voltual.vb.core.ui.theme.*
 import org.koin.core.qualifier.named
 import androidx.datastore.core.DataStore
+import me.voltual.vb.ui.terminal.TerminalViewModel
 import androidx.datastore.preferences.core.Preferences
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
@@ -29,6 +30,8 @@ val THEME_SETTINGS_STORE_QUALIFIER = named("theme_settings_store")
 
 val appModule = module {
       viewModel { UpdateSettingsViewModel(get()) }
+      viewModel { TerminalViewModel(androidContext()) }
+   
   single { BBQApplication.instance.database }
   single { get<AppDatabase>().logDao() }
       single { LogRepository(get()) }

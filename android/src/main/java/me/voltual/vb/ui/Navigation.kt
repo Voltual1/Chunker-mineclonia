@@ -11,12 +11,19 @@ package me.voltual.vb.ui
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
-/** Navigation 3 的类型安全目的地契约。 完全依赖 Kotlinx Serialization 进行类型匹配。 */
+/** Navigation 3 的类型安全目的地契约。 */
 sealed interface AppDestination : NavKey
 
-// --- 核心导航 ---
 @Serializable data object Home : AppDestination
 
 @Serializable data object UpdateSettings : AppDestination
 
 @Serializable data object ThemeCustomize : AppDestination
+
+/** 新增：终端执行界面，接收输入路径、输出路径和格式作为参数 */
+@Serializable 
+data class TerminalExec(
+    val inputPath: String,
+    val outputPath: String,
+    val format: String
+) : AppDestination

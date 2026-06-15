@@ -73,7 +73,16 @@ fun BBQNavDisplay(
                     // 匹配通用页面或提供跨平台保底
                     when (key) {
                         is Home -> {
-                            // 主页的具体内容
+val testArgs = TerminalExec(
+    inputPath = "${context.filesDir.absolutePath}/world_input",
+    outputPath = "${context.filesDir.absolutePath}/world_output",
+    format = "JAVA_1_20_5"
+)
+navigator.navigate(testArgs)
+                        }
+                        
+                        is TerminalExec -> {
+                            TerminalScreen(key)
                         }
 
                         is ThemeCustomize -> {
