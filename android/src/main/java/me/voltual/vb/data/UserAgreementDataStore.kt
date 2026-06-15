@@ -21,6 +21,7 @@ class UserAgreementDataStore(private val dataStore: DataStore<Preferences>) {
 
     private object Keys {
         val USER_AGREEMENT_VER = intPreferencesKey("user_agreement_ver")
+    }
 
     private fun isAccepted(key: Preferences.Key<Int>, currentVersion: Int): Flow<Boolean> =
         dataStore.data.map { prefs ->
