@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.voltual.vb.ui.TerminalExec
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
@@ -29,82 +30,84 @@ class TerminalViewModel(
         if (isRunning) return
         isRunning = true
 
-        viewModelScope.launch(Dispatchers.IO) {
-            val sessionClient = object : TerminalSessionClient {
-                override fun onTextChanged(session: TerminalSession) {}
-                override fun onTitleChanged(session: TerminalSession) {}
-                override fun onSessionFinished(session: TerminalSession) {}
-                override fun onCopyTextToClipboard(session: TerminalSession, text: String) {}
-                override fun onPasteTextFromClipboard(session: TerminalSession?) {}
-                override fun onBell(session: TerminalSession) {}
-                override fun onColorsChanged(session: TerminalSession) {}
-                override fun onTerminalCursorStateChange(state: Boolean) {}
-                override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
-                override fun getTerminalCursorStyle(): Int = 0
-                override fun logError(tag: String, message: String) {}
-                override fun logWarn(tag: String, message: String) {}
-                override fun logInfo(tag: String, message: String) {}
-                override fun logDebug(tag: String, message: String) {}
-                override fun logVerbose(tag: String, message: String) {}
-                override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {}
-                override fun logStackTrace(tag: String, e: Exception) {}
-            }
-
-            // 初始化一个空的 Session，模拟 /system/bin/sh 但不真正 fork 外部进程
-            // 我们将手动往它的 ByteQueue 里写数据
+        viewModelScope.launch {
+            // 1. 在主线程创建 Session
+            val sessionClient = createSessionClient()
             val newSession = TerminalSession(
-                "/system/bin/true", // 占位符
+                "/system/bin/true",
                 context.filesDir.absolutePath,
                 arrayOf("chunker-exec"),
                 emptyArray(),
                 2000,
                 sessionClient
             )
-            
             _session.value = newSession
 
-            // 构造 CLI 参数
+            // 2. 切换到 IO 线程执行 Chunker 逻辑
+            withContext(Dispatchers.IO) {
+                runChunkerTask(newSession, args)
+            }
+        }
+    }
+
+    private fun createSessionClient() = object : TerminalSessionClient {
+        override fun onTextChanged(session: TerminalSession) {}
+        override fun onTitleChanged(session: TerminalSession) {}
+        override fun onSessionFinished(session: TerminalSession) {}
+        override fun onCopyTextToClipboard(session: TerminalSession, text: String) {}
+        override fun onPasteTextFromClipboard(session: TerminalSession?) {}
+        override fun onBell(session: TerminalSession) {}
+        override fun onColorsChanged(session: TerminalSession) {}
+        override fun onTerminalCursorStateChange(state: Boolean) {}
+        override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
+        override fun getTerminalCursorStyle(): Int = 0
+        override fun logError(tag: String, message: String) {}
+        override fun logWarn(tag: String, message: String) {}
+        override fun logInfo(tag: String, message: String) {}
+        override fun logDebug(tag: String, message: String) {}
+        override fun logVerbose(tag: String, message: String) {}
+        override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {}
+        override fun logStackTrace(tag: String, e: Exception) {}
+    }
+
+    private fun runChunkerTask(session: TerminalSession, args: TerminalExec) {
+        val outBridge = TerminalPrintStream(session)
+        val oldOut = System.`out`
+        val oldErr = System.err
+
+        System.setOut(outBridge)
+        System.setErr(outBridge)
+
+        try {
+            outBridge.println("\u001B[32m[Chunker Android MVP] Starting conversion...\u001B[0m")
+            outBridge.println("Input: ${args.inputPath}")
+            outBridge.println("Output: ${args.outputPath}")
+            outBridge.println("Format: ${args.format}")
+            outBridge.println("------------------------------------------------")
+
             val cliArgs = arrayOf(
                 "--inputDirectory", args.inputPath,
                 "--outputFormat", args.format,
                 "--outputDirectory", args.outputPath
             )
 
-            // 重定向标准输出到终端
-            val outBridge = TerminalPrintStream(newSession)
-            val oldOut = System.out
-            val oldErr = System.err
-            
-            System.setOut(outBridge)
-            System.setErr(outBridge)
+            val cli = CLI()
+            CommandLine(cli).execute(*cliArgs)
 
-            try {
-                outBridge.println("\u001B[32m[Chunker Android MVP] Starting conversion...\u001B[0m")
-                outBridge.println("Input: ${args.inputPath}")
-                outBridge.println("Output: ${args.outputPath}")
-                outBridge.println("Format: ${args.format}")
-                outBridge.println("------------------------------------------------")
-
-                // 直接调用 Chunker CLI 的入口
-                val cli = CLI()
-                CommandLine(cli).execute(*cliArgs)
-
-                outBridge.println("\n\u001B[32m[SUCCESS] Execution finished.\u001B[0m")
-            } catch (e: Exception) {
-                outBridge.println("\n\u001B[31m[ERROR] ${e.message}\u001B[0m")
-                e.printStackTrace(outBridge)
-            } finally {
-                System.setOut(oldOut)
-                System.setErr(oldErr)
-                isRunning = false
-            }
+            outBridge.println("\n\u001B[32m[SUCCESS] Execution finished.\u001B[0m")
+        } catch (e: Exception) {
+            outBridge.println("\n\u001B[31m[ERROR] ${e.message}\u001B[0m")
+            e.printStackTrace(outBridge)
+        } finally {
+            System.setOut(oldOut)
+            System.setErr(oldErr)
+            isRunning = false
         }
     }
 
-    /** 内部类：将 PrintStream 的输出直接写入 TerminalSession 的输入队列 */
-    private inner class TerminalPrintStream(val session: TerminalSession) : 
+    private inner class TerminalPrintStream(val session: TerminalSession) :
         PrintStream(ByteArrayOutputStream(), true) {
-        
+
         override fun println(x: String?) {
             val bytes = ((x ?: "null") + "\r\n").toByteArray(StandardCharsets.UTF_8)
             session.write(bytes, 0, bytes.size)
