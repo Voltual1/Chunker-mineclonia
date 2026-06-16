@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import me.voltual.vb.ui.TerminalExec
+import android.content.Context
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -79,6 +80,7 @@ val testArgs = TerminalExec(
     outputPath = "${context.filesDir.absolutePath}/world_output",
     format = "JAVA_1_20_5"
 )
+val navigator = LocalNavigator.current
 navigator.navigate(testArgs)
                         }
                         
