@@ -10,10 +10,10 @@ package me.voltual.vb.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import me.voltual.vb.ui.terminal.TerminalScreen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import me.voltual.vb.ui.TerminalExec
-import android.content.Context
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -76,8 +76,8 @@ fun BBQNavDisplay(
                     when (key) {
                         is Home -> {
 val testArgs = TerminalExec(
-    inputPath = "${context.filesDir.absolutePath}/world_input",
-    outputPath = "${context.filesDir.absolutePath}/world_output",
+    inputPath = "/data/data/me.voltual.vb/world_input",
+    outputPath = "/data/data/me.voltual.vb/world_output",
     format = "JAVA_1_20_5"
 )
 val navigator = LocalNavigator.current
