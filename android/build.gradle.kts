@@ -169,9 +169,9 @@ dependencies {
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
     //termux    
-    implementation("com.github.termux.termux-app:termux-shared:0.119.0-beta.3")
-    implementation("com.github.termux.termux-app:terminal-view:0.119.0-beta.3")
-    implementation("com.github.termux.termux-app:terminal-emulator:0.119.0-beta.3")
+    implementation("com.github.termux.termux-app:termux-shared:v0.119.0-beta.3")
+    implementation("com.github.termux.termux-app:terminal-view:v0.119.0-beta.3")
+    implementation("com.github.termux.termux-app:terminal-emulator:v0.119.0-beta.3")
 
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)
