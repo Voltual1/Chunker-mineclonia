@@ -74,7 +74,7 @@ android {
         }
         debug {
             isDebuggable = true
-            isMinifyEnabled = false
+            isMinifyEnabled = true
             signingConfig = signingConfigs.getByName("release")
         }
     }
@@ -168,14 +168,10 @@ dependencies {
     implementation(libs.ktor.io)
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
-    //termux
-        implementation(project(":terminal-view"))
-    implementation(project(":terminal-emulator"))
-    
-    implementation("com.github.Termux:Termux-app:v0.119.0-beta.3") {
-        exclude(group = "com.github.Termux", module = "terminal-emulator")
-        exclude(group = "com.github.Termux", module = "terminal-view")
-    }
+    //termux    
+    implementation("com.github.termux.termux-app:termux-shared:0.119.0-beta.3")
+    implementation("com.github.termux.termux-app:terminal-view:0.119.0-beta.3")
+    implementation("com.github.termux.termux-app:terminal-emulator:0.119.0-beta.3")
 
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)
