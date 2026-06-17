@@ -1,5 +1,6 @@
 package me.voltual.vb.ui.terminal
 
+import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -31,43 +32,78 @@ class TerminalViewModel(
         isRunning = true
 
         viewModelScope.launch {
-            // 1. 在主线程创建 Session
-            val sessionClient = createSessionClient()
+            // 在主线程创建完整的 Session 客户端
+            val sessionClient = object : TerminalSessionClient {
+                override fun onTextChanged(changedSession: TerminalSession) {
+                    // 当终端屏幕字符发生变化时触发更新
+                    _session.value = changedSession
+                }
+
+                override fun onTitleChanged(changedSession: TerminalSession) {}
+
+                override fun onSessionFinished(finishedSession: TerminalSession) {
+                    isRunning = false
+                }
+
+                override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
+                    // 支持终端内部通过控制序列触发剪贴板复制
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("Terminal Copy", text)
+                    if (clipboard != null && clip != null) {
+                        clipboard.setPrimaryClip(clip)
+                    }
+                }
+
+                override fun onPasteTextFromClipboard(session: TerminalSession?) {
+                    // 支持终端内部通过控制序列触发剪贴板粘贴
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                    val clip = clipboard?.primaryClip
+                    if (clip != null && clip.itemCount > 0 && session != null) {
+                        val text = clip.getItemAt(0).coerceToText(context).toString()
+                        session.emulator.paste(text)
+                    }
+                }
+
+                override fun onBell(session: TerminalSession) {
+                    // 触发蜂鸣器或震动（可选）
+                }
+
+                override fun onColorsChanged(session: TerminalSession) {
+                    // 颜色发生变化时刷新状态
+                    _session.value = session
+                }
+
+                override fun onTerminalCursorStateChange(state: Boolean) {}
+
+                override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
+
+                override fun getTerminalCursorStyle(): Int = 0 // 使用默认 BLOCK 样式
+
+                override fun logError(tag: String, message: String) {}
+                override fun logWarn(tag: String, message: String) {}
+                override fun logInfo(tag: String, message: String) {}
+                override fun logDebug(tag: String, message: String) {}
+                override fun logVerbose(tag: String, message: String) {}
+                override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {}
+                override fun logStackTrace(tag: String, e: Exception) {}
+            }
+
             val newSession = TerminalSession(
-                "/system/bin/true",
+                "/system/bin/true", // 虚拟 Shell 路径
                 context.filesDir.absolutePath,
                 arrayOf("chunker-exec"),
                 emptyArray(),
-                2000,
+                5000, // 增加回滚行数限制以保存更多 Chunker 日志
                 sessionClient
             )
+            
             _session.value = newSession
 
-            // 2. 切换到 IO 线程执行 Chunker 逻辑
+            // 切换到 IO 线程执行 Chunker 任务
             withContext(Dispatchers.IO) {
                 runChunkerTask(newSession, args)
             }
         }
-    }
-
-    private fun createSessionClient() = object : TerminalSessionClient {
-        override fun onTextChanged(session: TerminalSession) {}
-        override fun onTitleChanged(session: TerminalSession) {}
-        override fun onSessionFinished(session: TerminalSession) {}
-        override fun onCopyTextToClipboard(session: TerminalSession, text: String) {}
-        override fun onPasteTextFromClipboard(session: TerminalSession?) {}
-        override fun onBell(session: TerminalSession) {}
-        override fun onColorsChanged(session: TerminalSession) {}
-        override fun onTerminalCursorStateChange(state: Boolean) {}
-        override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
-        override fun getTerminalCursorStyle(): Int = 0
-        override fun logError(tag: String, message: String) {}
-        override fun logWarn(tag: String, message: String) {}
-        override fun logInfo(tag: String, message: String) {}
-        override fun logDebug(tag: String, message: String) {}
-        override fun logVerbose(tag: String, message: String) {}
-        override fun logStackTraceWithMessage(tag: String, message: String, e: Exception) {}
-        override fun logStackTrace(tag: String, e: Exception) {}
     }
 
     private fun runChunkerTask(session: TerminalSession, args: TerminalExec) {
@@ -79,11 +115,11 @@ class TerminalViewModel(
         System.setErr(outBridge)
 
         try {
-            outBridge.println("\u001B[32m[Chunker Android MVP] Starting conversion...\u001B[0m")
-            outBridge.println("Input: ${args.inputPath}")
-            outBridge.println("Output: ${args.outputPath}")
-            outBridge.println("Format: ${args.format}")
-            outBridge.println("------------------------------------------------")
+            outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task...\u001B[0m")
+            outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
+            outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
+            outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
+            outBridge.println("================================================")
 
             val cliArgs = arrayOf(
                 "--inputDirectory", args.inputPath,
@@ -91,12 +127,13 @@ class TerminalViewModel(
                 "--outputDirectory", args.outputPath
             )
 
+            // 启动 Chunker 转换器
             val cli = CLI()
             CommandLine(cli).execute(*cliArgs)
 
-            outBridge.println("\n\u001B[32m[SUCCESS] Execution finished.\u001B[0m")
+            outBridge.println("\n\u001B[1;32m[SUCCESS] Conversion completed successfully!\u001B[0m")
         } catch (e: Exception) {
-            outBridge.println("\n\u001B[31m[ERROR] ${e.message}\u001B[0m")
+            outBridge.println("\n\u001B[1;31m[FATAL ERROR] Conversion failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
             System.setOut(oldOut)

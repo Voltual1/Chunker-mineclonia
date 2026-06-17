@@ -21,10 +21,11 @@ fun TerminalScreen(
         viewModel.startExecution(args)
     }
 
-    if (session != null) {
+    session?.let { activeSession ->
         TerminalViewAndroidView(
+            session = activeSession,
             modifier = Modifier.fillMaxSize(),
-            onSessionCreated = { /* 已经在 ViewModel 中处理 */ }
+            initialTextSize = 36
         )
     }
 }
