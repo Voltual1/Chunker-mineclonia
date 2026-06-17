@@ -14,3 +14,4 @@
 # 这会强制让编译链在任何时候都妥善闭环 Record 的脱糖处理
 -keep class com.android.tools.r8.RecordTag { *; }
 -dontwarn com.android.tools.r8.RecordTag
+-dontoptimize
