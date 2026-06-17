@@ -32,10 +32,9 @@ class TerminalViewModel(
         isRunning = true
 
         viewModelScope.launch {
-            // 在主线程创建完整的 Session 客户端
             val sessionClient = object : TerminalSessionClient {
                 override fun onTextChanged(changedSession: TerminalSession) {
-                    // 当终端屏幕字符发生变化时触发更新
+                    // 当终端字符改变时，通知 Flow 刷新
                     _session.value = changedSession
                 }
 
@@ -46,16 +45,12 @@ class TerminalViewModel(
                 }
 
                 override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
-                    // 支持终端内部通过控制序列触发剪贴板复制
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     val clip = android.content.ClipData.newPlainText("Terminal Copy", text)
-                    if (clipboard != null && clip != null) {
-                        clipboard.setPrimaryClip(clip)
-                    }
+                    clipboard?.setPrimaryClip(clip)
                 }
 
                 override fun onPasteTextFromClipboard(session: TerminalSession?) {
-                    // 支持终端内部通过控制序列触发剪贴板粘贴
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     val clip = clipboard?.primaryClip
                     if (clip != null && clip.itemCount > 0 && session != null) {
@@ -64,20 +59,14 @@ class TerminalViewModel(
                     }
                 }
 
-                override fun onBell(session: TerminalSession) {
-                    // 触发蜂鸣器或震动（可选）
-                }
-
+                override fun onBell(session: TerminalSession) {}
                 override fun onColorsChanged(session: TerminalSession) {
-                    // 颜色发生变化时刷新状态
                     _session.value = session
                 }
 
                 override fun onTerminalCursorStateChange(state: Boolean) {}
-
                 override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
-
-                override fun getTerminalCursorStyle(): Int = 0 // 使用默认 BLOCK 样式
+                override fun getTerminalCursorStyle(): Int = 0
 
                 override fun logError(tag: String, message: String) {}
                 override fun logWarn(tag: String, message: String) {}
@@ -88,18 +77,18 @@ class TerminalViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
+            // 使用 /system/bin/cat 作为常驻进程，参数传入 "cat"
             val newSession = TerminalSession(
-                "/system/bin/true", // 虚拟 Shell 路径
+                "/system/bin/cat",
                 context.filesDir.absolutePath,
-                arrayOf("chunker-exec"),
+                arrayOf("cat"),
                 emptyArray(),
-                5000, // 增加回滚行数限制以保存更多 Chunker 日志
+                5000,
                 sessionClient
             )
             
             _session.value = newSession
 
-            // 切换到 IO 线程执行 Chunker 任务
             withContext(Dispatchers.IO) {
                 runChunkerTask(newSession, args)
             }
@@ -127,7 +116,6 @@ class TerminalViewModel(
                 "--outputDirectory", args.outputPath
             )
 
-            // 启动 Chunker 转换器
             val cli = CLI()
             CommandLine(cli).execute(*cliArgs)
 
@@ -139,6 +127,8 @@ class TerminalViewModel(
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false
+            // 执行完毕后主动结束后台 cat 进程
+            session.finishIfRunning()
         }
     }
 

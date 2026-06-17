@@ -16,3 +16,10 @@
 -keep class com.android.tools.r8.RecordTag { *; }
 -dontwarn com.android.tools.r8.RecordTag
 -dontoptimize
+
+# 保持 VersionProvider 及其构造函数不被混淆和移除
+-keep class com.hivemc.chunker.cli.VersionProvider {
+    public <init>();
+}
+# 防止 picocli 反射失效
+-keep class picocli.** { *; }
