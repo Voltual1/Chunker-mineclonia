@@ -1,7 +1,18 @@
--dontobfuscate
 -keepnames class ** { *; }
 -assumenosideeffects class **$$Lambda$* { *; }
  -assumenosideeffects class android.util.Log { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
+# 忽略 Chunker 引用的桌面端 JDK 绘图相关类
+-dontwarn java.awt.**
+-dontwarn javax.imageio.**
+
+# Caffeine 缓存库引用的 Java 9+ 系统日志类，Android 上也没有，直接忽略
+-dontwarn java.lang.System$Logger**
+
+# 强行保留并处理 com.android.tools.r8.RecordTag 标记
+# 这会强制让编译链在任何时候都妥善闭环 Record 的脱糖处理
+-keep class com.android.tools.r8.RecordTag { *; }
+-dontwarn com.android.tools.r8.RecordTag
+-dontoptimize
