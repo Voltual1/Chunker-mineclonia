@@ -171,6 +171,11 @@ dependencies {
     //termux
         implementation(project(":terminal-view"))
     implementation(project(":terminal-emulator"))
+    
+    implementation("com.github.Termux:Termux-app:v0.119.0-beta.3") {
+        exclude(group = "com.github.Termux", module = "terminal-emulator")
+        exclude(group = "com.github.Termux", module = "terminal-view")
+    }
 
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)

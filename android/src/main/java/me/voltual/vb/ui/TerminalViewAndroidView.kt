@@ -92,7 +92,7 @@ fun TerminalViewAndroidView(
 
                 val session = TerminalSession(
                     "/system/bin/sh",
-                    "/data/local/tmp",
+                    "/data/data/me.voltual.vb",
                     arrayOf("sh"),
                     arrayOf("TERM=xterm-256color"),
                     1000,
