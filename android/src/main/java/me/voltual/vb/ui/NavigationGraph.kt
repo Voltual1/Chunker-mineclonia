@@ -24,6 +24,8 @@ import androidx.navigation3.ui.NavDisplay
 import me.voltual.vb.core.ui.animation.*
 import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
 import me.voltual.vb.ui.home.HomeScreen
+import me.voltual.vb.ui.log.LogScreen
+import me.voltual.vb.ui.log.LogViewModel
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -81,6 +83,15 @@ fun BBQNavDisplay(
                         
                         is TerminalExec -> {
                             TerminalScreen(key)
+                        }
+                        
+                                               is LogViewer -> {
+                            val viewModel: LogViewModel = koinViewModel()
+                            LogScreen(
+                                viewModel = viewModel,
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
 
                         is ThemeCustomize -> {

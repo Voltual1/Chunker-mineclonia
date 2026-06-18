@@ -12,6 +12,7 @@ import me.voltual.vb.core.database.*
 import me.voltual.vb.core.database.dao.*
 import me.voltual.vb.data.*
 import me.voltual.vb.ui.settings.update.*
+import me.voltual.vb.ui.log.LogViewModel
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
 import org.koin.core.module.dsl.viewModel
