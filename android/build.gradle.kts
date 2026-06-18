@@ -137,11 +137,10 @@ dependencies {
     implementation(libs.coil.network.ktor)
     implementation(libs.kotlinx.coroutines.android)
     
-    // FileKit
-    implementation(libs.filekit.core)
-    implementation(libs.filekit.dialogs)
-    implementation(libs.filekit.dialogs.compose)    
-    // 存储
+    // File
+    implementation(libs.simple.storage)
+    
+    // 持久化
     implementation(libs.datastore.preferences)
     implementation(libs.datastore.core)
 /*    
