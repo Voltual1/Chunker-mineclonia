@@ -23,6 +23,7 @@ import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import me.voltual.vb.core.ui.animation.*
 import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
+import me.voltual.vb.ui.home.HomeScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -75,13 +76,7 @@ fun BBQNavDisplay(
                     // 匹配通用页面或提供跨平台保底
                     when (key) {
                         is Home -> {
-val testArgs = TerminalExec(
-    inputPath = "/data/data/me.voltual.vb/world_input",
-    outputPath = "/data/data/me.voltual.vb/world_output",
-    format = "JAVA_1_20_5"
-)
-val navigator = LocalNavigator.current
-navigator.navigate(testArgs)
+                            HomeScreen(modifier = Modifier.fillMaxSize())
                         }
                         
                         is TerminalExec -> {
