@@ -72,6 +72,7 @@ fun NavigationDrawerItems(
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
+            DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("update_settings", "更新设置", IconSource.Vector(Asusupdate), UpdateSettings),
             DrawerItem("settings", "主题设置", IconSource.Vector(IcMenuSettings), ThemeCustomize),
         )

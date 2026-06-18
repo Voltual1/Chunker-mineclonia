@@ -31,6 +31,7 @@ val THEME_SETTINGS_STORE_QUALIFIER = named("theme_settings_store")
 val appModule = module {
       viewModel { UpdateSettingsViewModel(get()) }
       viewModel { TerminalViewModel(androidContext()) }
+          viewModel { LogViewModel(get()) }
    
   single { BBQApplication.instance.database }
   single { get<AppDatabase>().logDao() }
