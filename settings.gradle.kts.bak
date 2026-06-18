@@ -14,6 +14,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }       
+        maven { url "https://andob.io/repository/open_source" }
     }
 }
 
