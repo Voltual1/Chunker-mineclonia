@@ -77,13 +77,12 @@ class TerminalViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
-            // 使用 /system/bin/cat 作为常驻进程，参数传入 "cat"
-            val newSession = TerminalSession(
-                "/system/bin/cat",
+           val newSession = TerminalSession(
+                "/system/bin/true", // 虚拟 Shell 路径
                 context.filesDir.absolutePath,
-                arrayOf("cat"),
+                arrayOf("chunker-exec"),
                 emptyArray(),
-                5000,
+                5000, // 增加回滚行数限制以保存更多 Chunker 日志
                 sessionClient
             )
             
