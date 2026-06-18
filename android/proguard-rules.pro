@@ -22,3 +22,8 @@
 }
 # 防止 picocli 反射失效
 -keep class picocli.** { *; }
+
+-keep public class com.hivemc.chunker.cli.JsonObjectOrFile$Converter {
+    public <init>();
+    public com.hivemc.chunker.cli.JsonObjectOrFile convert(java.lang.String);
+}
