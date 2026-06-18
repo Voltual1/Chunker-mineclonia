@@ -142,6 +142,7 @@ dependencies {
     implementation(libs.filekit.dialogs)
     implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
+    implementation(libs.simple.storage.compose)
     
     // 持久化
     implementation(libs.datastore.preferences)
