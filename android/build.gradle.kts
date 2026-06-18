@@ -173,6 +173,8 @@ dependencies {
     implementation("com.github.termux.termux-app:termux-shared:v0.119.0-beta.3")
     implementation("com.github.termux.termux-app:terminal-view:v0.119.0-beta.3")
     implementation("com.github.termux.termux-app:terminal-emulator:v0.119.0-beta.3")
+    
+    implementation("ro.andob.androidawt:androidawt:1.0.4")
 
     // --- Neo Store 移植依赖 ---
     implementation(libs.kotlinx.datetime)
