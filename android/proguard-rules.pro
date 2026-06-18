@@ -23,7 +23,5 @@
 # 防止 picocli 反射失效
 -keep class picocli.** { *; }
 
--keep public class com.hivemc.chunker.cli.JsonObjectOrFile$Converter {
-    public <init>();
-    public com.hivemc.chunker.cli.JsonObjectOrFile convert(java.lang.String);
-}
+# 彻底放过 chunker 库下的所有 CLI 相关类，不混淆、不优化、不压缩
+-keep class com.hivemc.chunker.cli.** { *; }
