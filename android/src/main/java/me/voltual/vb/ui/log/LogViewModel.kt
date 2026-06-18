@@ -7,13 +7,13 @@
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 
-package me.voltual.pyrolysis.ui.log
+package me.voltual.vb.ui.log
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
-import me.voltual.pyrolysis.core.database.LogEntry
-import me.voltual.pyrolysis.core.database.LogRepository
+import me.voltual.vb.core.database.entity.LogEntry
+import me.voltual.vb.core.database.repository.LogRepository
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import org.koin.compose.viewmodel.koinViewModel

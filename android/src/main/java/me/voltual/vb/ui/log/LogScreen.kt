@@ -30,7 +30,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager // 引入 Compose 剪贴板管理器
 import androidx.compose.ui.text.AnnotatedString // 引入富文本类型
 import androidx.compose.ui.unit.dp
-import me.voltual.vb.core.entry.database.LogEntry
+import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.ui.components.ListItem
 import me.voltual.vb.core.ui.theme.ThemeManager
 import me.voltual.vb.core.ui.theme.billing_expense
