@@ -110,8 +110,8 @@ fun HomeScreen(
 
             BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
-                onExpandedChange = { dropdownExpanded = true },
-                modifier = Modifier.fillMaxWidth()
+                onExpandedChange = { dropdownExpanded = it },
+//                modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
                     value = selectedFormat,
