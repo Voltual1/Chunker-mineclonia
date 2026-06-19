@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     init {
-        // === 新增：预防并拦截 System.exit() ===
+        // === 预防并拦截 System.exit() ===
         try {
             System.setSecurityManager(object : SecurityManager() {
                 override fun checkPermission(perm: Permission?) {
