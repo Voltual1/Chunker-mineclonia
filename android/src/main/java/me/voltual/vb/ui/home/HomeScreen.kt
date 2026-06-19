@@ -75,7 +75,7 @@ fun HomeScreen(
                 color = MaterialTheme.colorScheme.primary
             )
 
-            BBQCard(
+/*            BBQCard(
                 modifier = Modifier.fillMaxWidth(),
                 onClick = {
                     folderPickerLauncher.launch()
@@ -106,7 +106,7 @@ fun HomeScreen(
                         )
                     }
                 }
-            }
+            }*/
 
             BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
