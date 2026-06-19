@@ -21,4 +21,5 @@ dependencyResolutionManagement {
 rootProject.name = "Vector-Breakthrough"
 include(":mcl")
 include(":android")
+include(":terminal-emulator")
 include("cli", "app")
