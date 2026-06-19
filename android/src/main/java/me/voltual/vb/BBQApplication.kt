@@ -23,6 +23,7 @@ import me.voltual.vb.core.ui.theme.*
 import org.koin.android.ext.koin.androidContext
 import org.koin.androix.startup.KoinStartup
 import org.koin.android.ext.android.inject
+import org.koin.dsl.koinConfiguration
 import java.io.File
 
 class BBQApplication : Application(), KoinStartup {
