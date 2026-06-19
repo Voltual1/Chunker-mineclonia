@@ -27,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId = "me.voltual.vb"
-        minSdk = 33
+        minSdk = 24
         targetSdk = 37
         versionCode = 1
         versionName = "1.0"
