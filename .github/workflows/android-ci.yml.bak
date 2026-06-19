@@ -37,8 +37,8 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            ~/gradle/caches
+            ~/gradle/wrapper
             ${{ github.workspace }}/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle.kts', '**/settings.gradle.kts') }}
           restore-keys: |
@@ -49,6 +49,16 @@ jobs:
           ENCODED_STRING: ${{ secrets.SIGNING_KEY }}
         run: |
           echo $ENCODED_STRING | base64 -d > android/tag_keystore.p12
+
+      # ================= 新增：批量注释 System.exit =================
+      - name: Comment out System.exit in Java files
+        run: |
+          echo "开始检索并注释 System.exit..."
+          # 查找所有 .java 文件，并使用 GNU sed 进行正则替换
+          # 匹配规则：System.exit 后面跟任意数量空格、左括号、非右括号的任意字符、右括号、可选的空格和可选的分号
+          find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
+          echo "替换完成！"
+      # =============================================================
 
       - name: Build with Gradle
         run: ./gradlew assembleDebug
@@ -90,7 +100,7 @@ jobs:
         uses: actions/cache@v3
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
+            ~/gradle/caches
+            ~/gradle/wrapper
             ${{ github.workspace }}/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/build.gradle.kts', '**/settings.gradle.kts') }}
