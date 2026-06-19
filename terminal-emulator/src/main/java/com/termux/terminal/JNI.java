@@ -38,4 +38,7 @@ final class JNI {
     /** Close a file descriptor through the close(2) system call. */
     public static native void close(int fileDescriptor);
 
+    /** Register native crash signal handler to save logs on SIGSEGV/SIGABRT etc. */
+    public static native void setupNativeCrashHandler(String logFilePath);
+
 }

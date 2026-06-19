@@ -13,6 +13,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.ui.TerminalExec
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
 import com.hivemc.chunker.cli.CLI
@@ -25,7 +26,6 @@ class TerminalViewModel(
     private val context: Context
 ) : ViewModel(), KoinComponent {
 
-    // 使用 Koin 注入日志仓库，避免破坏已有的构造函数调用关系
     private val logRepository: LogRepository by inject()
 
     private val _session = MutableStateFlow<TerminalSession?>(null)
@@ -100,7 +100,8 @@ class TerminalViewModel(
     }
 
     private fun runChunkerTask(session: TerminalSession, args: TerminalExec) {
-        val outBridge = TerminalPrintStream(session)
+        val crashLogFile = File(context.filesDir, "terminal_crash.log")
+        val outBridge = TerminalPrintStream(session, crashLogFile)
         val oldOut = System.`out`
         val oldErr = System.err
 
@@ -136,60 +137,71 @@ class TerminalViewModel(
             isRunning = false
             session.finishIfRunning()
 
-            // 提取捕获的控制台字符并移除其中的 ANSI 转义颜色代码
-            val rawLog = outBridge.getCapturedText()
-            val cleanLog = stripAnsiCodes(rawLog)
-
-            // 将日志保存至本地 Room 数据库
+            // 正常结束时，读取实时写入的文件内容，保存到 Room 数据库，并清理临时文件
             viewModelScope.launch(Dispatchers.IO) {
-                logRepository.insertLog(
-                    type = "CHUNKER_CONVERSION",
-                    requestBody = "Input: ${args.inputPath}\nOutput: ${args.outputPath}\nFormat: ${args.format}",
-                    responseBody = cleanLog,
-                    status = if (isSuccess) "SUCCESS" else "FAILURE"
-                )
+                try {
+                    if (crashLogFile.exists()) {
+                        val logContent = crashLogFile.readText()
+                        logRepository.insertLog(
+                            type = "CHUNKER_CONVERSION",
+                            requestBody = "Input: ${args.inputPath}\nOutput: ${args.outputPath}\nFormat: ${args.format}",
+                            responseBody = logContent,
+                            status = if (isSuccess) "SUCCESS" else "FAILURE"
+                        )
+                        crashLogFile.delete()
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
         }
     }
 
-    /**
-     * 过滤掉终端输出中的颜色和样式转义字符（例如 \u001B[1;36m），使写入数据库的文本保持干净
-     */
-    private fun stripAnsiCodes(text: String): String {
-        val ansiRegex = "\\u001B\\[[;\\d]*[ -/]*[@-~]".toRegex()
-        return text.replace(ansiRegex, "")
-    }
-
-    private inner class TerminalPrintStream(val session: TerminalSession) :
+    private inner class TerminalPrintStream(val session: TerminalSession, val file: File) :
         PrintStream(ByteArrayOutputStream(), true) {
 
-        // 用于在内存中缓存本次转换过程的全部输出
-        private val outputBuffer = StringBuilder()
+        init {
+            try {
+                if (file.exists()) {
+                    file.delete()
+                }
+                file.createNewFile()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
-        @Synchronized
-        fun getCapturedText(): String = outputBuffer.toString()
+        private fun writeToCrashLog(text: String) {
+            try {
+                // 剔除 ANSI 颜色转义码
+                val cleanText = text.replace("\\u001B\\[[;\\d]*[ -/]*[@-~]".toRegex(), "")
+                file.appendText(cleanText)
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
 
         @Synchronized
         override fun println(x: String?) {
             val line = (x ?: "null") + "\n"
-            outputBuffer.append(line)
             val bytes = line.replace("\n", "\r\n").toByteArray(StandardCharsets.UTF_8)
             session.write(bytes, 0, bytes.size)
+            writeToCrashLog(line)
         }
 
         @Synchronized
         override fun print(x: String?) {
             val text = x ?: "null"
-            outputBuffer.append(text)
             val bytes = text.toByteArray(StandardCharsets.UTF_8)
             session.write(bytes, 0, bytes.size)
+            writeToCrashLog(text)
         }
 
         @Synchronized
         override fun write(buf: ByteArray, off: Int, len: Int) {
             session.write(buf, off, len)
             val text = String(buf, off, len, StandardCharsets.UTF_8)
-            outputBuffer.append(text)
+            writeToCrashLog(text)
         }
     }
 }

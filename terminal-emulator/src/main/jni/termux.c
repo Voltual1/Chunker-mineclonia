@@ -15,6 +15,49 @@
 # define LACKS_PTSNAME_R
 #endif
 
+static char g_log_file_path[512] = {0};
+static struct sigaction old_sa[NSIG];
+
+static void native_crash_handler(int sig, siginfo_t* info, void* ucontext)
+{
+    if (g_log_file_path[0] != '\0') {
+        int fd = open(g_log_file_path, O_WRONLY | O_CREAT | O_APPEND, 0666);
+        if (fd >= 0) {
+            const char* msg = "\n=== NATIVE CRASH DETECTED ===\nSignal received: ";
+            write(fd, msg, strlen(msg));
+            
+            char sig_num[10];
+            int temp = sig;
+            int idx = 0;
+            if (temp == 0) {
+                sig_num[idx++] = '0';
+            } else {
+                char rev[10];
+                int r_idx = 0;
+                while (temp > 0) {
+                    rev[r_idx++] = '0' + (temp % 10);
+                    temp /= 10;
+                }
+                while (r_idx > 0) {
+                    sig_num[idx++] = rev[--r_idx];
+                }
+            }
+            sig_num[idx++] = '\n';
+            write(fd, sig_num, idx);
+            close(fd);
+        }
+    }
+
+    // 调用原来的信号处理器以允许系统生成 Tombstone 并退出
+    if (old_sa[sig].sa_sigaction) {
+        old_sa[sig].sa_sigaction(sig, info, ucontext);
+    } else if (old_sa[sig].sa_handler) {
+        old_sa[sig].sa_handler(sig);
+    } else {
+        _exit(sig);
+    }
+}
+
 static int throw_runtime_exception(JNIEnv* env, char const* message)
 {
     jclass exClass = (*env)->FindClass(env, "java/lang/RuntimeException");
@@ -51,14 +94,12 @@ static int create_subprocess(JNIEnv* env,
         return throw_runtime_exception(env, "Cannot grantpt()/unlockpt()/ptsname_r() on /dev/ptmx");
     }
 
-    // Enable UTF-8 mode and disable flow control to prevent Ctrl+S from locking up the display.
     struct termios tios;
     tcgetattr(ptm, &tios);
     tios.c_iflag |= IUTF8;
     tios.c_iflag &= ~(IXON | IXOFF);
     tcsetattr(ptm, TCSANOW, &tios);
 
-    /** Set initial winsize. */
     struct winsize sz = { .ws_row = (unsigned short) rows, .ws_col = (unsigned short) columns, .ws_xpixel = (unsigned short) (columns * cell_width), .ws_ypixel = (unsigned short) (rows * cell_height)};
     ioctl(ptm, TIOCSWINSZ, &sz);
 
@@ -69,7 +110,6 @@ static int create_subprocess(JNIEnv* env,
         *pProcessId = (int) pid;
         return ptm;
     } else {
-        // Clear signals which the Android java process may have blocked:
         sigset_t signals_to_unblock;
         sigfillset(&signals_to_unblock);
         sigprocmask(SIG_UNBLOCK, &signals_to_unblock, 0);
@@ -100,13 +140,11 @@ static int create_subprocess(JNIEnv* env,
 
         if (chdir(cwd) != 0) {
             char* error_message;
-            // No need to free asprintf()-allocated memory since doing execvp() or exit() below.
             if (asprintf(&error_message, "chdir(\"%s\")", cwd) == -1) error_message = "chdir()";
             perror(error_message);
             fflush(stderr);
         }
         execvp(cmd, argv);
-        // Show terminal output about failing exec() call:
         char* error_message;
         if (asprintf(&error_message, "exec(\"%s\")", cmd) == -1) error_message = "exec()";
         perror(error_message);
@@ -207,7 +245,6 @@ JNIEXPORT jint JNICALL Java_com_termux_terminal_JNI_waitFor(JNIEnv* TERMUX_UNUSE
     } else if (WIFSIGNALED(status)) {
         return -WTERMSIG(status);
     } else {
-        // Should never happen - waitpid(2) says "One of the first three macros will evaluate to a non-zero (true) value".
         return 0;
     }
 }
@@ -215,4 +252,26 @@ JNIEXPORT jint JNICALL Java_com_termux_terminal_JNI_waitFor(JNIEnv* TERMUX_UNUSE
 JNIEXPORT void JNICALL Java_com_termux_terminal_JNI_close(JNIEnv* TERMUX_UNUSED(env), jclass TERMUX_UNUSED(clazz), jint fileDescriptor)
 {
     close(fileDescriptor);
+}
+
+JNIEXPORT void JNICALL Java_com_termux_terminal_JNI_setupNativeCrashHandler(JNIEnv* env, jclass TERMUX_UNUSED(clazz), jstring logPath)
+{
+    if (logPath) {
+        const char* path = (*env)->GetStringUTFChars(env, logPath, NULL);
+        if (path) {
+            strncpy(g_log_file_path, path, sizeof(g_log_file_path) - 1);
+            (*env)->ReleaseStringUTFChars(env, logPath, path);
+        }
+    }
+
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = native_crash_handler;
+    sa.sa_flags = SA_SIGINFO;
+
+    sigaction(SIGSEGV, &sa, &old_sa[SIGSEGV]);
+    sigaction(SIGABRT, &sa, &old_sa[SIGABRT]);
+    sigaction(SIGFPE,  &sa, &old_sa[SIGFPE]);
+    sigaction(SIGILL,  &sa, &old_sa[SIGILL]);
+    sigaction(SIGBUS,  &sa, &old_sa[SIGBUS]);
 }
