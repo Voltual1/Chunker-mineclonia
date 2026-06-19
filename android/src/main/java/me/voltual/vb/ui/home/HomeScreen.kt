@@ -37,7 +37,7 @@ fun HomeScreen(
 
     var selectedFolder by remember { mutableStateOf<DocumentFile?>(null) }
     var selectedFormat by remember { mutableStateOf("JAVA_1_20_5") }
-    var dropdownExpanded by remember { mutableStateOf(false) }
+    var dropdownExpanded = mutableStateOf(false)
 
     var isCopying by remember { mutableStateOf(false) }
     var copyProgress by remember { mutableStateOf(0f) }
@@ -135,7 +135,7 @@ fun HomeScreen(
                             text = { Text(format) },
                             onClick = {
                                 selectedFormat = format
-                                //dropdownExpanded = false
+                                dropdownExpanded = false
                             }
                         )
                     }
