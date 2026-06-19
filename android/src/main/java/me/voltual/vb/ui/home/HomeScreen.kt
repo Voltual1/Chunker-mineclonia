@@ -21,7 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.voltual.vb.core.ui.theme.BBQCard
+import me.voltual.vb.core.ui.theme.*
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.TerminalExec
 import java.io.File
@@ -37,7 +37,7 @@ fun HomeScreen(
 
     var selectedFolder by remember { mutableStateOf<DocumentFile?>(null) }
     var selectedFormat by remember { mutableStateOf("JAVA_1_20_5") }
-    var dropdownExpanded = mutableStateOf(false)
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
     var isCopying by remember { mutableStateOf(false) }
     var copyProgress by remember { mutableStateOf(0f) }
@@ -108,7 +108,7 @@ fun HomeScreen(
                 }
             }
 
-            ExposedDropdownMenuBox(
+            BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
                 onExpandedChange = { dropdownExpanded = it },
                 modifier = Modifier.fillMaxWidth()
@@ -123,7 +123,7 @@ fun HomeScreen(
                         .menuAnchor()
                         .fillMaxWidth()
                 )
-                ExposedDropdownMenu(
+                BBQExposedDropdownMenu(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false }
                 ) {
