@@ -109,38 +109,44 @@ fun HomeScreen(
             }*/
 
             BBQExposedDropdownMenuBox(
-                expanded = dropdownExpanded,
-                onExpandedChange = { dropdownExpanded = it },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                OutlinedTextField(
-                    value = selectedFormat,
-                    onValueChange = {},
-                    readOnly = true,
-                    label = { Text("目标转换格式") },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
-                    modifier = Modifier
-                        .fillMaxWidth() // 1. 先进行尺寸填充（放第一位）
-                        .menuAnchor(    // 2. 再挂载菜单锚点
-                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                            enabled = true
-                        )
-                )
-                BBQExposedDropdownMenu(
-                    expanded = dropdownExpanded,
-                    onDismissRequest = { dropdownExpanded = false }
-                ) {
-                    formats.forEach { format ->
-                        DropdownMenuItem(
-                            text = { Text(format) },
-                            onClick = {
-                                selectedFormat = format
-                                dropdownExpanded = false
-                            }
-                        )
-                    }
-                }
-            }
+    expanded = dropdownExpanded,
+    onExpandedChange = { dropdownExpanded = it },
+    modifier = Modifier.fillMaxWidth()
+) {
+    OutlinedTextField(
+        value = selectedFormat,
+        onValueChange = {},
+        readOnly = true,
+        label = { Text("目标转换格式") },
+        trailingIcon = { 
+            ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) 
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .menuAnchor(
+                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                enabled = true
+            )
+    )
+    
+    BBQExposedDropdownMenu(
+        expanded = dropdownExpanded,
+        // 关键点 1：原版 ExposedDropdownMenu 在点击外部或 Item 时会触发 dismiss
+        onDismissRequest = { dropdownExpanded = false } 
+    ) {
+        formats.forEach { format ->
+            DropdownMenuItem(
+                text = { Text(format) },
+                onClick = {
+                    selectedFormat = format
+                    dropdownExpanded = false // 关键点 2：选中后关闭
+                },
+                // 确保自适应布局 M3 的通配 padding
+                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding 
+            )
+        }
+    }
+}
 
             Spacer(modifier = Modifier.weight(1f))
 
