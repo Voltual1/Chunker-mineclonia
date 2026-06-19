@@ -21,7 +21,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.voltual.vb.core.ui.theme.*
+import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.TerminalExec
 import java.io.File
@@ -108,9 +108,9 @@ fun HomeScreen(
                 }
             }
 
-            BBQExposedDropdownMenuBox(
+            ExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
-                onExpandedChange = { dropdownExpanded = !dropdownExpanded },
+                onExpandedChange = { dropdownExpanded = it },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
@@ -120,13 +120,12 @@ fun HomeScreen(
                     label = { Text("目标转换格式") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
                     modifier = Modifier
-                        .menuAnchor(
+            .fillMaxWidth() // 1. 先把宽度彻底撑满！
+            .menuAnchor(     // 2. 然后再挂载锚点，并限制不可编辑的类型
                 type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                 enabled = true
             )
-                        .fillMaxWidth()
-                )
-                BBQExposedDropdownMenu(
+                ExposedDropdownMenu(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false }
                 ) {
