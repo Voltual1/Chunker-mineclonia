@@ -37,7 +37,7 @@ fun HomeScreen(
 
     var selectedFolder by remember { mutableStateOf<DocumentFile?>(null) }
     var selectedFormat by remember { mutableStateOf("JAVA_1_20_5") }
-    var dropdownExpanded = false
+    var dropdownExpanded by remember { mutableStateOf(false) }
 
     var isCopying by remember { mutableStateOf(false) }
     var copyProgress by remember { mutableStateOf(0f) }
@@ -110,7 +110,7 @@ fun HomeScreen(
 
             BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
-                onExpandedChange = { dropdownExpanded = it },
+                onExpandedChange = { dropdownExpanded = true },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
