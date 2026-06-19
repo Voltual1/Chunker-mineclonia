@@ -120,6 +120,7 @@ fun HomeScreen(
                     label = { Text("目标转换格式") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
                     modifier = Modifier
+                        .fillMaxWidth() // 1. 先进行尺寸填充（放第一位）
                         .menuAnchor(    // 2. 再挂载菜单锚点
                             type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
                             enabled = true
@@ -134,7 +135,7 @@ fun HomeScreen(
                             text = { Text(format) },
                             onClick = {
                                 selectedFormat = format
-                                dropdownExpanded = false
+                                //dropdownExpanded = false
                             }
                         )
                     }
