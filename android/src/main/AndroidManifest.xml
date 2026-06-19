@@ -10,6 +10,7 @@
         android:label="@string/app_name"
         android:theme="@style/Theme.BBQ.Launcher"
         android:supportsRtl="true"
+        android:largeHeap="true"  
         android:enableOnBackInvokedCallback="true"
         tools:targetApi="34">
         
