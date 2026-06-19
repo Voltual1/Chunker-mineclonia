@@ -1,10 +1,15 @@
+//Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+
 package me.voltual.vb.ui
 
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Color
 import android.graphics.Typeface
 import android.view.KeyEvent
 import android.view.MotionEvent
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
@@ -22,6 +27,7 @@ import com.termux.terminal.TerminalSessionClient
 import com.termux.terminal.TextStyle
 import com.termux.view.TerminalView
 import com.termux.view.TerminalViewClient
+import me.voltual.vb.core.ui.theme.ThemeManager // 导入你的主题管理器
 
 @Composable
 fun TerminalViewAndroidView(
@@ -32,6 +38,12 @@ fun TerminalViewAndroidView(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    
+    // 1. 联动你的 ThemeManager 自动计算出当前到底是 Dark 还是 Light
+    val systemIsDark = isSystemInDarkTheme()
+    val isDarkTheme = remember(systemIsDark, ThemeManager.themeMode) {
+        ThemeManager.calculateIsDark(systemIsDark)
+    }
     
     var currentTextSize by remember { mutableStateOf(initialTextSize) }
     var terminalViewRef by remember { mutableStateOf<TerminalView?>(null) }
@@ -66,10 +78,9 @@ fun TerminalViewAndroidView(
                 isFocusableInTouchMode = true
                 requestFocus()
 
-                // 绑定并重写 Session 的 Client 回调，确保 onTextChanged 触发重绘
                 val viewClient = object : TerminalSessionClient {
                     override fun onTextChanged(changedSession: TerminalSession) {
-                        onScreenUpdated() // 关键：字符发生改变时，强制 TerminalView 重绘
+                        onScreenUpdated() 
                     }
                     override fun onTitleChanged(changedSession: TerminalSession) {}
                     override fun onSessionFinished(finishedSession: TerminalSession) {}
@@ -191,9 +202,24 @@ fun TerminalViewAndroidView(
         update = { view ->
             if (view.mTermSession != session) {
                 view.attachSession(session)
-                val bgColor = session.emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND]
-                view.setBackgroundColor(bgColor)
             }
+
+            // 2. 核心：根据 Compose 的明暗主题动态更新终端颜色
+            val colors = session.emulator.mColors
+            if (isDarkTheme) {
+                // 暗色模式：经典 Termux 黑底白字
+                colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.BLACK
+                colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.WHITE
+                view.setBackgroundColor(Color.BLACK)
+            } else {
+                // 浅色模式：白底黑字（如果你希望无论如何都是黑底，把这里也改成 Color.BLACK/WHITE 即可）
+                colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.WHITE
+                colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.BLACK
+                view.setBackgroundColor(Color.WHITE)
+            }
+            
+            // 通知终端刷新颜色
+            view.onScreenUpdated()
         },
         modifier = modifier
     )
