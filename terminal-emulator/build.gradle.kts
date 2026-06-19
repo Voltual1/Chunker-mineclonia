@@ -6,11 +6,35 @@ android {
     namespace = "com.termux.emulator"
     compileSdk = 37
 
+    ndkVersion = System.getenv("JITPACK_NDK_VERSION") 
+        ?: (project.findProperty("ndkVersion") as? String) 
+        ?: "29.0.14206865" 
+
     defaultConfig {
         minSdk = 24
 
+        externalNativeBuild {
+            ndkBuild {
+                cFlags(
+                    "-std=c11", 
+                    "-Wall", 
+                    "-Wextra", 
+                    "-Werror", 
+                    "-Os", 
+                    "-fno-stack-protector", 
+                    "-Wl,--gc-sections"
+                )
+            }
+        }
+
         ndk {
-            abiFilters.add("arm64-v8a")
+            abiFilters.addAll(listOf("arm64-v8a"))
+        }
+    }
+
+    externalNativeBuild {
+        ndkBuild {
+            path = file("src/main/jni/Android.mk")
         }
     }
 
@@ -18,7 +42,8 @@ android {
         release {
             isMinifyEnabled = false
             proguardFiles(
-                getDefaultProguardFile("proguard-android-optimize.txt"),                
+                getDefaultProguardFile("proguard-android.txt"), 
+                "proguard-rules.pro"
             )
         }
     }
