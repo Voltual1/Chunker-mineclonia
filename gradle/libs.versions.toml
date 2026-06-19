@@ -4,8 +4,8 @@ picocli = "4.7.7"
 caffeine = "2.9.3"#"3.2.4"
 gson = "2.14.0"
 guava = "33.6.0-jre"
-leveldb = "1.1.0"
-leveldb-api = "1.1.0"
+#leveldb = "1.1.0"
+#leveldb-api = "1.1.0"
 fastutil = "8.5.18"
 lz4 = "1.3.0"
 jetbrains-annotations = "26.1.0"
@@ -74,8 +74,8 @@ picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
 caffeine = { module = "com.github.ben-manes.caffeine:caffeine", version.ref = "caffeine" }
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }
 guava = { module = "com.google.guava:guava", version.ref = "guava" }
-leveldb = { module = "com.hivemc.leveldb:leveldb", version.ref = "leveldb" }
-leveldb-api = { module = "com.hivemc.leveldb:leveldb-api", version.ref = "leveldb-api" }
+#leveldb = { module = "com.hivemc.leveldb:leveldb", version.ref = "leveldb" }
+#leveldb-api = { module = "com.hivemc.leveldb:leveldb-api", version.ref = "leveldb-api" }
 fastutil = { module = "it.unimi.dsi:fastutil", version.ref = "fastutil" }
 lz4 = { module = "net.jpountz.lz4:lz4", version.ref = "lz4" }
 jetbrains-annotations = { module = "org.jetbrains:annotations", version.ref = "jetbrains-annotations" }

@@ -27,8 +27,8 @@ dependencies {
     api(libs.guava)
     api(libs.gson)
     api(libs.lz4)
-    api(libs.leveldb.api)
-    api(libs.leveldb)
+    api(files("libs/leveldb-api.jar"))
+    api(files("libs/leveldb.jar"))
 
     // Unit Testing (JUnit)
     testImplementation(libs.junit)
