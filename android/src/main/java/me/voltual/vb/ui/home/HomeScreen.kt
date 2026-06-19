@@ -111,7 +111,7 @@ fun HomeScreen(
             BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
                 onExpandedChange = { dropdownExpanded = it },
-//                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth()
             ) {
                 OutlinedTextField(
                     value = selectedFormat,
@@ -228,7 +228,7 @@ fun HomeScreen(
             }
         }
 
-        if (isCopying) {
+/*        if (isCopying) {
             AlertDialog(
                 onDismissRequest = {},
                 confirmButton = {},
@@ -247,6 +247,6 @@ fun HomeScreen(
                     }
                 }
             )
-        }
+        }*/
     }
 }
