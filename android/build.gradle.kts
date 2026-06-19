@@ -173,7 +173,6 @@ dependencies {
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
     //termux    
-    implementation("com.github.termux.termux-app:terminal-view:v0.119.0-beta.3")
     
     implementation("ro.andob.androidawt:androidawt:1.0.4")
 
@@ -182,6 +181,7 @@ dependencies {
     
     implementation(project(":cli"))
     implementation(project(":terminal-emulator"))
+    implementation(project(":terminal-view"))
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
