@@ -108,7 +108,7 @@ fun HomeScreen(
                 }
             }
 
-            ExposedDropdownMenuBox(
+            BBQExposedDropdownMenuBox(
                 expanded = dropdownExpanded,
                 onExpandedChange = { dropdownExpanded = it },
                 modifier = Modifier.fillMaxWidth()
@@ -120,12 +120,13 @@ fun HomeScreen(
                     label = { Text("目标转换格式") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
                     modifier = Modifier
-            .fillMaxWidth() // 1. 先把宽度彻底撑满！
-            .menuAnchor(     // 2. 然后再挂载锚点，并限制不可编辑的类型
-                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                enabled = true
-            )
-                ExposedDropdownMenu(
+                        .fillMaxWidth() // 1. 先进行尺寸填充（放第一位）
+                        .menuAnchor(    // 2. 再挂载菜单锚点
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        )
+                )
+                BBQExposedDropdownMenu(
                     expanded = dropdownExpanded,
                     onDismissRequest = { dropdownExpanded = false }
                 ) {
