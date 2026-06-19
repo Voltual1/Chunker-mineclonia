@@ -1,12 +1,3 @@
-//Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发和/或修改它。
-//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
-
 package me.voltual.vb
 
 import android.content.Context
@@ -28,6 +19,7 @@ import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.database.dao.LogDao
 import me.voltual.vb.ui.*
 import org.koin.android.ext.android.inject
+import java.security.Permission
 
 class MainActivity : AppCompatActivity() {
     private val agreementDataStore: UserAgreementDataStore by inject()    
@@ -37,19 +29,38 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         setContent {
-                PyrolysisApp(agreementDataStore = agreementDataStore,
-                    platformEntryProvider = { _, _ -> null }
-                )
+            PyrolysisApp(
+                agreementDataStore = agreementDataStore,
+                platformEntryProvider = { _, _ -> null }
+            )
+        }
     }
-}
+
     init {
+        // === 新增：预防并拦截 System.exit() ===
+        try {
+            System.setSecurityManager(object : SecurityManager() {
+                override fun checkPermission(perm: Permission?) {
+                    // 允许其他所有操作权限
+                }
+                override fun checkExit(status: Int) {
+                    // 捕获到 System.exit()，将其转化为异常抛出，中断其杀死进程的危险操作
+                    throw SecurityException("Chunker CLI 试图退出应用 (Exit Code: $status)。已成功拦截！")
+                }
+            })
+        } catch (e: Exception) {
+            // 防止部分特殊 Android 版本或安全策略限制导致设置失败
+            e.printStackTrace()
+        }
+
+        // === 你原有的全局异常捕获逻辑 ===
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
             val crashReport = getCrashReport(throwable)
             val logDao: LogDao by inject()
             CoroutineScope(Dispatchers.IO).launch {
                 val logEntry = LogEntry(
                     type = "CRASH",
-                    requestBody = "MainActivity 崩溃",
+                    requestBody = "MainActivity 崩溃 (或被拦截的 System.exit)",
                     responseBody = crashReport,
                     status = "FAILURE"
                 )
