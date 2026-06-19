@@ -113,15 +113,27 @@ fun HomeScreen(
                 onExpandedChange = { dropdownExpanded = it },
                 modifier = Modifier.fillMaxWidth()
             ) {
-                OutlinedTextField(
+                // 替换为普通的 TextField 以解决一些设备上 OutlinedTextField 的长按误触/复制菜单问题
+                TextField(
                     value = selectedFormat,
                     onValueChange = {},
                     readOnly = true,
                     label = { Text("目标转换格式") },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) },
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        unfocusedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        disabledContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                        unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
+                    ),
+                    shape = MaterialTheme.shapes.medium,
                     modifier = Modifier
-                        .menuAnchor()
                         .fillMaxWidth()
+                        .menuAnchor(
+                            type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                            enabled = true
+                        )
                 )
                 BBQExposedDropdownMenu(
                     expanded = dropdownExpanded,
