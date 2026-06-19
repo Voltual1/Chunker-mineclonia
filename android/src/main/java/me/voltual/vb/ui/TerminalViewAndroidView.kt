@@ -200,27 +200,30 @@ fun TerminalViewAndroidView(
             }
         },
         update = { view ->
-            if (view.mTermSession != session) {
-                view.attachSession(session)
-            }
+    if (view.mTermSession != session) {
+        view.attachSession(session)
+    }
 
-            // 2. 核心：根据 Compose 的明暗主题动态更新终端颜色
-            val colors = session.emulator.mColors
-            if (isDarkTheme) {
-                // 暗色模式：经典 Termux 黑底白字
-                colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.BLACK
-                colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.WHITE
-                view.setBackgroundColor(Color.BLACK)
-            } else {
-                // 浅色模式：白底黑字（如果你希望无论如何都是黑底，把这里也改成 Color.BLACK/WHITE 即可）
-                colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.WHITE
-                colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.BLACK
-                view.setBackgroundColor(Color.WHITE)
-            }
-            
-            // 通知终端刷新颜色
-            view.onScreenUpdated()
-        },
+    // 获取 emulator，如果为 null 则直接返回，避免崩溃
+    val emulator = session.emulator ?: return@AndroidView
+
+    // 2. 核心：根据 Compose 的明暗主题动态更新终端颜色
+    val colors = emulator.mColors
+    if (isDarkTheme) {
+        // 暗色模式：经典 Termux 黑底白字
+        colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.BLACK
+        colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.WHITE
+        view.setBackgroundColor(Color.BLACK)
+    } else {
+        // 浅色模式：白底黑字
+        colors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND] = Color.WHITE
+        colors.mCurrentColors[TextStyle.COLOR_INDEX_FOREGROUND] = Color.BLACK
+        view.setBackgroundColor(Color.WHITE)
+    }
+    
+    // 通知终端刷新颜色
+    view.onScreenUpdated()
+},
         modifier = modifier
     )
 }
