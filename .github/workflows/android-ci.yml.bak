@@ -54,16 +54,27 @@ jobs:
           find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
           echo "替换完成！"
 
-      # ================= 修复：只针对 Chunker 内部文件进行替换 =================
-      - name: Fix Chunker StringBuilder.isEmpty
+      # ================= 修复：只精准修改 ChunkerBlockIdentifier.java =================
+      - name: Fix ChunkerBlockIdentifier StringBuilder.isEmpty
         run: |
-          echo "正在精准修复 Chunker 中的 StringBuilder.isEmpty..."
-          # 只在包含 chunker 路径下的 java 文件中替换
-          find . -path "*/chunker/*" -name "*.java" -exec sed -i -E 's/(!?)([a-zA-Z0-9_]+)\.isEmpty\(\)/(\1\2.length() == 0)/g' {} +
-          echo "修复完成！"
+          echo "正在精准修复 ChunkerBlockIdentifier.java..."
           
-      # =============================================================
-
+          # 直接定位到这个特定的文件
+          TARGET_FILE=$(find . -name "ChunkerBlockIdentifier.java" | head -n 1)
+          
+          if [ -n "$TARGET_FILE" ]; then
+              echo "找到目标文件: $TARGET_FILE"
+              # 仅在这个文件里，把 builder.isEmpty() 替换为 builder.length() > 0 的正向逻辑（或者 builder.length() == 0）
+              # 这里的正则加上了 builder. 前缀，确保只动 StringBuilder
+              sed -i -E 's/!builder\.isEmpty\(\)/builder.length() > 0/g' "$TARGET_FILE"
+              sed -i -E 's/builder\.isEmpty\(\)/builder.length() == 0/g' "$TARGET_FILE"
+              echo "修改完毕！"
+          else
+              echo "未找到 ChunkerBlockIdentifier.java 文件，请检查路径！"
+              exit 1
+          fi
+      # =============================================================================
+      
       - name: Build with Gradle
         run: ./gradlew assembleDebug
 
