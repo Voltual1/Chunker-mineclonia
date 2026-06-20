@@ -20,7 +20,7 @@ object mcl_dyes {
         "blue" to MclDyeColor("blue", 5),
         "light_blue" to MclDyeColor("light_blue", 6),
         "cyan" to MclDyeColor("cyan", 7),
-        "green" to mcl_dyes.MclDyeColor("green", 8),
+        "green" to MclDyeColor("green", 8),
         "lime" to MclDyeColor("lime", 9),
         "yellow" to MclDyeColor("yellow", 10),
         "brown" to MclDyeColor("brown", 11),
