@@ -1,240 +1,226 @@
 package me.voltual.vb.ui.home
 
-import android.content.Context
-import android.text.format.Formatter
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.NavigateBefore
+import androidx.compose.material.icons.filled.NavigateNext
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.documentfile.provider.DocumentFile
-import com.anggrayudi.storage.callback.SingleFolderConflictCallback
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
-import com.anggrayudi.storage.file.copyFolderTo
-import com.anggrayudi.storage.result.SingleFolderResult
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import me.voltual.vb.core.ui.theme.*
+import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.ui.LocalNavigator
-import me.voltual.vb.ui.TerminalExec
-import java.io.File
+import org.koin.compose.viewmodel.koinViewModel
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    viewModel: HomeViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val navigator = LocalNavigator.current
 
-    var selectedFolder by remember { mutableStateOf<DocumentFile?>(null) }
-    var selectedFormat by remember { mutableStateOf("JAVA_1_20_5") }
-    var dropdownExpanded by remember { mutableStateOf(false) }
-
-    var isCopying by remember { mutableStateOf(false) }
-    var copyProgress by remember { mutableStateOf(0f) }
-    var copyStatusText by remember { mutableStateOf("") }
-
-    val formats = remember {
-        listOf(
-            "JAVA_1_21",
-            "JAVA_1_20_5",
-            "JAVA_1_19_4",
-            "JAVA_1_18_2",
-            "BEDROCK_R21_80",
-            "BEDROCK_R20_80",
-            "BEDROCK_R19_30"
-        )
-    }
-
+    val pagerState = rememberPagerState(initialPage = 0) { 2 }
     val folderPickerLauncher = rememberLauncherForFolderPicker { folder ->
-        selectedFolder = folder
+        viewModel.selectedFolder = folder
     }
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        Column(
+        HorizontalPager(
+            state = pagerState,
             modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Chunker 存档转换器",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
-
-/*            BBQCard(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    folderPickerLauncher.launch()
-                }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FolderOpen,
-                        contentDescription = "选择文件夹",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Column(modifier = Modifier.weight(1f)) {
+            userScrollEnabled = viewModel.selectedFolder != null && !viewModel.isCopying
+        ) { page ->
+            when (page) {
+                0 -> {
+                    // 第 0 页：选择文件夹
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.Center,
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
                         Text(
-                            text = "源存档文件夹",
-                            style = MaterialTheme.typography.titleMedium
+                            text = "第一步：选择存档文件夹",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 24.dp)
                         )
-                        Text(
-                            text = selectedFolder?.name ?: "点击选择存档文件夹...",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (selectedFolder != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
-                        )
-                    }
-                }
-            }*/
 
-            BBQExposedDropdownMenuBox(
-    expanded = dropdownExpanded,
-    onExpandedChange = { dropdownExpanded = it },
-    modifier = Modifier.fillMaxWidth()
-) {
-    OutlinedTextField(
-        value = selectedFormat,
-        onValueChange = {},
-        readOnly = true,
-        label = { Text("目标转换格式") },
-        trailingIcon = { 
-            ExposedDropdownMenuDefaults.TrailingIcon(expanded = dropdownExpanded) 
-        },
-        modifier = Modifier
-            .fillMaxWidth()
-            .menuAnchor(
-                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
-                enabled = true
-            )
-    )
-    
-    BBQExposedDropdownMenu(
-        expanded = dropdownExpanded,
-        // 关键点 1：原版 ExposedDropdownMenu 在点击外部或 Item 时会触发 dismiss
-        onDismissRequest = { dropdownExpanded = false } 
-    ) {
-        formats.forEach { format ->
-            DropdownMenuItem(
-                text = { Text(format) },
-                onClick = {
-                    selectedFormat = format
-                    dropdownExpanded = false // 关键点 2：选中后关闭
-                },
-                // 确保自适应布局 M3 的通配 padding
-                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding 
-            )
-        }
-    }
-}
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Button(
-                onClick = {
-                    val source = selectedFolder
-                    if (source != null) {
-                        isCopying = true
-                        scope.launch(Dispatchers.IO) {
-                            val inputDir = File(context.filesDir, "world_input")
-                            if (inputDir.exists()) {
-                                inputDir.deleteRecursively()
-                            }
-                            inputDir.mkdirs()
-
-                            val targetParentDoc = DocumentFile.fromFile(context.filesDir)
-                            val conflictCallback = object : SingleFolderConflictCallback(scope) {
-                                override fun onParentConflict(
-                                    destinationFolder: DocumentFile,
-                                    action: ParentFolderConflictAction,
-                                    canMerge: Boolean
-                                ) {
-                                    action.confirmResolution(ConflictResolution.REPLACE)
+                        BBQCard(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp),
+                            onClick = {
+                                if (!viewModel.isCopying) {
+                                    folderPickerLauncher.launch()
                                 }
                             }
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.FolderOpen,
+                                        contentDescription = "选择文件夹",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(48.dp)
+                                    )
+                                    Text(
+                                        text = viewModel.selectedFolder?.name ?: "点击此处选择您的世界存档文件夹",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        color = if (viewModel.selectedFolder != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                                    )
+                                }
+                            }
+                        }
 
-                            source.copyFolderTo(
-                                context = context,
-                                targetParentFolder = targetParentDoc,
-                                skipEmptyFiles = false,
-                                newFolderNameInTargetPath = "world_input",
-                                onConflict = conflictCallback
-                            ).collect { result ->
-                                withContext(Dispatchers.Main) {
-                                    when (result) {
-                                        is SingleFolderResult.Preparing -> {
-                                            copyStatusText = "正在准备文件..."
-                                        }
-                                        is SingleFolderResult.CountingFiles -> {
-                                            copyStatusText = "正在计算文件数量..."
-                                        }
-                                        is SingleFolderResult.Starting -> {
-                                            copyStatusText = "开始复制文件..."
-                                        }
-                                        is SingleFolderResult.InProgress -> {
-                                            copyProgress = result.progress / 100f
-                                            copyStatusText = "已复制: ${(result.progress).toInt()}% (${Formatter.formatFileSize(context, result.bytesMoved)})"
-                                        }
-                                        is SingleFolderResult.Completed -> {
-                                            isCopying = false
-                                            copyStatusText = "复制完成！"
-                                            val localInputPath = File(context.filesDir, "world_input").absolutePath
-                                            val localOutputPath = File(context.filesDir, "world_output").absolutePath
-                                            val outputDir = File(localOutputPath)
-                                            if (outputDir.exists()) {
-                                                outputDir.deleteRecursively()
-                                            }
-                                            outputDir.mkdirs()
+                        Spacer(modifier = Modifier.height(32.dp))
 
-                                            navigator.navigate(
-                                                TerminalExec(
-                                                    inputPath = localInputPath,
-                                                    outputPath = localOutputPath,
-                                                    format = selectedFormat
-                                                )
+                        AnimatedVisibility(visible = viewModel.selectedFolder != null) {
+                            Button(
+                                onClick = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(1)
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("下一步：选择目标格式")
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(imageVector = Icons.Default.NavigateNext, contentDescription = "下一步")
+                            }
+                        }
+                    }
+                }
+                1 -> {
+                    // 第 1 页：选择 Chunker 格式版本
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            IconButton(onClick = {
+                                scope.launch {
+                                    pagerState.animateScrollToPage(0)
+                                }
+                            }) {
+                                Icon(imageVector = Icons.Default.NavigateBefore, contentDescription = "返回")
+                            }
+                            Text(
+                                text = "第二步：选择输出格式",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+
+                        OutlinedTextField(
+                            value = viewModel.searchQuery,
+                            onValueChange = { viewModel.searchQuery = it },
+                            label = { Text("搜索格式 (例如: JAVA, BEDROCK)") },
+                            leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = "搜索") },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            singleLine = true
+                        )
+
+                        LazyColumn(
+                            modifier = Modifier
+                                .weight(1f)
+                                .fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            items(viewModel.filteredFormats) { format ->
+                                val isSelected = viewModel.selectedFormat == format
+                                Card(
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            viewModel.selectedFormat = format
+                                        }
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = format,
+                                            style = MaterialTheme.typography.bodyLarge,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (isSelected) {
+                                            Icon(
+                                                imageVector = Icons.Default.Check,
+                                                contentDescription = "已选择",
+                                                tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
-                                        is SingleFolderResult.Error -> {
-                                            isCopying = false
-                                            copyStatusText = "复制失败: ${result.errorCode}"
-                                        }
-                                        else -> {}
                                     }
                                 }
                             }
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Button(
+                            onClick = {
+                                viewModel.startCopyAndNavigate(context, navigator)
+                            },
+                            enabled = viewModel.selectedFormat != null && !viewModel.isCopying,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                        ) {
+                            Text("开始复制并转换")
+                        }
                     }
-                },
-                enabled = selectedFolder != null && !isCopying,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("开始复制并转换")
+                }
             }
         }
 
-/*        if (isCopying) {
+        // 复制进度弹窗
+        if (viewModel.isCopying) {
             AlertDialog(
                 onDismissRequest = {},
                 confirmButton = {},
@@ -245,14 +231,14 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(text = copyStatusText)
+                        Text(text = viewModel.copyStatusText)
                         LinearProgressIndicator(
-                            progress = { copyProgress },
+                            progress = { viewModel.copyProgress },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
                 }
             )
-        }*/
+        }
     }
 }
