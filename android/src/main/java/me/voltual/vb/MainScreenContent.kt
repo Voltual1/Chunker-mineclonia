@@ -162,7 +162,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = false,
+        gesturesEnabled = true,
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
