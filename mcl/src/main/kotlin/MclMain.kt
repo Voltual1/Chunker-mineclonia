@@ -27,20 +27,18 @@ object MclMain {
         println("输入: ${inputPath.absolutePath}")
         println("输出: ${outputPath.absolutePath}")
 
-        // 1. 创建 WorldConverter 实例
         val converter = WorldConverter(UUID.randomUUID())
 
-        // 2. 配置转换参数
-        // 在 Kotlin 中调用 Java 的 setProcessXXX 方法，属性名通常不带 'is'
         converter.setProcessItems(true)
         converter.setProcessEntities(true)
         converter.setProcessBlockEntities(true)
         converter.setProcessBiomes(true)
-        converter.setProcessLighting(true)
-        converter.setProcessColumnPreTransform(true)
+        
+        // 与安卓端保持一致：关闭光照计算与区块列预处理，大幅度提升性能并防止死锁
+        converter.setProcessLighting(false)
+        converter.setProcessColumnPreTransform(false)
 
         try {
-            // 3. 自动探测输入格式
             println("正在检测输入存档格式...")
             val readerOptional = EncodingType.findReader(inputPath, converter)
             if (!readerOptional.isPresent) {
@@ -50,18 +48,13 @@ object MclMain {
             val reader = readerOptional.get()
             println("识别到格式: ${reader.encodingType.name} 版本: ${reader.version}")
 
-            // 4. 创建我们的 Mineclonia Writer
             val writer = MclLevelWriter(outputPath)
 
-            // 5. 启动转换任务
             println("转换开始，请稍候...")
             val startTime = System.currentTimeMillis()
             
-            // convert 方法返回的是 TrackedTask<Void>
             val trackedTask = converter.convert(reader, writer)
             
-            // 6. 等待转换完成
-            // 根据 WorldConverter.java 的实现，trackedTask 本身拥有 future() 方法
             trackedTask.future().get()
 
             val endTime = System.currentTimeMillis()

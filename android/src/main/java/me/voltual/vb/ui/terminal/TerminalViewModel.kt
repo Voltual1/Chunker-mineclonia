@@ -118,7 +118,6 @@ class TerminalViewModel(
 
         try {
             if (args.format == "MINECLONIA") {
-                // 执行 Mineclonia 自定义转换管线
                 outBridge.println("\u001B[1;36m[Mineclonia Engine] Starting Minecraft to Mineclonia Conversion...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
@@ -127,16 +126,16 @@ class TerminalViewModel(
                 val inputPathFile = File(args.inputPath)
                 val outputPathFile = File(args.outputPath)
 
-                // 1. 创建 WorldConverter 并配置参数
                 val mclConverter = WorldConverter(UUID.randomUUID())
                 mclConverter.setProcessItems(true)
                 mclConverter.setProcessEntities(true)
                 mclConverter.setProcessBlockEntities(true)
                 mclConverter.setProcessBiomes(true)
-                mclConverter.setProcessLighting(true)
-                mclConverter.setProcessColumnPreTransform(true)
+                
+                // 关键优化：关闭光照计算与区块列预转换，避免内存积压与死锁，实现极速转换
+                mclConverter.setProcessLighting(false)
+                mclConverter.setProcessColumnPreTransform(false)
 
-                // 2. 自动探测输入格式
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, mclConverter)
                 if (!readerOptional.isPresent) {
@@ -145,14 +144,11 @@ class TerminalViewModel(
                 val reader = readerOptional.get()
                 outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
 
-                // 3. 创建 Mineclonia 专属 Writer
                 val writer = MclLevelWriter(outputPathFile)
 
-                // 4. 启动转换任务
                 outBridge.println("Initializing Mineclonia conversion pipeline...")
                 val trackedTask = mclConverter.convert(reader, writer)
 
-                // 5. 循环监听进度直到任务完成
                 val future = trackedTask.future()
                 var lastProgress = -1.0
                 while (!future.isDone) {
@@ -162,16 +158,14 @@ class TerminalViewModel(
                         outBridge.println("Conversion Progress: \u001B[33m$percentage%\u001B[0m")
                         lastProgress = progress
                     }
-                    Thread.sleep(200)
+                    Thread.sleep(100)
                 }
 
-                // 获取结果以抛出任何执行中产生的异常
                 future.get()
 
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Mineclonia conversion completed successfully!\u001B[0m")
                 isSuccess = true
             } else {
-                // 执行标准 Chunker 命令行任务
                 outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
@@ -199,7 +193,6 @@ class TerminalViewModel(
             isRunning = false
             session.finishIfRunning()
 
-            // 自动销毁复制过来的输入存档缓存（world_input），避免占用空间
             val inputDir = File(context.filesDir, "world_input")
             if (inputDir.exists()) {
                 inputDir.deleteRecursively()
