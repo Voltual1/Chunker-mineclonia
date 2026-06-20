@@ -60,13 +60,13 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                         val node = MclMappingRegistry.convert(identifier)
                         
                         // 处理光照
-                        if (blockLight != null && skyLight != null) {
+            /*            if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
                             node.setLight(bl, sl)
                         } else {
                             node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
-                        }
+                        }*/
                         
                         mclNodes.add(node)
                         

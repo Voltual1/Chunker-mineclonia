@@ -46,7 +46,7 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            // 关键修正：按照 Minetest 官方标准的 ZYX 顺序进行循环，并反转 Z 轴以匹配左/右手坐标系转换
+            // 按照 Minetest 标准 ZYX 顺序进行循环，并反转 Z 轴以匹配左/右手坐标系转换
             for (localZ in 0 until 16) {
                 for (localY in 0 until 16) {
                     for (localX in 0 until 16) {
@@ -60,13 +60,14 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                         val node = MclMappingRegistry.convert(identifier)
                         
                         // 处理光照
-            /*            if (blockLight != null && skyLight != null) {
+                        if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
                             node.setLight(bl, sl)
                         } else {
+                            // 默认光照：如果是地下则全黑，地上则全亮
                             node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
-                        }*/
+                        }
                         
                         mclNodes.add(node)
                         
@@ -83,8 +84,8 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                 }
             }
 
-            // 坐标转换逻辑
-            val mclPos = MclPos(-chunkX - 1, y - 4, chunkZ)
+            // 自然坐标转换逻辑：X轴不反转，Z轴反转（-chunkZ - 1）以对齐南北朝向
+            val mclPos = MclPos(chunkX, y - 4, -chunkZ - 1)
             
             // 序列化为 Minetest Blob
             val serializedData = MclBlockSerializer.serialize(

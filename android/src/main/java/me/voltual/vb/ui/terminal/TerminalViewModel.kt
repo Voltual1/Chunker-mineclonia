@@ -132,8 +132,8 @@ class TerminalViewModel(
                 mclConverter.setProcessBlockEntities(true)
                 mclConverter.setProcessBiomes(true)
                 
-                // 关键优化：关闭光照计算与区块列预转换，避免内存积压与死锁，实现极速转换
-                mclConverter.setProcessLighting(false)
+                // 启用光照计算，恢复世界亮度；关闭 PreTransform 确保多线程转换不卡死
+                mclConverter.setProcessLighting(true)
                 mclConverter.setProcessColumnPreTransform(false)
 
                 outBridge.println("Detecting input world format...")
