@@ -37,21 +37,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     init {
-        // === 预防并拦截 System.exit() ===
-        try {
-            System.setSecurityManager(object : SecurityManager() {
-                override fun checkPermission(perm: Permission?) {
-                    // 允许其他所有操作权限
-                }
-                override fun checkExit(status: Int) {
-                    // 捕获到 System.exit()，将其转化为异常抛出，中断其杀死进程的危险操作
-                    throw SecurityException("Chunker CLI 试图退出应用 (Exit Code: $status)。已成功拦截！")
-                }
-            })
-        } catch (e: Exception) {
-            // 防止部分特殊 Android 版本或安全策略限制导致设置失败
-            e.printStackTrace()
-        }
 
         // === 你原有的全局异常捕获逻辑 ===
         Thread.setDefaultUncaughtExceptionHandler { _, throwable ->
@@ -60,7 +45,7 @@ class MainActivity : AppCompatActivity() {
             CoroutineScope(Dispatchers.IO).launch {
                 val logEntry = LogEntry(
                     type = "CRASH",
-                    requestBody = "MainActivity 崩溃 (或被拦截的 System.exit)",
+                    requestBody = "MainActivity 崩溃",
                     responseBody = crashReport,
                     status = "FAILURE"
                 )
