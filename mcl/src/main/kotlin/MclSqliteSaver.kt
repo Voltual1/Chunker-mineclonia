@@ -24,6 +24,10 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
     private var androidCloseDbMethod: Method? = null
     private var androidCloseStmtMethod: Method? = null
 
+    // 自动分批提交计数器，防止单次事务过大锁死数据库
+    private var saveCount = 0
+    private val AUTO_COMMIT_THRESHOLD = 500
+
     init {
         val file = File(dbPath)
         file.parentFile?.mkdirs()
@@ -137,6 +141,7 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
         }
     }
 
+    @Synchronized
     fun saveBlock(pos: MclPos, data: ByteArray) {
         if (isAndroid) {
             try {
@@ -144,6 +149,12 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
                 androidBindLongMethod?.invoke(androidInsertStmt, 1, pos.encode())
                 androidBindBlobMethod?.invoke(androidInsertStmt, 2, data)
                 androidExecuteInsertMethod?.invoke(androidInsertStmt)
+                
+                saveCount++
+                if (saveCount >= AUTO_COMMIT_THRESHOLD) {
+                    commitInternal()
+                    saveCount = 0
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
@@ -156,13 +167,25 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
                 setLongMethod.invoke(jdbcInsertStmt, 1, pos.encode())
                 setBytesMethod.invoke(jdbcInsertStmt, 2, data)
                 addBatchMethod.invoke(jdbcInsertStmt)
+                
+                saveCount++
+                if (saveCount >= AUTO_COMMIT_THRESHOLD) {
+                    commitInternal()
+                    saveCount = 0
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
             }
         }
     }
 
+    @Synchronized
     fun commit() {
+        commitInternal()
+        saveCount = 0
+    }
+
+    private fun commitInternal() {
         if (isAndroid) {
             try {
                 val inTx = androidInTransactionMethod?.invoke(androidDb) as? Boolean ?: false
@@ -186,6 +209,7 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
         }
     }
 
+    @Synchronized
     override fun close() {
         if (isAndroid) {
             try {

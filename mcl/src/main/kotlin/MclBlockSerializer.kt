@@ -115,9 +115,14 @@ object MclBlockSerializer {
     private fun compress(data: ByteArray): ByteArray {
         val bos = ByteArrayOutputStream()
         val deflater = Deflater(Deflater.DEFAULT_COMPRESSION)
-        val deflaterStream = DeflaterOutputStream(bos, deflater)
-        deflaterStream.write(data)
-        deflaterStream.close()
+        try {
+            DeflaterOutputStream(bos, deflater).use { deflaterStream ->
+                deflaterStream.write(data)
+            }
+        } finally {
+            // 关键：显式释放 C++ 层的原生内存，防止转换大存档时内存暴涨挂起
+            deflater.end()
+        }
         return bos.toByteArray()
     }
 
