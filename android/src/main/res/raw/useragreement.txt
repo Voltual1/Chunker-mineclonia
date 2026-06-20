@@ -1,11 +1,20 @@
 项目目前尚不完善，如有功能缺失请理解。
+#### 1. 开源协议声明
+**本应用是自由软件**，遵循 **GNU Affero General Public License v3.0 (AGPLv3) ** 协议发布。这意味着您拥有以下自由：
+- 运行程序的自由，无论出于何种目的
+- 研究程序工作原理并按需修改的自由
+- 重新分发副本的自由
+- 改进程序并向公众发布改进版的自由
+
+完整的AGPLv3协议文本可访问：http://www.gnu.org/licenses/agpl-3.0.html
+
 # 免责声明
 
 本工具仅限个人学习与技术研究用途，请勿用于违法用途。对任何滥用造成的后果，本人概不负责。
 
-## 使用限制
-1. 禁止将本项目用于任何商业目的，包括但不限于售卖、付费授权等。
-3. 本软件仅限个人学习和技术研究用途。
-
 ## 鸣谢
-本项目基于上游[A321](https://gitee.com/Voltula/A321) 的架构魔改过来。
+本项目基于上游[A321](https://gitee.com/Voltula/A321)
+本项目基于上游[Pyrolysis](https://gitee.com/Voltula/bbq)
+ 的架构魔改过来。
+ 存档转换核心实现基于上游[Chunker](https://github.com/HiveGamesOSS/Chunker)进行安卓适配
+ 终端实现基于https://github.com/termux/termux-app/

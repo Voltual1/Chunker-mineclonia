@@ -23,16 +23,7 @@ fun CacheSettingsScreen(
     var showConfirmDialog by remember { mutableStateOf(false) }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("缓存设置") },
-                navigationIcon = {
-                    IconButton(onClick = { navigator.goBack() }) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
-        },
+        topBar = {},
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Column(

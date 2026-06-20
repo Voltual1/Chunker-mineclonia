@@ -42,8 +42,9 @@ fun ExportScreen(
     var isZipping by remember { mutableStateOf(false) }
     var zipSuccess by remember { mutableStateOf(false) }
     
-    var isServerRunning by remember { mutableStateOf(false) }
-    var serverUrl by remember { mutableStateOf("") }
+    // 暂时注释掉无线分享的状态
+    // var isServerRunning by remember { mutableStateOf(false) }
+    // var serverUrl by remember { mutableStateOf("") }
 
     var isExportingToLocal by remember { mutableStateOf(false) }
     var localExportStatus by remember { mutableStateOf("") }
@@ -59,12 +60,14 @@ fun ExportScreen(
         isZipping = false
     }
 
-    // 自动在退出页面时关闭 HTTP 服务
+    // 自动在退出页面时关闭 HTTP 服务（暂时注释掉，避免潜在的 bug 影响）
+    /*
     DisposableEffect(Unit) {
         onDispose {
             WorldExporter.stopHttpServer()
         }
     }
+    */
 
     // 注册本地文件夹选择器，用于 SAF 导出
     val folderPickerLauncher = rememberLauncherForFolderPicker { targetFolder ->
@@ -105,16 +108,7 @@ fun ExportScreen(
     }
 
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("导出已转换的世界") },
-                navigationIcon = {
-                    IconButton(onClick = { navigator.goBack() }) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "返回")
-                    }
-                }
-            )
-        },
+        topBar = {}, // TopBar 留空
         modifier = modifier.fillMaxSize()
     ) { innerPadding ->
         Box(
@@ -152,7 +146,7 @@ fun ExportScreen(
                         color = MaterialTheme.colorScheme.onBackground
                     )
 
-                    // 选项 1：本地文件导出
+                    // 选项 1：本地 file 导出
                     BBQCard(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -179,7 +173,8 @@ fun ExportScreen(
                         }
                     }
 
-                    // 选项 2：局域网无线导出
+                    // 选项 2：局域网无线导出（已暂时注释掉）
+                    /*
                     BBQCard(
                         modifier = Modifier.fillMaxWidth(),
                         onClick = {
@@ -252,6 +247,7 @@ fun ExportScreen(
                             }
                         }
                     }
+                    */
                 }
             }
 
