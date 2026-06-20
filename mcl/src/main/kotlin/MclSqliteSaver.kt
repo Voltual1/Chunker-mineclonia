@@ -2,6 +2,8 @@ package me.voltual.mcl
 
 import java.io.File
 import java.lang.reflect.Method
+import java.util.concurrent.Executors
+import java.util.concurrent.ExecutorService
 
 class MclSqliteSaver(dbPath: String) : AutoCloseable {
     private var isAndroid = false
@@ -24,9 +26,14 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
     private var androidCloseDbMethod: Method? = null
     private var androidCloseStmtMethod: Method? = null
 
-    // 自动分批提交计数器，防止单次事务过大锁死数据库
+    // 自动分批提交计数器
     private var saveCount = 0
     private val AUTO_COMMIT_THRESHOLD = 500
+
+    // 专属的单线程执行器，确保所有 SQLite 操作在同一线程顺序执行，彻底杜绝多线程事务死锁
+    private val databaseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "MclSqliteSaver-Worker")
+    }
 
     init {
         val file = File(dbPath)
@@ -40,11 +47,14 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
             isAndroid = false
         }
 
-        if (isAndroid) {
-            initAndroid(dbPath)
-        } else {
-            initJdbc(dbPath)
-        }
+        // 将初始化操作提交至单线程队列中执行并等待完成
+        databaseExecutor.submit {
+            if (isAndroid) {
+                initAndroid(dbPath)
+            } else {
+                initJdbc(dbPath)
+            }
+        }.get()
     }
 
     private fun initAndroid(dbPath: String) {
@@ -141,48 +151,52 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
         }
     }
 
-    @Synchronized
     fun saveBlock(pos: MclPos, data: ByteArray) {
-        if (isAndroid) {
-            try {
-                androidClearBindingsMethod?.invoke(androidInsertStmt)
-                androidBindLongMethod?.invoke(androidInsertStmt, 1, pos.encode())
-                androidBindBlobMethod?.invoke(androidInsertStmt, 2, data)
-                androidExecuteInsertMethod?.invoke(androidInsertStmt)
-                
-                saveCount++
-                if (saveCount >= AUTO_COMMIT_THRESHOLD) {
-                    commitInternal()
-                    saveCount = 0
+        // 异步提交到单线程队列，不阻塞 Chunker 的工作线程
+        databaseExecutor.submit {
+            if (isAndroid) {
+                try {
+                    androidClearBindingsMethod?.invoke(androidInsertStmt)
+                    androidBindLongMethod?.invoke(androidInsertStmt, 1, pos.encode())
+                    androidBindBlobMethod?.invoke(androidInsertStmt, 2, data)
+                    androidExecuteInsertMethod?.invoke(androidInsertStmt)
+                    
+                    saveCount++
+                    if (saveCount >= AUTO_COMMIT_THRESHOLD) {
+                        commitInternal()
+                        saveCount = 0
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        } else {
-            try {
-                val setLongMethod = jdbcInsertStmt!!.javaClass.getMethod("setLong", Int::class.javaPrimitiveType, Long::class.javaPrimitiveType)
-                val setBytesMethod = jdbcInsertStmt!!.javaClass.getMethod("setBytes", Int::class.javaPrimitiveType, ByteArray::class.java)
-                val addBatchMethod = jdbcInsertStmt!!.javaClass.getMethod("addBatch")
-                
-                setLongMethod.invoke(jdbcInsertStmt, 1, pos.encode())
-                setBytesMethod.invoke(jdbcInsertStmt, 2, data)
-                addBatchMethod.invoke(jdbcInsertStmt)
-                
-                saveCount++
-                if (saveCount >= AUTO_COMMIT_THRESHOLD) {
-                    commitInternal()
-                    saveCount = 0
+            } else {
+                try {
+                    val setLongMethod = jdbcInsertStmt!!.javaClass.getMethod("setLong", Int::class.javaPrimitiveType, Long::class.javaPrimitiveType)
+                    val setBytesMethod = jdbcInsertStmt!!.javaClass.getMethod("setBytes", Int::class.javaPrimitiveType, ByteArray::class.java)
+                    val addBatchMethod = jdbcInsertStmt!!.javaClass.getMethod("addBatch")
+                    
+                    setLongMethod.invoke(jdbcInsertStmt, 1, pos.encode())
+                    setBytesMethod.invoke(jdbcInsertStmt, 2, data)
+                    addBatchMethod.invoke(jdbcInsertStmt)
+                    
+                    saveCount++
+                    if (saveCount >= AUTO_COMMIT_THRESHOLD) {
+                        commitInternal()
+                        saveCount = 0
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
             }
         }
     }
 
-    @Synchronized
     fun commit() {
-        commitInternal()
-        saveCount = 0
+        // 提交到单线程队列并阻塞等待，确保数据完全写入
+        databaseExecutor.submit {
+            commitInternal()
+            saveCount = 0
+        }.get()
     }
 
     private fun commitInternal() {
@@ -209,39 +223,44 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
         }
     }
 
-    @Synchronized
     override fun close() {
-        if (isAndroid) {
-            try {
-                val inTx = androidInTransactionMethod?.invoke(androidDb) as? Boolean ?: false
-                if (inTx) {
-                    androidSetTransactionSuccessfulMethod?.invoke(androidDb)
-                    androidEndTransactionMethod?.invoke(androidDb)
+        // 提交关闭操作到单线程队列，等待所有未完成的写入及提交执行完毕
+        databaseExecutor.submit {
+            if (isAndroid) {
+                try {
+                    val inTx = androidInTransactionMethod?.invoke(androidDb) as? Boolean ?: false
+                    if (inTx) {
+                        androidSetTransactionSuccessfulMethod?.invoke(androidDb)
+                        androidEndTransactionMethod?.invoke(androidDb)
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+                try {
+                    androidCloseStmtMethod?.invoke(androidInsertStmt)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                try {
+                    androidCloseDbMethod?.invoke(androidDb)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+            } else {
+                try {
+                    jdbcInsertStmt?.javaClass?.getMethod("close")?.invoke(jdbcInsertStmt)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
+                try {
+                    jdbcConnection?.javaClass?.getMethod("close")?.invoke(jdbcConnection)
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                }
             }
-            try {
-                androidCloseStmtMethod?.invoke(androidInsertStmt)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            try {
-                androidCloseDbMethod?.invoke(androidDb)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        } else {
-            try {
-                jdbcInsertStmt?.javaClass?.getMethod("close")?.invoke(jdbcInsertStmt)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            try {
-                jdbcConnection?.javaClass?.getMethod("close")?.invoke(jdbcConnection)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        }.get()
+        
+        // 关闭单线程执行器
+        databaseExecutor.shutdown()
     }
 }
