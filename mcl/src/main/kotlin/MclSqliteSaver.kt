@@ -47,6 +47,7 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
         try {
             val dbClass = Class.forName("android.database.sqlite.SQLiteDatabase")
             val stmtClass = Class.forName("android.database.sqlite.SQLiteStatement")
+            val cursorClass = Class.forName("android.database.Cursor")
             
             val openMethod = dbClass.getMethod(
                 "openOrCreateDatabase", 
@@ -55,9 +56,24 @@ class MclSqliteSaver(dbPath: String) : AutoCloseable {
             )
             androidDb = openMethod.invoke(null, dbPath, null)
             
+            // 使用 rawQuery 安全执行 PRAGMA 语句，避免 execSQL 报错
+            val rawQueryMethod = dbClass.getMethod("rawQuery", String::class.java, Array<String>::class.java)
+            val moveToFirstMethod = cursorClass.getMethod("moveToFirst")
+            val closeCursorMethod = cursorClass.getMethod("close")
+
+            val safeExecutePragma = { pragmaSql: String ->
+                val cursor = rawQueryMethod.invoke(androidDb, pragmaSql, null)
+                if (cursor != null) {
+                    moveToFirstMethod.invoke(cursor)
+                    closeCursorMethod.invoke(cursor)
+                }
+            }
+
+            safeExecutePragma("PRAGMA synchronous = OFF;")
+            safeExecutePragma("PRAGMA journal_mode = MEMORY;")
+            
+            // CREATE TABLE 不需要返回结果，使用 execSQL 执行
             val execSQLMethod = dbClass.getMethod("execSQL", String::class.java)
-            execSQLMethod.invoke(androidDb, "PRAGMA synchronous = OFF;")
-            execSQLMethod.invoke(androidDb, "PRAGMA journal_mode = MEMORY;")
             execSQLMethod.invoke(androidDb, """
                 CREATE TABLE IF NOT EXISTS `blocks` (
                     `pos` INT PRIMARY KEY,
