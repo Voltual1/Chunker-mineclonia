@@ -130,7 +130,7 @@ fun MainScreenContent(
 
     // 新增：判断当前路由是否为 TerminalExec，如果是则禁用手势
     val isGestureEnabled = remember(currentRoute) {
-        currentRoute != TerminalExec
+        currentRoute == TerminalExec
     }
 
     val topAppBarController = LocalTopAppBarController.current
