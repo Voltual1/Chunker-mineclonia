@@ -46,28 +46,36 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            for (localY in 0 until 16) {
-                for (localZ in 0 until 16) {
+            // 关键修正：按照 Minetest 官方标准的 ZYX 顺序进行循环，并反转 Z 轴以匹配左/右手坐标系转换
+            for (localZ in 0 until 16) {
+                for (localY in 0 until 16) {
                     for (localX in 0 until 16) {
-                        val identifier = palette.get(localX, localY, localZ) ?: ChunkerBlockIdentifier.AIR
+                        val mcX = localX
+                        val mcY = localY
+                        val mcZ = 15 - localZ // 局部 Z 轴反转
                         
+                        val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
+                        
+                        // 转换方块类型和状态
                         val node = MclMappingRegistry.convert(identifier)
                         
+                        // 处理光照
                         if (blockLight != null && skyLight != null) {
-                            val bl = blockLight[localX][localY]?.get(localZ) ?: 0
-                            val sl = skyLight[localX][localY]?.get(localZ) ?: 0
+                            val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
+                            val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
                             node.setLight(bl, sl)
                         } else {
-                            // 默认光照：地表全亮 (0x0F)，地下全黑 (0x00)
                             node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
                         }
                         
                         mclNodes.add(node)
                         
-                        val worldY = (y shl 4) + localY
-                        column.getBlockEntity(localX, worldY, localZ)?.let { be ->
+                        // 处理方块实体 (Block Entity)
+                        val worldY = (y shl 4) + mcY
+                        column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
-                                val blockIdx = (localY shl 8) or (localZ shl 4) or localX
+                                // 保持元数据索引为 YZX 格式，供 Serializer 转换
+                                val blockIdx = (mcY shl 8) or (localZ shl 4) or mcX
                                 metadata[blockIdx] = data
                             }
                         }
@@ -75,14 +83,17 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                 }
             }
 
+            // 坐标转换逻辑
             val mclPos = MclPos(-chunkX - 1, y - 4, chunkZ)
             
+            // 序列化为 Minetest Blob
             val serializedData = MclBlockSerializer.serialize(
                 mclNodes, 
                 metadata, 
                 isUnderground = y < 0
             )
             
+            // 写入数据库
             saver.saveBlock(mclPos, serializedData)
         }
     }
