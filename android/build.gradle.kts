@@ -180,6 +180,7 @@ dependencies {
     implementation(libs.kotlinx.collections.immutable)
     
     implementation(project(":cli"))
+    implementation(project(":mcl"))
     implementation(project(":terminal-emulator"))
     implementation(project(":terminal-view"))
 }

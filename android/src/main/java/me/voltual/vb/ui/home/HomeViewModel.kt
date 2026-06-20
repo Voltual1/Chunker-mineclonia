@@ -34,9 +34,10 @@ class HomeViewModel : ViewModel() {
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
-    // 动态获取 Chunker 支持的全部输出格式
+    // 动态获取 Chunker 支持的全部输出格式，并加入 MINECLONIA 格式
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
+        formats.add("MINECLONIA") // 注册 Mineclonia 转换格式
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {
@@ -50,9 +51,10 @@ class HomeViewModel : ViewModel() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        // 如果动态获取失败，提供保底常用格式
-        if (formats.isEmpty()) {
+        // 如果动态获取失败，提供保底常用格式（确保包含 MINECLONIA）
+        if (formats.size <= 1) {
             listOf(
+                "MINECLONIA",
                 "JAVA_1_21",
                 "JAVA_1_20_5",
                 "JAVA_1_19_4",
