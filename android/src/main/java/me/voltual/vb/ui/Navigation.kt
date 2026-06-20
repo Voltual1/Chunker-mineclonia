@@ -33,3 +33,5 @@ data class TerminalExec(
 
 /** 导出界面 */
 @Serializable data object Export : AppDestination
+
+@Serializable data object CacheSettings : AppDestination

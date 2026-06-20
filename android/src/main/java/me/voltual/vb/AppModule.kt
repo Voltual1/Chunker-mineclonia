@@ -12,6 +12,7 @@ import me.voltual.vb.core.database.*
 import me.voltual.vb.core.database.dao.*
 import me.voltual.vb.data.*
 import me.voltual.vb.ui.settings.update.*
+import me.voltual.vb.ui.settings.cache.*
 import me.voltual.vb.ui.log.LogViewModel
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
@@ -31,21 +32,21 @@ val DRAWER_MENU_STORE_QUALIFIER = named("drawer_menu_store")
 val THEME_SETTINGS_STORE_QUALIFIER = named("theme_settings_store")
 
 val appModule = module {
-      viewModel { UpdateSettingsViewModel(get()) }
-      viewModel { HomeViewModel() }
-      viewModel { TerminalViewModel(androidContext()) }
-          viewModel { LogViewModel(get()) }
+    viewModel { UpdateSettingsViewModel(get()) }
+    viewModel { HomeViewModel() }
+    viewModel { TerminalViewModel(androidContext()) }
+    viewModel { LogViewModel(get()) }
+    viewModel { CacheSettingsViewModel(androidContext()) }
    
-  single { BBQApplication.instance.database }
-  single { get<AppDatabase>().logDao() }
-      single { LogRepository(get()) }
+    single { BBQApplication.instance.database }
+    single { get<AppDatabase>().logDao() }
+    single { LogRepository(get()) }
       
-          single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
-              single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
-                  single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
-        single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }        
+    single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
+    single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
+    single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
+    single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }        
     
-    // 1. 先把基础的 DataStore 实例批量生产并贴上标签（Qualifier）
     val storeFiles = mapOf(
         USER_AGREEMENT_STORE_QUALIFIER to "user_agreement_prefs.preferences_pb",
         UPDATE_SETTINGS_STORE_QUALIFIER to "update_settings.preferences_pb",

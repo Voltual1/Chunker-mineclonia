@@ -27,6 +27,7 @@ import me.voltual.vb.ui.home.HomeScreen
 import me.voltual.vb.ui.export.ExportScreen
 import me.voltual.vb.ui.log.LogViewModel
 import me.voltual.vb.ui.log.LogScreen
+import me.voltual.vb.ui.settings.cache.CacheSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -82,18 +83,22 @@ fun BBQNavDisplay(
                         is TerminalExec -> {
                             TerminalScreen(key)
                         }
-
-                        is Export -> {
-                            ExportScreen(modifier = Modifier.fillMaxSize())
-                        }
                         
-                        is LogViewer -> {
+                                                is LogViewer -> {
                             val viewModel: LogViewModel = koinViewModel()
                             LogScreen(
                                 viewModel = viewModel,
                                 snackbarHostState = snackbarHostState,
                                 modifier = Modifier.fillMaxSize()
                             )
+                        }
+
+                        is Export -> {
+                            ExportScreen(modifier = Modifier.fillMaxSize())
+                        }
+
+                        is CacheSettings -> {
+                            CacheSettingsScreen(modifier = Modifier.fillMaxSize())
                         }
 
                         is ThemeCustomize -> {
