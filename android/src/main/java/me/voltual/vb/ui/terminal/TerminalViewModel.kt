@@ -139,6 +139,12 @@ class TerminalViewModel(
             isRunning = false
             session.finishIfRunning()
 
+            // 1. 自动销毁复制过来的输入存档缓存（world_input），避免占用空间
+            val inputDir = File(context.filesDir, "world_input")
+            if (inputDir.exists()) {
+                inputDir.deleteRecursively()
+            }
+
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     if (crashLogFile.exists()) {
@@ -155,7 +161,6 @@ class TerminalViewModel(
                     e.printStackTrace()
                 }
 
-                // 转换成功后，自动跳转至导出界面
                 if (isSuccess) {
                     withContext(Dispatchers.Main) {
                         navigator.navigate(Export)

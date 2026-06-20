@@ -1,20 +1,24 @@
 package me.voltual.vb.core.utils
 
 import android.content.Context
-import com.sun.net.httpserver.HttpServer
+import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.io.InputStreamReader
 import java.net.Inet4Address
-import java.net.InetSocketAddress
+import java.net.ServerSocket
+import java.net.Socket
 import java.net.NetworkInterface
 import java.net.SocketException
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import kotlin.concurrent.thread
 
 object WorldExporter {
 
-    private var httpServer: HttpServer? = null
+    private var serverSocket: ServerSocket? = null
+    private var isRunning = false
     private const val PORT = 8080
 
     /**
@@ -57,11 +61,11 @@ object WorldExporter {
     }
 
     /**
-     * 启动局域网 HTTP 服务
+     * 启动局域网 HTTP 服务 (基于 Socket 纯手工实现，规避 R8 缺失类问题)
      */
     @Synchronized
     fun startHttpServer(context: Context, onStarted: (String) -> Unit, onError: (String) -> Unit) {
-        if (httpServer != null) {
+        if (isRunning) {
             val ip = getLocalIpAddress()
             if (ip != null) {
                 onStarted("http://$ip:$PORT/download")
@@ -74,34 +78,77 @@ object WorldExporter {
         try {
             val ip = getLocalIpAddress() ?: throw SocketException("未连接到局域网或无法获取 IP")
             val zipFile = File(context.filesDir, "world_output.zip")
+            
+            serverSocket = ServerSocket(PORT)
+            isRunning = true
 
-            httpServer = HttpServer.create(InetSocketAddress(PORT), 0).apply {
-                createContext("/download") { exchange ->
-                    if (!zipFile.exists()) {
-                        val response = "Error: Output ZIP file not found. Please convert a world first.".toByteArray()
-                        exchange.sendResponseHeaders(404, response.size.toLong())
-                        exchange.responseBody.use { it.write(response) }
-                        return@createContext
-                    }
-
-                    exchange.responseHeaders.set("Content-Type", "application/zip")
-                    exchange.responseHeaders.set("Content-Disposition", "attachment; filename=\"world_output.zip\"")
-                    exchange.sendResponseHeaders(200, zipFile.length())
-
-                    FileInputStream(zipFile).use { input ->
-                        exchange.responseBody.use { output ->
-                            input.copyTo(output)
+            thread(name = "VB-HTTP-Server") {
+                while (isRunning) {
+                    try {
+                        val socket = serverSocket?.accept() ?: break
+                        thread {
+                            handleClient(socket, zipFile)
                         }
+                    } catch (e: Exception) {
+                        break
                     }
                 }
-                executor = null // 使用默认的单线程执行器
-                start()
             }
+
             onStarted("http://$ip:$PORT/download")
         } catch (e: Exception) {
             e.printStackTrace()
-            httpServer = null
+            serverSocket = null
+            isRunning = false
             onError(e.message ?: "启动服务器失败")
+        }
+    }
+
+    private fun handleClient(socket: Socket, zipFile: File) {
+        try {
+            val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
+            val requestLine = reader.readLine() ?: return
+            
+            // 解析 HTTP 请求行，例如: GET /download HTTP/1.1 或 GET / HTTP/1.1
+            val tokens = requestLine.split(" ")
+            if (tokens.size >= 2 && (tokens[1] == "/download" || tokens[1] == "/")) {
+                if (!zipFile.exists()) {
+                    val body = "Error: Output ZIP file not found. Please convert a world first."
+                    val headers = "HTTP/1.1 404 Not Found\r\n" +
+                            "Content-Type: text/plain; charset=utf-8\r\n" +
+                            "Content-Length: ${body.toByteArray().size}\r\n" +
+                            "Connection: close\r\n\r\n"
+                    socket.getOutputStream().write(headers.toByteArray())
+                    socket.getOutputStream().write(body.toByteArray())
+                } else {
+                    val headers = "HTTP/1.1 200 OK\r\n" +
+                            "Content-Type: application/zip\r\n" +
+                            "Content-Length: ${zipFile.length()}\r\n" +
+                            "Content-Disposition: attachment; filename=\"world_output.zip\"\r\n" +
+                            "Connection: close\r\n\r\n"
+                    socket.getOutputStream().write(headers.toByteArray())
+                    
+                    FileInputStream(zipFile).use { input ->
+                        input.copyTo(socket.getOutputStream())
+                    }
+                }
+            } else {
+                val body = "Only GET /download or GET / is supported."
+                val headers = "HTTP/1.1 400 Bad Request\r\n" +
+                        "Content-Type: text/plain; charset=utf-8\r\n" +
+                        "Content-Length: ${body.toByteArray().size}\r\n" +
+                        "Connection: close\r\n\r\n"
+                socket.getOutputStream().write(headers.toByteArray())
+                socket.getOutputStream().write(body.toByteArray())
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        } finally {
+            try {
+                socket.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
         }
     }
 
@@ -110,8 +157,13 @@ object WorldExporter {
      */
     @Synchronized
     fun stopHttpServer() {
-        httpServer?.stop(0)
-        httpServer = null
+        isRunning = false
+        try {
+            serverSocket?.close()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        serverSocket = null
     }
 
     /**
