@@ -20,9 +20,6 @@ sealed interface AppDestination : NavKey
 
 @Serializable data object ThemeCustomize : AppDestination
 
-@Serializable
-data object LogViewer : AppDestination
-
 /** 终端执行界面，接收输入路径、输出路径和格式作为参数 */
 @Serializable 
 data class TerminalExec(
@@ -30,3 +27,6 @@ data class TerminalExec(
     val outputPath: String,
     val format: String
 ) : AppDestination
+
+/** 导出界面 */
+@Serializable data object Export : AppDestination

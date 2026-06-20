@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.ui.TerminalExec
+import me.voltual.vb.ui.Export
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets
 import com.hivemc.chunker.cli.CLI
 import picocli.CommandLine
 import me.voltual.vb.core.database.repository.LogRepository
+import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
@@ -33,7 +35,7 @@ class TerminalViewModel(
 
     private var isRunning = false
 
-    fun startExecution(args: TerminalExec) {
+    fun startExecution(args: TerminalExec, navigator: Navigator) {
         if (isRunning) return
         isRunning = true
 
@@ -94,12 +96,12 @@ class TerminalViewModel(
             _session.value = newSession
 
             withContext(Dispatchers.IO) {
-                runChunkerTask(newSession, args)
+                runChunkerTask(newSession, args, navigator)
             }
         }
     }
 
-    private fun runChunkerTask(session: TerminalSession, args: TerminalExec) {
+    private fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
         val outBridge = TerminalPrintStream(session, crashLogFile)
         val oldOut = System.`out`
@@ -137,7 +139,6 @@ class TerminalViewModel(
             isRunning = false
             session.finishIfRunning()
 
-            // 正常结束时，读取实时写入的文件内容，保存到 Room 数据库，并清理临时文件
             viewModelScope.launch(Dispatchers.IO) {
                 try {
                     if (crashLogFile.exists()) {
@@ -152,6 +153,13 @@ class TerminalViewModel(
                     }
                 } catch (e: Exception) {
                     e.printStackTrace()
+                }
+
+                // 转换成功后，自动跳转至导出界面
+                if (isSuccess) {
+                    withContext(Dispatchers.Main) {
+                        navigator.navigate(Export)
+                    }
                 }
             }
         }
@@ -173,7 +181,6 @@ class TerminalViewModel(
 
         private fun writeToCrashLog(text: String) {
             try {
-                // 剔除 ANSI 颜色转义码
                 val cleanText = text.replace("\\u001B\\[[;\\d]*[ -/]*[@-~]".toRegex(), "")
                 file.appendText(cleanText)
             } catch (e: Exception) {

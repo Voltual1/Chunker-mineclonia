@@ -128,6 +128,11 @@ fun MainScreenContent(
         currentRoute != Home 
     }
 
+    // 新增：判断当前路由是否为 TerminalExec，如果是则禁用手势
+    val isGestureEnabled = remember(currentRoute) {
+        currentRoute != TerminalExec
+    }
+
     val topAppBarController = LocalTopAppBarController.current
 
     val useDarkTheme = ThemeManager.isAppDarkTheme
@@ -162,7 +167,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = true,
+        gesturesEnabled = isGestureEnabled, // 更改：将原先固定的 true 替换为动态控制的 isGestureEnabled
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
@@ -246,6 +251,7 @@ fun getTitleForDestination(route: NavKey?): String {
         Home -> "主页"
         ThemeCustomize -> "主题定制"
         UpdateSettings -> "更新设置"
+        TerminalExec -> "终端" 
         else -> "在~ $route ~里~哦"
     }
 }

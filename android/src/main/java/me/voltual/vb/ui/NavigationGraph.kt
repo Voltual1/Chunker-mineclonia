@@ -24,8 +24,9 @@ import androidx.navigation3.ui.NavDisplay
 import me.voltual.vb.core.ui.animation.*
 import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
 import me.voltual.vb.ui.home.HomeScreen
-import me.voltual.vb.ui.log.LogScreen
+import me.voltual.vb.ui.export.ExportScreen
 import me.voltual.vb.ui.log.LogViewModel
+import me.voltual.vb.ui.log.LogScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import org.koin.compose.viewmodel.koinViewModel
@@ -36,7 +37,6 @@ fun BBQNavDisplay(
     onBack: () -> Unit,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
-    // 平台页面注入器：允许 注入所有高耦合页面
     platformEntryProvider: @Composable (NavKey) -> (@Composable () -> Unit)? = { null }
 ) {
     val mySceneStrategy = remember { DialogSceneStrategy<NavKey>() }
@@ -68,14 +68,12 @@ fun BBQNavDisplay(
             )
         },
 
-        // 统一在 NavEntry 内部处理 Composable 作用域与平台注入
         entryProvider = { key ->
             NavEntry(key) {
                 val platformContent = platformEntryProvider(key)
                 if (platformContent != null) {
                     platformContent()
                 } else {
-                    // 匹配通用页面或提供跨平台保底
                     when (key) {
                         is Home -> {
                             HomeScreen(modifier = Modifier.fillMaxSize())
@@ -84,8 +82,12 @@ fun BBQNavDisplay(
                         is TerminalExec -> {
                             TerminalScreen(key)
                         }
+
+                        is Export -> {
+                            ExportScreen(modifier = Modifier.fillMaxSize())
+                        }
                         
-                                               is LogViewer -> {
+                        is LogViewer -> {
                             val viewModel: LogViewModel = koinViewModel()
                             LogScreen(
                                 viewModel = viewModel,
@@ -106,7 +108,6 @@ fun BBQNavDisplay(
                             )
                         }
 
-                        // 保底逻辑
                         else -> {
                             Box(
                                 modifier = Modifier.fillMaxSize(),
