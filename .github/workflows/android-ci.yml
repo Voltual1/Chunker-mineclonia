@@ -54,21 +54,14 @@ jobs:
           find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
           echo "替换完成！"
 
-      # ================= 新增：修复低版本 Android 缺失的 StringBuilder.isEmpty =================
-      - name: Fix StringBuilder.isEmpty for older Android versions
+      # ================= 修复：只针对 Chunker 内部文件进行替换 =================
+      - name: Fix Chunker StringBuilder.isEmpty
         run: |
-          echo "开始替换不兼容的 StringBuilder.isEmpty()..."
-          
-          # 1. 匹配：if (!builder.isEmpty()) { 
-          # 替换为：if (builder.length() > 0) { 
-          # 这种改法最轻量，不需要改动其他上下文字符串拼装逻辑，甚至连 StringJoiner 都不用导
-          find . -name "*.java" -exec sed -i -E 's/(!?)([a-zA-Z0-9_]+)\.isEmpty\(\)/(\1\2.length() == 0)/g' {} +
-          
-          # 2. 如果你想严格换成纯 StringJoiner 逻辑（以防其他地方使用了 builder.isEmpty() 且逻辑较复杂），
-          # 可以直接针对 ChunkerBlockIdentifier.java 做精确替换：
-          # 这里为了稳妥，直接将 toStateString 方法体内替换为 length() 校验，完全等价且支持 minSdk 26
-          
+          echo "正在精准修复 Chunker 中的 StringBuilder.isEmpty..."
+          # 只在包含 chunker 路径下的 java 文件中替换
+          find . -path "*/chunker/*" -name "*.java" -exec sed -i -E 's/(!?)([a-zA-Z0-9_]+)\.isEmpty\(\)/(\1\2.length() == 0)/g' {} +
           echo "修复完成！"
+          
       # =============================================================
 
       - name: Build with Gradle
