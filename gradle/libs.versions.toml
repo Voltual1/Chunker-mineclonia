@@ -17,7 +17,7 @@ jpackage = "2.0.1"
 node = "7.1.0"
 
 # --- Android / UI 核心工具链 (现代预览链) ---
-pyrolysis-agp = "9.2.0"
+pyrolysis-agp = "9.2.1"
 kotlin = "2.3.21"
 pyrolysis-compose-bom = "2026.05.00"
 compose-multiplatform = "1.12.0-alpha01"
