@@ -1,1 +1,2 @@
 -keep class com.hivemc.chunker.cli.** { *; }
+-keep class java.** { *; }
