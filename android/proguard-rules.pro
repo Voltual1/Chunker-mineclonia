@@ -1,4 +1,4 @@
--keepnames class ** { *; }
+#-keepnames class ** { *; }
 -assumenosideeffects class **$$Lambda$* { *; }
  -assumenosideeffects class android.util.Log { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
@@ -15,7 +15,7 @@
 # 这会强制让编译链在任何时候都妥善闭环 Record 的脱糖处理
 -keep class com.android.tools.r8.RecordTag { *; }
 -dontwarn com.android.tools.r8.RecordTag
--dontoptimize
+#-dontoptimize
 
 # 保持 VersionProvider 及其构造函数不被混淆和移除
 -keep class com.hivemc.chunker.cli.VersionProvider {
