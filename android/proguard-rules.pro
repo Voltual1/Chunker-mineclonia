@@ -4,17 +4,32 @@
     public static *** toString(...);
 }
 
-# 保持 VersionProvider 及其构造函数不被混淆和移除
--keep class com.hivemc.chunker.cli.VersionProvider {
-    public <init>();
+# 替换为更全面的规则:
+-keep class com.hivemc.chunker.cli.** {
+    @picocli.CommandLine$Command *;
+    @picocli.CommandLine$Option *;
+    @picocli.CommandLine$Parameters *;
+    @picocli.CommandLine$ParentCommand *;
+    public <init>(...);
+    public *;
 }
-# 防止 picocli 反射失效
+
+# 保留 picocli 框架
 -keep class picocli.** { *; }
 
--keep public class com.hivemc.chunker.cli.JsonObjectOrFile$Converter {
+# 保留类型转换器
+-keep class * implements picocli.CommandLine$ITypeConverter {
     public <init>();
-    public com.hivemc.chunker.cli.JsonObjectOrFile convert(java.lang.String);
+    public *;
 }
 
+# 保留 VersionProvider
+-keep class * implements picocli.CommandLine$IVersionProvider {
+    public <init>();
+    public java.lang.String[] getVersion();
+}
+
+# 关键:保留注解和参数名
+-keepattributes *Annotation*, InnerClasses, EnclosingMethod, MethodParameters, Signature
+
 -keepnames class org.iq80.leveldb.** { *; }
--keepattributes *Annotation*
