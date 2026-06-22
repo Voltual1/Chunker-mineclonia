@@ -7,4 +7,3 @@
 -keepnames class org.apache.commons.imaging.** { *; }
 -keepnames class org.harmony.** { *; }
 -keepnames class org.iq80.leveldb.** { *; }
--keepnames class org.slf4j.** { *; }
