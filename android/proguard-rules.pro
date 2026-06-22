@@ -29,7 +29,40 @@
     public java.lang.String[] getVersion();
 }
 
-# 关键:保留注解和参数名
--keepattributes *Annotation*, InnerClasses, EnclosingMethod, MethodParameters, Signature
-
 -keepnames class org.iq80.leveldb.** { *; }
+
+# ===== 基础属性保留 =====
+-keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
+-keepattributes RuntimeVisible*Annotations, RuntimeInvisible*Annotations
+
+# ===== Guava TypeToken/TypeCapture
+-keep class com.google.common.reflect.TypeToken {
+    public protected *;
+}
+-keep class com.google.common.reflect.TypeCapture {
+    public protected *;
+}
+# 保留所有匿名子类
+-keep class * extends com.google.common.reflect.TypeToken {
+    public protected *;
+}
+-keep class * extends com.google.common.reflect.TypeCapture {
+    public protected *;
+}
+
+# ===== ChunkerItemProperty 及其内部类
+-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty {
+    <fields>;
+    <methods>;
+    public protected <init>(...);
+}
+-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty$* {
+    <fields>;
+    <methods>;
+    public protected <init>(...);
+}
+
+# ===== 保留被 TypeToken 直接引用的类 =====
+-keep class androidx.core.os.HandlerCompat { *; }
+-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
+-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
