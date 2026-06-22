@@ -1,8 +1,7 @@
-# ==============================================================================
-# R8 NPE 排查专用混淆规则 (二分法查找专用)
-# 核心原理：保持类名和成员名不被混淆/移除，逐步注释掉半数规则来缩小范围。
-# ==============================================================================
-
-# ---- 组 6：其他底层和辅助依赖库 (Org, Net, It, Ro, Java 兼容层) ----
-
-#-keepnames class org.iq80.leveldb.** { *; }
+-assumenosideeffects class **$$Lambda$* { *; }
+ -assumenosideeffects class android.util.Log { *; }
+-assumenosideeffects class kotlinx.coroutines.DebugStrings {
+    public static *** toString(...);
+}
+-keep class com.hivemc.chunker.cli.** { *; }
+-keepnames class org.iq80.leveldb.** { *; }
