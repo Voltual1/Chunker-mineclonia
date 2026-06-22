@@ -5,4 +5,4 @@
 
 # ---- 组 6：其他底层和辅助依赖库 (Org, Net, It, Ro, Java 兼容层) ----
 
--keepnames class org.iq80.leveldb.** { *; }
+#-keepnames class org.iq80.leveldb.** { *; }
