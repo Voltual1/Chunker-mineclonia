@@ -84,19 +84,26 @@ android {
     }
 
     packaging {
-        resources {
-            excludes.add("/META-INF/{AL2.0,LGPL2.1}")
-            excludes.add("/META-INF/INDEX.LIST")
-            excludes.add("/META-INF/DEPENDENCIES")
-            excludes.add("/google/protobuf/**")
-            excludes.add("/src/google/protobuf/**")
-            excludes.add("/java/core/java_features_proto-descriptor-set.proto.bin")
-            excludes.add("/META-INF/LICENSE*")
-            excludes.add("/META-INF/*.txt")
-            excludes.add("/DebugProbesKt.bin")
-            merges.add("/META-INF/services/**")
-        }
+    resources {
+        excludes.add("/META-INF/{AL2.0,LGPL2.1}")
+        excludes.add("/META-INF/INDEX.LIST")
+        excludes.add("/META-INF/DEPENDENCIES")
+        excludes.add("/google/protobuf/**")
+        excludes.add("/src/google/protobuf/**")
+        excludes.add("/java/core/java_features_proto-descriptor-set.proto.bin")
+        excludes.add("/META-INF/LICENSE*")
+        excludes.add("/META-INF/*.txt")
+        excludes.add("/DebugProbesKt.bin")
+        merges.add("/META-INF/services/**")
+        excludes.add("/darwin/**")                            // 移除 Mac 专属的 liblz4-java.dylib 等
+        excludes.add("/org/sqlite/native/Mac/**")             // 移除 sqlite-jdbc 带来的 Mac 动态库
+        excludes.add("/org/sqlite/native/Windows/**")         // 移除 sqlite-jdbc 带来的 Windows 动态库
+        excludes.add("/sqlite-jdbc.properties")               // 移除 sqlite-jdbc 的配置文件
+        excludes.add("/org/iq80/leveldb/impl/version.txt")    // 移除 leveldb 的无用文本
+        excludes.add("/kotlin/**")
+        excludes.add("/java/**") 
     }
+}
 
     kotlin {
         jvmToolchain(17)
