@@ -5,4 +5,4 @@
 }
 -keepnames class com.hivemc.chunker.cli.** { *; }
 -keepnames class org.iq80.leveldb.** { *; }
-keepattributes *Annotation*
+-keepattributes *Annotation*
