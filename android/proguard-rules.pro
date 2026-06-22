@@ -5,9 +5,9 @@
 
 # ---- 组 6：其他底层和辅助依赖库 (Org, Net, It, Ro, Java 兼容层) ----
 -keepnames class org.apache.commons.imaging.** { *; }
-#-keepnames class org.intellij.markdown.** { *; }
-#-keepnames class org.iq80.leveldb.** { *; }
-#-keepnames class org.jetbrains.compose.** { *; }
-#-keepnames class org.koin.** { *; }
-#-keepnames class org.slf4j.** { *; }
-#-keepnames class net.jpountz.** { *; }          
+-keepnames class org.harmony.** { *; }
+-keepnames class org.intellij.markdown.** { *; }
+-keepnames class org.iq80.leveldb.** { *; }
+-keepnames class org.jetbrains.compose.** { *; }
+-keepnames class org.koin.** { *; }
+-keepnames class org.slf4j.** { *; }
