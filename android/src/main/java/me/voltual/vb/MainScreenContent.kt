@@ -162,7 +162,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = (currentRoute != TerminalExec),
+        gesturesEnabled = true,
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(

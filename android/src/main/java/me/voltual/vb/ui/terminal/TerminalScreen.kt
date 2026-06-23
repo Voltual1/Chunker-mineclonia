@@ -1,6 +1,8 @@
 package me.voltual.vb.ui.terminal
 
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,11 +25,20 @@ fun TerminalScreen(
         viewModel.startExecution(args, navigator)
     }
 
-    session?.let { activeSession ->
-        TerminalViewAndroidView(
-            session = activeSession,
-            modifier = Modifier.fillMaxSize(),
-            initialTextSize = 36
-        )
+    // 初始化一个只有 1 页的 Pager 状态
+    val pagerState = rememberPagerState(pageCount = { 1 })
+
+    HorizontalPager(
+        state = pagerState,
+        modifier = Modifier.fillMaxSize()
+    ) { page ->
+        // 既然只有一页，这里直接渲染终端内容
+        session?.let { activeSession ->
+            TerminalViewAndroidView(
+                session = activeSession,
+                modifier = Modifier.fillMaxSize(),
+                initialTextSize = 36
+            )
+        }
     }
 }
