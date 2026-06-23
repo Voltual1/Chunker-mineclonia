@@ -128,11 +128,6 @@ fun MainScreenContent(
         currentRoute != Home 
     }
 
-    // 新增：判断当前路由是否为 TerminalExec，如果是则禁用手势
-    val isGestureEnabled = remember(currentRoute) {
-        currentRoute != TerminalExec
-    }
-
     val topAppBarController = LocalTopAppBarController.current
 
     val useDarkTheme = ThemeManager.isAppDarkTheme
@@ -167,7 +162,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = isGestureEnabled,
+        gesturesEnabled = (currentRoute != TerminalExec),
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
