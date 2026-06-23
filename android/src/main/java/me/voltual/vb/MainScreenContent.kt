@@ -167,7 +167,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = if(isGestureEnabled), // 更改：将原先固定的 true 替换为动态控制的 isGestureEnabled
+        gesturesEnabled = if(isGestureEnabled){}, // 更改：将原先固定的 true 替换为动态控制的 isGestureEnabled
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
