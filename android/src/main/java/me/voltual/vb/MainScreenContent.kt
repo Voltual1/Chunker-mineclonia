@@ -247,6 +247,7 @@ fun getTitleForDestination(route: NavKey?): String {
         ThemeCustomize -> "主题定制"
         UpdateSettings -> "更新设置"
         TerminalExec -> "终端" 
+        LogViewer -> "日志" 
         CacheSettings -> "缓存设置" 
         Export -> "导出" 
         else -> "在~ $route ~里~哦"
