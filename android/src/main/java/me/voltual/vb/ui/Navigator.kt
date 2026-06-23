@@ -26,14 +26,19 @@ class Navigator(
     state.resetToStart()
   }
 
-  // 完全还原官方对通用 NavKey 的接收和流转
   fun navigate(route: NavKey) {
     forceCleanup()
 
     if (route in state.backStacks.keys) {
       state.topLevelRoute = route
     } else {
-      state.backStacks[state.topLevelRoute]?.add(route)
+      val currentStack = state.backStacks[state.topLevelRoute]
+      
+      if (route is Export && currentStack != null) {
+          currentStack.removeAll { it is TerminalExec }
+          
+      }
+      currentStack?.add(route)
     }
   }
 
