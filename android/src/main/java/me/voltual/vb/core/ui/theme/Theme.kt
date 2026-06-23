@@ -157,7 +157,7 @@ fun getAppTypography(fontFamily: FontFamily): Typography {
 fun BBQTheme(
     content: @Composable () -> Unit
 ) {   
-    val isDark = true//暂时注释ThemeManager.calculateIsDark(isSystemInDarkTheme())
+    val isDark = ThemeManager.calculateIsDark(isSystemInDarkTheme())
     val customColors = ThemeManager.customColorSet
     
     val colorScheme = if (isDark) {
