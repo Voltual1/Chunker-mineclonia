@@ -184,12 +184,14 @@ fun TerminalViewAndroidView(
                     override fun logStackTrace(tag: String, e: Exception) {}
                 })
 
+                applyDarkTheme(session)
                 attachSession(session)
                 terminalViewRef = this
             }
         },
         update = { view ->
             if (view.mTermSession != session) {
+                applyDarkTheme(session)
                 view.attachSession(session)
                 val bgColor = session.emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND]
                 view.setBackgroundColor(bgColor)
@@ -197,6 +199,35 @@ fun TerminalViewAndroidView(
         },
         modifier = modifier
     )
+}
+
+private fun applyDarkTheme(session: TerminalSession) {
+    val colors = session.emulator.mColors.mCurrentColors
+    if (colors.size > TextStyle.COLOR_INDEX_CURSOR) {
+        // 设置深色背景、浅色前景和白色光标
+        colors[TextStyle.COLOR_INDEX_BACKGROUND] = 0xFF121212.toInt() // 深灰背景
+        colors[TextStyle.COLOR_INDEX_FOREGROUND] = 0xFFE0E0E0.toInt() // 浅白文字
+        colors[TextStyle.COLOR_INDEX_CURSOR] = 0xFFFFFFFF.toInt()     // 白色光标
+        
+        // 基础 16 色适配暗色主题
+        colors[0] = 0xFF121212.toInt() // Black
+        colors[1] = 0xFFCF6679.toInt() // Red
+        colors[2] = 0xFF03DAC6.toInt() // Green
+        colors[3] = 0xFFF2C94C.toInt() // Yellow
+        colors[4] = 0xFF3700B3.toInt() // Blue
+        colors[5] = 0xFFBB86FC.toInt() // Magenta
+        colors[6] = 0xFF03DAC6.toInt() // Cyan
+        colors[7] = 0xFFE0E0E0.toInt() // White
+        
+        colors[8] = 0xFF555555.toInt() // Bright Black
+        colors[9] = 0xFFFF8A80.toInt() // Bright Red
+        colors[10] = 0xFFB9F6CA.toInt() // Bright Green
+        colors[11] = 0xFFFFE57F.toInt() // Bright Yellow
+        colors[12] = 0xFF82B1FF.toInt() // Bright Blue
+        colors[13] = 0xFFFF80AB.toInt() // Bright Magenta
+        colors[14] = 0xFF84FFFF.toInt() // Bright Cyan
+        colors[15] = 0xFFFFFFFF.toInt() // Bright White
+    }
 }
 
 private fun copyTextToClipboard(context: Context, text: String) {
