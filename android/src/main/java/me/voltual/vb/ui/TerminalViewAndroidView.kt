@@ -88,6 +88,7 @@ fun TerminalViewAndroidView(
                     }
                     override fun onBell(session: TerminalSession) {}
                     override fun onColorsChanged(session: TerminalSession) {
+                        applyDarkTheme(this@apply)
                         onScreenUpdated()
                     }
                     override fun onTerminalCursorStateChange(enabled: Boolean) {
@@ -173,6 +174,7 @@ fun TerminalViewAndroidView(
                     override fun onEmulatorSet() {
                         setTerminalCursorBlinkerRate(500)
                         setTerminalCursorBlinkerState(true, true)
+                        applyDarkTheme(this@apply)
                     }
 
                     override fun logError(tag: String, message: String) {}
@@ -184,25 +186,31 @@ fun TerminalViewAndroidView(
                     override fun logStackTrace(tag: String, e: Exception) {}
                 })
 
-                applyDarkTheme(session)
                 attachSession(session)
+                applyDarkTheme(this)
                 terminalViewRef = this
             }
         },
         update = { view ->
             if (view.mTermSession != session) {
-                applyDarkTheme(session)
                 view.attachSession(session)
-                val bgColor = session.emulator.mColors.mCurrentColors[TextStyle.COLOR_INDEX_BACKGROUND]
-                view.setBackgroundColor(bgColor)
             }
+            applyDarkTheme(view)
+            val colors = view.mEmulator?.mColors?.mCurrentColors
+            val bgColor = if (colors != null && colors.size > TextStyle.COLOR_INDEX_BACKGROUND) {
+                colors[TextStyle.COLOR_INDEX_BACKGROUND]
+            } else {
+                0xFF121212.toInt()
+            }
+            view.setBackgroundColor(bgColor)
         },
         modifier = modifier
     )
 }
 
-private fun applyDarkTheme(session: TerminalSession) {
-    val colors = session.emulator.mColors.mCurrentColors
+private fun applyDarkTheme(view: TerminalView) {
+    val emulator = view.mEmulator ?: return
+    val colors = emulator.mColors?.mCurrentColors ?: return
     if (colors.size > TextStyle.COLOR_INDEX_CURSOR) {
         // 设置深色背景、浅色前景和白色光标
         colors[TextStyle.COLOR_INDEX_BACKGROUND] = 0xFF121212.toInt() // 深灰背景
@@ -210,23 +218,29 @@ private fun applyDarkTheme(session: TerminalSession) {
         colors[TextStyle.COLOR_INDEX_CURSOR] = 0xFFFFFFFF.toInt()     // 白色光标
         
         // 基础 16 色适配暗色主题
-        colors[0] = 0xFF121212.toInt() // Black
-        colors[1] = 0xFFCF6679.toInt() // Red
-        colors[2] = 0xFF03DAC6.toInt() // Green
-        colors[3] = 0xFFF2C94C.toInt() // Yellow
-        colors[4] = 0xFF3700B3.toInt() // Blue
-        colors[5] = 0xFFBB86FC.toInt() // Magenta
-        colors[6] = 0xFF03DAC6.toInt() // Cyan
-        colors[7] = 0xFFE0E0E0.toInt() // White
-        
-        colors[8] = 0xFF555555.toInt() // Bright Black
-        colors[9] = 0xFFFF8A80.toInt() // Bright Red
-        colors[10] = 0xFFB9F6CA.toInt() // Bright Green
-        colors[11] = 0xFFFFE57F.toInt() // Bright Yellow
-        colors[12] = 0xFF82B1FF.toInt() // Bright Blue
-        colors[13] = 0xFFFF80AB.toInt() // Bright Magenta
-        colors[14] = 0xFF84FFFF.toInt() // Bright Cyan
-        colors[15] = 0xFFFFFFFF.toInt() // Bright White
+        val darkPalette = intArrayOf(
+            0xFF121212.toInt(), // Black
+            0xFFCF6679.toInt(), // Red
+            0xFF03DAC6.toInt(), // Green
+            0xFFF2C94C.toInt(), // Yellow
+            0xFF3700B3.toInt(), // Blue
+            0xFFBB86FC.toInt(), // Magenta
+            0xFF03DAC6.toInt(), // Cyan
+            0xFFE0E0E0.toInt(), // White
+            0xFF555555.toInt(), // Bright Black
+            0xFFFF8A80.toInt(), // Bright Red
+            0xFFB9F6CA.toInt(), // Bright Green
+            0xFFFFE57F.toInt(), // Bright Yellow
+            0xFF82B1FF.toInt(), // Bright Blue
+            0xFFFF80AB.toInt(), // Bright Magenta
+            0xFF84FFFF.toInt(), // Bright Cyan
+            0xFFFFFFFF.toInt()  // Bright White
+        )
+        for (i in darkPalette.indices) {
+            if (i < colors.size) {
+                colors[i] = darkPalette[i]
+            }
+        }
     }
 }
 
