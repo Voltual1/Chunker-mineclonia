@@ -129,7 +129,9 @@ fun MainScreenContent(
     }
 
     // 新增：判断当前路由是否为 TerminalExec，如果是则禁用手势
-    val isGestureEnabled = currentRoute != TerminalExec    
+    val isGestureEnabled = remember(currentRoute) {
+        currentRoute != TerminalExec
+    }
 
     val topAppBarController = LocalTopAppBarController.current
 
@@ -165,7 +167,7 @@ fun MainScreenContent(
                 }
             }
         },
-        gesturesEnabled = isGestureEnabled, // 更改：将原先固定的 true 替换为动态控制的 isGestureEnabled
+        gesturesEnabled = if(isGestureEnabled), // 更改：将原先固定的 true 替换为动态控制的 isGestureEnabled
         modifier = Modifier.fillMaxSize()
     ) {
         Scaffold(
