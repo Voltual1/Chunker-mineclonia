@@ -31,13 +31,14 @@ class HomeViewModel : ViewModel() {
     var searchQuery by mutableStateOf("")
 
     var isCopying by mutableStateOf(false)
+    // 增加一个状态用来控制是否显示“不确定进度条”
+    var isIndeterminateProgress by mutableStateOf(true) 
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
-    // 动态获取 Chunker 支持的全部输出格式，并加入 MINECLONIA 格式
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
-        formats.add("MINECLONIA（实验性）") // 注册 Mineclonia 转换格式
+        formats.add("MINECLONIA（实验性）")
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {
@@ -51,17 +52,10 @@ class HomeViewModel : ViewModel() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        // 如果动态获取失败，提供保底常用格式（确保包含 MINECLONIA）
         if (formats.size <= 1) {
             listOf(
-                "MINECLONIA",
-                "JAVA_1_21",
-                "JAVA_1_20_5",
-                "JAVA_1_19_4",
-                "JAVA_1_18_2",
-                "BEDROCK_R21_80",
-                "BEDROCK_R20_80",
-                "BEDROCK_R19_30"
+                "MINECLONIA", "JAVA_1_21", "JAVA_1_20_5", "JAVA_1_19_4",
+                "JAVA_1_18_2", "BEDROCK_R21_80", "BEDROCK_R20_80", "BEDROCK_R19_30"
             )
         } else {
             formats.sorted()
@@ -80,6 +74,7 @@ class HomeViewModel : ViewModel() {
         val format = selectedFormat ?: return
 
         isCopying = true
+        isIndeterminateProgress = true // 默认开启无限循环滚动动画
         copyProgress = 0f
         copyStatusText = "正在准备复制..."
 
@@ -111,17 +106,28 @@ class HomeViewModel : ViewModel() {
                 withContext(Dispatchers.Main) {
                     when (result) {
                         is SingleFolderResult.Preparing -> {
+                            isIndeterminateProgress = true
                             copyStatusText = "正在准备文件..."
                         }
                         is SingleFolderResult.CountingFiles -> {
-                            copyStatusText = "正在计算文件数量..."
+                            // 针对大地图，此阶段可能被卡住，提示用户正在快速跳过或加载中
+                            isIndeterminateProgress = true
+                            copyStatusText = "正在解析大型存档目录结构..."
                         }
                         is SingleFolderResult.Starting -> {
+                            isIndeterminateProgress = true
                             copyStatusText = "开始复制文件..."
                         }
                         is SingleFolderResult.InProgress -> {
-                            copyProgress = result.progress / 100f
-                            copyStatusText = "已复制: ${(result.progress).toInt()}% (${Formatter.formatFileSize(context, result.bytesMoved)})"
+                            // 当获取到有效进度时，如果外部库支持返回合法进度，则切换为精确进度条
+                            // 针对不返回总数的大地图，result.progress 如果始终为 0 或错误值，我们可以维持不确定状态
+                            if (result.progress > 0f) {
+                                isIndeterminateProgress = false
+                                copyProgress = result.progress / 100f
+                            } else {
+                                isIndeterminateProgress = true
+                            }
+                            copyStatusText = "正在传输数据: 已复制 ${Formatter.formatFileSize(context, result.bytesMoved)}"
                         }
                         is SingleFolderResult.Completed -> {
                             isCopying = false
@@ -152,8 +158,4 @@ class HomeViewModel : ViewModel() {
             }
         }
     }
-}
-
-sealed interface HomeUiState {
-    data object Idle : HomeUiState
 }
