@@ -159,3 +159,7 @@ class HomeViewModel : ViewModel() {
         }
     }
 }
+
+sealed interface HomeUiState {
+    data object Idle : HomeUiState
+}
