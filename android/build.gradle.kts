@@ -113,6 +113,10 @@ dependencies {
     
     implementation(libs.room3.runtime)
     
+    implementation(libs.ftpserver.core)
+    implementation(libs.ftpserver.api)
+    implementation(libs.mina.core)
+    
     // Compose
     implementation(platform(libs.compose.bom))  
     implementation(libs.androidx.ui)

@@ -15,6 +15,8 @@ shadow = "9.4.1"
 gitVersion = "5.0.0"
 jpackage = "2.0.1"
 node = "7.1.0"
+ftpserver = "1.2.1"
+minaCore = "2.2.5"
 
 # --- Android / UI 核心工具链 (现代预览链) ---
 pyrolysis-agp = "9.2.1"
@@ -96,6 +98,10 @@ room3-paging = { group = "androidx.room3", name = "room3-paging", version.ref = 
 sqlite-bundled = { module = "androidx.sqlite:sqlite-bundled", version.ref = "androidx-sqlite" }
 sqlite = { module = "androidx.sqlite:sqlite", version.ref = "androidx-sqlite" }
 sqlite-web = { module = "androidx.sqlite:sqlite-web", version.ref = "androidx-sqlite" }
+
+ftpserver-api = { group = "org.apache.ftpserver", name = "ftplet-api", version.ref = "ftpserver" }
+ftpserver-core = { group = "org.apache.ftpserver", name = "ftpserver-core", version.ref = "ftpserver" }
+mina-core = { group = "org.apache.mina", name = "mina-core", version.ref = "minaCore" }
 
 # --- Jetpack Compose 官方原生 API 链 ---
 compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "pyrolysis-compose-bom" }

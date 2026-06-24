@@ -30,6 +30,7 @@ import me.voltual.vb.ui.log.LogScreen
 import me.voltual.vb.ui.settings.cache.CacheSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
+import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -104,6 +105,13 @@ fun BBQNavDisplay(
                         is ThemeCustomize -> {
                             ThemeCustomizeScreen(modifier = Modifier.fillMaxSize())
                         }
+                        
+                        is FtpSettings -> {
+    FtpSettingsScreen(
+        modifier = Modifier.fillMaxSize(),
+        snackbarHostState = snackbarHostState
+    )
+}
 
                         is UpdateSettings -> {
                             val viewModel: UpdateSettingsViewModel = koinViewModel()

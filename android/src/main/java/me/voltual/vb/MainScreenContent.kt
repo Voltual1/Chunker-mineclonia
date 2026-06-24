@@ -230,6 +230,7 @@ fun getTitleForDestination(route: NavKey?): String {
         ThemeCustomize -> "主题定制"
         UpdateSettings -> "更新设置"
         TerminalExec -> "终端" 
+        FtpSettings -> "世界中转 (FTP)"
         LogViewer -> "日志" 
         CacheSettings -> "缓存设置" 
         Export -> "导出" 

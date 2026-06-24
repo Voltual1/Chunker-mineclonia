@@ -24,6 +24,7 @@ import org.koin.core.qualifier.named
 import me.voltual.vb.ui.home.HomeViewModel
 import androidx.datastore.core.DataStore
 import me.voltual.vb.ui.terminal.TerminalViewModel
+import me.voltual.vb.core.ftp.FtpServerManager
 import androidx.datastore.preferences.core.Preferences
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
@@ -41,6 +42,7 @@ val appModule = module {
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }
     single { LogRepository(get()) }
+    single { FtpServerManager(androidContext()) }
       
     single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
     single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
