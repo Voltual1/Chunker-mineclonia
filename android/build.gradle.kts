@@ -137,6 +137,7 @@ dependencies {
     implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
     implementation(libs.simple.storage.compose)
+    implementation(libs.kotlinx.io)    
     
     // 持久化
     implementation(libs.datastore.preferences)

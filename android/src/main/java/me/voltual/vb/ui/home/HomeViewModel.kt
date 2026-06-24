@@ -69,97 +69,70 @@ class HomeViewModel : ViewModel() {
             availableFormats.filter { it.contains(searchQuery, ignoreCase = true) }
         }
 
-    fun startCopyAndNavigate(context: Context, navigator: Navigator) {
-        val source = selectedFolder ?: return
-        val format = selectedFormat ?: return
+    // ... 保持原有导入不变
+// 导入我们新写的包
 
-        isCopying = true
-        isIndeterminateProgress = true // 默认开启无限循环滚动动画
-        copyProgress = 0f
-        copyStatusText = "正在准备复制..."
+fun startCopyAndNavigate(context: Context, navigator: Navigator) {
+    val source = selectedFolder ?: return
+    val format = selectedFormat ?: return
 
-        viewModelScope.launch(Dispatchers.IO) {
-            val inputDir = File(context.filesDir, "world_input")
-            if (inputDir.exists()) {
-                inputDir.deleteRecursively()
-            }
-            inputDir.mkdirs()
+    isCopying = true
+    isIndeterminateProgress = true // 完美契合：超大存档直接启用流式动画
+    copyProgress = 0f
+    copyStatusText = "正在解析并流式传输存档数据..."
 
-            val targetParentDoc = DocumentFile.fromFile(context.filesDir)
-            val conflictCallback = object : SingleFolderConflictCallback(viewModelScope) {
-                override fun onParentConflict(
-                    destinationFolder: DocumentFile,
-                    action: ParentFolderConflictAction,
-                    canMerge: Boolean
-                ) {
-                    action.confirmResolution(ConflictResolution.REPLACE)
-                }
-            }
+    viewModelScope.launch(Dispatchers.IO) {
+        val inputDir = File(context.filesDir, "world_input")
+        if (inputDir.exists()) {
+            inputDir.deleteRecursively()
+        }
+        inputDir.mkdirs()
 
-            source.copyFolderTo(
-                context = context,
-                targetParentFolder = targetParentDoc,
-                skipEmptyFiles = false,
-                newFolderNameInTargetPath = "world_input",
-                onConflict = conflictCallback
-            ).collect { result ->
-                withContext(Dispatchers.Main) {
-                    when (result) {
-                        is SingleFolderResult.Preparing -> {
-                            isIndeterminateProgress = true
-                            copyStatusText = "正在准备文件..."
+        val targetParentDoc = DocumentFile.fromFile(context.filesDir)
+
+        // 调用不带预计数的流式复制
+        source.copyFolderDirectlyTo(
+            context = context,
+            targetParentFolder = targetParentDoc,
+            newFolderName = "world_input"
+        ).collect { result ->
+            withContext(Dispatchers.Main) {
+                when (result) {
+                    is DirectCopyResult.Preparing -> {
+                        isIndeterminateProgress = true
+                        copyStatusText = "正在初始化流式传输管道..."
+                    }
+                    is DirectCopyResult.InProgress -> {
+                        // 始终保持流光滚动动画（Indeterminate），避免计算百分比带来的性能损耗
+                        isIndeterminateProgress = true 
+                        copyStatusText = "正在高速传输数据: 已写入 ${Formatter.formatFileSize(context, result.bytesMoved)}"
+                    }
+                    is DirectCopyResult.Completed -> {
+                        isCopying = false
+                        copyStatusText = "复制完成！"
+                        val localInputPath = File(context.filesDir, "world_input").absolutePath
+                        val localOutputPath = File(context.filesDir, "world_output").absolutePath
+                        val outputDir = File(localOutputPath)
+                        if (outputDir.exists()) {
+                            outputDir.deleteRecursively()
                         }
-                        is SingleFolderResult.CountingFiles -> {
-                            // 针对大地图，此阶段可能被卡住，提示用户正在快速跳过或加载中
-                            isIndeterminateProgress = true
-                            copyStatusText = "正在解析大型存档目录结构..."
-                        }
-                        is SingleFolderResult.Starting -> {
-                            isIndeterminateProgress = true
-                            copyStatusText = "开始复制文件..."
-                        }
-                        is SingleFolderResult.InProgress -> {
-                            // 当获取到有效进度时，如果外部库支持返回合法进度，则切换为精确进度条
-                            // 针对不返回总数的大地图，result.progress 如果始终为 0 或错误值，我们可以维持不确定状态
-                            if (result.progress > 0f) {
-                                isIndeterminateProgress = false
-                                copyProgress = result.progress / 100f
-                            } else {
-                                isIndeterminateProgress = true
-                            }
-                            copyStatusText = "正在传输数据: 已复制 ${Formatter.formatFileSize(context, result.bytesMoved)}"
-                        }
-                        is SingleFolderResult.Completed -> {
-                            isCopying = false
-                            copyStatusText = "复制完成！"
-                            val localInputPath = File(context.filesDir, "world_input").absolutePath
-                            val localOutputPath = File(context.filesDir, "world_output").absolutePath
-                            val outputDir = File(localOutputPath)
-                            if (outputDir.exists()) {
-                                outputDir.deleteRecursively()
-                            }
-                            outputDir.mkdirs()
+                        outputDir.mkdirs()
 
-                            navigator.navigate(
-                                TerminalExec(
-                                    inputPath = localInputPath,
-                                    outputPath = localOutputPath,
-                                    format = format
-                                )
+                        navigator.navigate(
+                            TerminalExec(
+                                inputPath = localInputPath,
+                                outputPath = localOutputPath,
+                                format = format
                             )
-                        }
-                        is SingleFolderResult.Error -> {
-                            isCopying = false
-                            copyStatusText = "复制失败: ${result.errorCode}"
-                        }
-                        else -> {}
+                        )
+                    }
+                    is DirectCopyResult.Error -> {
+                        isCopying = false
+                        copyStatusText = "复制失败: ${result.exception.message}"
                     }
                 }
             }
         }
     }
 }
-
-sealed interface HomeUiState {
-    data object Idle : HomeUiState
 }
