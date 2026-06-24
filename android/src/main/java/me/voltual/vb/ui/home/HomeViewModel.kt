@@ -8,9 +8,6 @@ import androidx.compose.runtime.setValue
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.anggrayudi.storage.callback.SingleFolderConflictCallback
-import com.anggrayudi.storage.file.copyFolderTo
-import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,7 +28,6 @@ class HomeViewModel : ViewModel() {
     var searchQuery by mutableStateOf("")
 
     var isCopying by mutableStateOf(false)
-    // 增加一个状态用来控制是否显示“不确定进度条”
     var isIndeterminateProgress by mutableStateOf(true) 
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
@@ -69,70 +65,63 @@ class HomeViewModel : ViewModel() {
             availableFormats.filter { it.contains(searchQuery, ignoreCase = true) }
         }
 
-fun startCopyAndNavigate(context: Context, navigator: Navigator) {
-    val source = selectedFolder ?: return
-    val format = selectedFormat ?: return
+    fun startCopyAndNavigate(context: Context, navigator: Navigator) {
+        val source = selectedFolder ?: return
+        val format = selectedFormat ?: return
 
-    isCopying = true
-    isIndeterminateProgress = true // 完美契合：超大存档直接启用流式动画
-    copyProgress = 0f
-    copyStatusText = "正在解析并流式传输存档数据..."
+        isCopying = true
+        isIndeterminateProgress = true 
+        copyProgress = 0f
+        copyStatusText = "正在准备极速复制通道..."
 
-    viewModelScope.launch(Dispatchers.IO) {
-        val inputDir = File(context.filesDir, "world_input")
-        if (inputDir.exists()) {
-            inputDir.deleteRecursively()
-        }
-        inputDir.mkdirs()
+        viewModelScope.launch(Dispatchers.IO) {
+            val inputDir = File(context.filesDir, "world_input")
+            if (inputDir.exists()) {
+                inputDir.deleteRecursively()
+            }
+            inputDir.mkdirs()
 
-        val targetParentDoc = DocumentFile.fromFile(context.filesDir)
-
-        // 调用不带预计数的流式复制
-        source.copyFolderDirectlyTo(
-            context = context,
-            targetParentFolder = targetParentDoc,
-            newFolderName = "world_input"
-        ).collect { result ->
-            withContext(Dispatchers.Main) {
-                when (result) {
-                    is DirectCopyResult.Preparing -> {
-                        isIndeterminateProgress = true
-                        copyStatusText = "正在初始化流式传输管道..."
-                    }
-                    is DirectCopyResult.InProgress -> {
-                        // 始终保持流光滚动动画（Indeterminate），避免计算百分比带来的性能损耗
-                        isIndeterminateProgress = true 
-                        copyStatusText = "正在高速传输数据: 已写入 ${Formatter.formatFileSize(context, result.bytesMoved)}"
-                    }
-                    is DirectCopyResult.Completed -> {
-                        isCopying = false
-                        copyStatusText = "复制完成！"
-                        val localInputPath = File(context.filesDir, "world_input").absolutePath
-                        val localOutputPath = File(context.filesDir, "world_output").absolutePath
-                        val outputDir = File(localOutputPath)
-                        if (outputDir.exists()) {
-                            outputDir.deleteRecursively()
+            // 直接对拷到本地物理 inputDir，彻底摒弃 SAF Target 逻辑
+            source.copyFolderDirectlyTo(
+                context = context,
+                targetParentDir = inputDir
+            ).collect { result ->
+                withContext(Dispatchers.Main) {
+                    when (result) {
+                        is DirectCopyResult.Preparing -> {
+                            isIndeterminateProgress = true
+                            copyStatusText = "正在初始化流式传输管道..."
                         }
-                        outputDir.mkdirs()
+                        is DirectCopyResult.InProgress -> {
+                            isIndeterminateProgress = true
+                            copyStatusText = "正在高速传输数据: 已写入 ${Formatter.formatFileSize(context, result.bytesMoved)}"
+                        }
+                        is DirectCopyResult.Completed -> {
+                            isCopying = false
+                            copyStatusText = "复制完成！"
+                            val localInputPath = inputDir.absolutePath
+                            val localOutputPath = File(context.filesDir, "world_output").absolutePath
+                            val outputDir = File(localOutputPath)
+                            if (outputDir.exists()) {
+                                outputDir.deleteRecursively()
+                            }
+                            outputDir.mkdirs()
 
-                        navigator.navigate(
-                            TerminalExec(
-                                inputPath = localInputPath,
-                                outputPath = localOutputPath,
-                                format = format
+                            navigator.navigate(
+                                TerminalExec(
+                                    inputPath = localInputPath,
+                                    outputPath = localOutputPath,
+                                    format = format
+                                )
                             )
-                        )
-                    }
-                    is DirectCopyResult.Error -> {
-                        isCopying = false
-                        copyStatusText = "复制失败: ${result.exception.message}"
+                        }
+                        is DirectCopyResult.Error -> {
+                            isCopying = false
+                            copyStatusText = "复制失败: ${result.exception.message}"
+                        }
                     }
                 }
             }
         }
     }
-}
-}
-sealed interface HomeUiState {
-    data object Idle : HomeUiState
 }
