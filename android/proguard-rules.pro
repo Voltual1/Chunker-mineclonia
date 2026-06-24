@@ -29,11 +29,6 @@
     public java.lang.String[] getVersion();
 }
 
--keep class org.iq80.leveldb.table.FilterBlockBuilder { *; }
--keep class org.iq80.leveldb.table.FilterBlockReader { *; }
--keep class org.iq80.leveldb.table.FilterPolicy { *; }
--keep class org.iq80.leveldb.table.Footer { *; }
--keep class org.iq80.leveldb.table.KeyValueFunction { *; }
 -keep class org.iq80.leveldb.table.RestartPositions { *; }
 -keep class org.iq80.leveldb.table.Table { *; }
 -keep class org.iq80.leveldb.table.TableBuilder { *; }
