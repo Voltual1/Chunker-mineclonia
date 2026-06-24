@@ -117,11 +117,9 @@ dependencies {
     implementation(libs.okhttp)
     
                     implementation(libs.room3.runtime)
-                implementation(libs.sqlite.bundled)
     
     // Compose
-    implementation(platform(libs.compose.bom))
-    implementation(libs.compose.components.resources)    
+    implementation(platform(libs.compose.bom))  
     implementation(libs.androidx.ui)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.activity.compose)
@@ -134,8 +132,8 @@ dependencies {
     implementation(libs.markdown)
 
     // 图片与异步
-    implementation(libs.coil.compose)
-    implementation(libs.coil.network.ktor)
+//    implementation(libs.coil.compose)
+//    implementation(libs.coil.network.ktor)
     implementation(libs.kotlinx.coroutines.android)
     
     // File
