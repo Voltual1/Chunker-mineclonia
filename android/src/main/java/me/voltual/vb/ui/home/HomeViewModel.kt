@@ -41,7 +41,7 @@ class HomeViewModel : ViewModel() {
 
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
-        formats.add("MINECLONIA（实验性）")
+        formats.add("MINECLONIA")
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {
