@@ -30,15 +30,19 @@ fun TerminalScreen(
 
     HorizontalPager(
         state = pagerState,
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier.fillMaxSize(),
+        userScrollEnabled = true
     ) { page ->
-        // 既然只有一页，这里直接渲染终端内容
+        when (page) {
+        0 -> {        
         session?.let { activeSession ->
             TerminalViewAndroidView(
                 session = activeSession,
                 modifier = Modifier.fillMaxSize(),
                 initialTextSize = 36
             )
-        }
+        }        
     }
+}
+}
 }
