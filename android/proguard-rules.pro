@@ -29,7 +29,7 @@
     public java.lang.String[] getVersion();
 }
 
--keepnames class org.iq80.leveldb.util.** { *; }
+-keepnames class org.iq80.leveldb.table.** { *; }
 
 # ===== 基础属性保留 =====
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
