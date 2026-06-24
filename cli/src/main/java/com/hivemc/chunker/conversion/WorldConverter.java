@@ -96,9 +96,6 @@ public class WorldConverter implements Converter {
     private boolean customIdentifiers = true;
     private boolean exceptions = false;
     private boolean cancelled = false;
-    
-    // JVM / Android optimized thread count setting
-    private int threadCount = Math.max(1, Runtime.getRuntime().availableProcessors() / 4);
 
     /**
      * Create a new WorldConverter with a sessionID.
@@ -107,15 +104,6 @@ public class WorldConverter implements Converter {
      */
     public WorldConverter(UUID sessionID) {
         this.sessionID = sessionID;
-    }
-
-    /**
-     * Set the thread count used for concurrent tasks.
-     *
-     * @param threadCount thread count (suggested 1 or 2 for mobile).
-     */
-    public void setThreadCount(int threadCount) {
-        this.threadCount = Math.max(1, threadCount);
     }
 
     /**
@@ -567,9 +555,7 @@ public class WorldConverter implements Converter {
         cancelled = false;
         exceptions = false;
         missingIdentifiers.clear();
-        
-        // Android OOM Backpressure / Concurrency tuning: Use the dynamic threadCount
-        environment = Task.environment("World Conversion", this.threadCount, this::logFatalException, this::handleSignal);
+        environment = Task.environment("World Conversion", 8, this::logFatalException, this::handleSignal);
 
         try {
             // Create the handler that calls the writer
@@ -724,9 +710,6 @@ public class WorldConverter implements Converter {
 
         @Override
         public Task<WorldConversionHandler> convertLevel(ChunkerLevel level) {
-            // JVM Backpressure: triggers GC right before loading worlds to clean up map loading residual overhead
-            System.gc();
-
             // Apply the maps to the level
             if (worldConverter.maps != null) {
                 level.setMaps(worldConverter.maps);
