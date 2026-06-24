@@ -1,7 +1,6 @@
 package me.voltual.vb.ui.home
 
 import android.content.Context
-import android.text.format.Formatter
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -17,6 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.voltual.vb.core.utils.extension.text.formatSize
 import me.voltual.vb.ui.Navigator
 import me.voltual.vb.ui.TerminalExec
 import java.io.File
@@ -34,10 +34,9 @@ class HomeViewModel : ViewModel() {
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
-    // 动态获取 Chunker 支持的全部输出格式，并加入 MINECLONIA 格式
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
-        formats.add("MINECLONIA（实验性）") // 注册 Mineclonia 转换格式
+        formats.add("MINECLONIA（实验性）")
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {
@@ -51,7 +50,6 @@ class HomeViewModel : ViewModel() {
         } catch (e: Exception) {
             e.printStackTrace()
         }
-        // 如果动态获取失败，提供保底常用格式（确保包含 MINECLONIA）
         if (formats.size <= 1) {
             listOf(
                 "MINECLONIA",
@@ -75,6 +73,19 @@ class HomeViewModel : ViewModel() {
             availableFormats.filter { it.contains(searchQuery, ignoreCase = true) }
         }
 
+    private fun getWorldsDir(context: Context): File {
+        val externalDir = context.getExternalFilesDir(null)
+        val worldsDir = if (externalDir != null) {
+            File(externalDir, "worlds")
+        } else {
+            File(context.filesDir, "worlds")
+        }
+        if (!worldsDir.exists()) {
+            worldsDir.mkdirs()
+        }
+        return worldsDir
+    }
+
     fun startCopyAndNavigate(context: Context, navigator: Navigator) {
         val source = selectedFolder ?: return
         val format = selectedFormat ?: return
@@ -84,13 +95,14 @@ class HomeViewModel : ViewModel() {
         copyStatusText = "正在准备复制..."
 
         viewModelScope.launch(Dispatchers.IO) {
-            val inputDir = File(context.filesDir, "world_input")
+            val worldsDir = getWorldsDir(context)
+            val inputDir = File(worldsDir, "world_input")
             if (inputDir.exists()) {
                 inputDir.deleteRecursively()
             }
             inputDir.mkdirs()
 
-            val targetParentDoc = DocumentFile.fromFile(context.filesDir)
+            val targetParentDoc = DocumentFile.fromFile(worldsDir)
             val conflictCallback = object : SingleFolderConflictCallback(viewModelScope) {
                 override fun onParentConflict(
                     destinationFolder: DocumentFile,
@@ -121,13 +133,13 @@ class HomeViewModel : ViewModel() {
                         }
                         is SingleFolderResult.InProgress -> {
                             copyProgress = result.progress / 100f
-                            copyStatusText = "已复制: ${(result.progress).toInt()}% (${Formatter.formatFileSize(context, result.bytesMoved)})"
+                            copyStatusText = "已复制: ${(result.progress).toInt()}% (${result.bytesMoved.formatSize()})"
                         }
                         is SingleFolderResult.Completed -> {
                             isCopying = false
                             copyStatusText = "复制完成！"
-                            val localInputPath = File(context.filesDir, "world_input").absolutePath
-                            val localOutputPath = File(context.filesDir, "world_output").absolutePath
+                            val localInputPath = File(worldsDir, "world_input").absolutePath
+                            val localOutputPath = File(worldsDir, "world_output").absolutePath
                             val outputDir = File(localOutputPath)
                             if (outputDir.exists()) {
                                 outputDir.deleteRecursively()

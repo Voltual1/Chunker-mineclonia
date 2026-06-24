@@ -3,7 +3,6 @@ package me.voltual.vb.ui.settings.cache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,7 +55,7 @@ fun CacheSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("转换输出目录 (world_output)", style = MaterialTheme.typography.bodyMedium)
+                        Text("转换输出目录 (worlds/world_output)", style = MaterialTheme.typography.bodyMedium)
                         Text(viewModel.outputFolderSize, style = MaterialTheme.typography.bodyMedium)
                     }
 
@@ -64,11 +63,11 @@ fun CacheSettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("打包压缩包 (world_output.zip)", style = MaterialTheme.typography.bodyMedium)
+                        Text("打包压缩包 (worlds/world_output.zip)", style = MaterialTheme.typography.bodyMedium)
                         Text(viewModel.zipFileSize, style = MaterialTheme.typography.bodyMedium)
                     }
 
-                    Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -101,7 +100,7 @@ fun CacheSettingsScreen(
             AlertDialog(
                 onDismissRequest = { showConfirmDialog = false },
                 title = { Text("确认清除") },
-                text = { Text("此操作将永久删除本地转换输出的世界文件夹及其对应的压缩包。源存档不受影响。是否继续？") },
+                text = { Text("此操作将永久删除本地转换输出的世界文件夹及其对应的压缩包（包含旧版残留和中转站下的缓存）。源存档不受影响。是否继续？") },
                 confirmButton = {
                     Button(
                         onClick = {
