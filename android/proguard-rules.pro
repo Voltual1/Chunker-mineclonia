@@ -29,26 +29,26 @@
     public java.lang.String[] getVersion();
 }
 
--keepnames class org.iq80.leveldb.table.Block
--keepnames class org.iq80.leveldb.table.BlockBuilder
--keepnames class org.iq80.leveldb.table.BlockEntry
--keepnames class org.iq80.leveldb.table.BlockHandle
--keepnames class org.iq80.leveldb.table.BlockHandleSliceWeigher
--keepnames class org.iq80.leveldb.table.BlockIterator
--keepnames class org.iq80.leveldb.table.BlockTrailer
--keepnames class org.iq80.leveldb.table.BloomFilterPolicy
--keepnames class org.iq80.leveldb.table.BytewiseComparator
--keepnames class org.iq80.leveldb.table.CacheKey
--keepnames class org.iq80.leveldb.table.CustomUserComparator
--keepnames class org.iq80.leveldb.table.FilterBlockBuilder
--keepnames class org.iq80.leveldb.table.FilterBlockReader
--keepnames class org.iq80.leveldb.table.FilterPolicy
--keepnames class org.iq80.leveldb.table.Footer
--keepnames class org.iq80.leveldb.table.KeyValueFunction
--keepnames class org.iq80.leveldb.table.RestartPositions
--keepnames class org.iq80.leveldb.table.Table
--keepnames class org.iq80.leveldb.table.TableBuilder
--keepnames class org.iq80.leveldb.table.UserComparator
+-keep class org.iq80.leveldb.table.Block { *; }
+-keep class org.iq80.leveldb.table.BlockBuilder { *; }
+-keep class org.iq80.leveldb.table.BlockEntry { *; }
+-keep class org.iq80.leveldb.table.BlockHandle { *; }
+-keep class org.iq80.leveldb.table.BlockHandleSliceWeigher { *; }
+-keep class org.iq80.leveldb.table.BlockIterator { *; }
+-keep class org.iq80.leveldb.table.BlockTrailer { *; }
+-keep class org.iq80.leveldb.table.BloomFilterPolicy { *; }
+-keep class org.iq80.leveldb.table.BytewiseComparator { *; }
+-keep class org.iq80.leveldb.table.CacheKey { *; }
+-keep class org.iq80.leveldb.table.CustomUserComparator { *; }
+-keep class org.iq80.leveldb.table.FilterBlockBuilder { *; }
+-keep class org.iq80.leveldb.table.FilterBlockReader { *; }
+-keep class org.iq80.leveldb.table.FilterPolicy { *; }
+-keep class org.iq80.leveldb.table.Footer { *; }
+-keep class org.iq80.leveldb.table.KeyValueFunction { *; }
+-keep class org.iq80.leveldb.table.RestartPositions { *; }
+-keep class org.iq80.leveldb.table.Table { *; }
+-keep class org.iq80.leveldb.table.TableBuilder { *; }
+-keep class org.iq80.leveldb.table.UserComparator { *; }
 
 # ===== 基础属性保留 =====
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
