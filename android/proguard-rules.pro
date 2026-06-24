@@ -29,7 +29,25 @@
     public java.lang.String[] getVersion();
 }
 
+-keepnames class org.iq80.leveldb.table.Block
+-keepnames class org.iq80.leveldb.table.BlockBuilder
 -keepnames class org.iq80.leveldb.table.BlockEntry
+-keepnames class org.iq80.leveldb.table.BlockHandle
+-keepnames class org.iq80.leveldb.table.BlockHandleSliceWeigher
+-keepnames class org.iq80.leveldb.table.BlockIterator
+-keepnames class org.iq80.leveldb.table.BlockTrailer
+-keepnames class org.iq80.leveldb.table.BloomFilterPolicy
+-keepnames class org.iq80.leveldb.table.BytewiseComparator
+-keepnames class org.iq80.leveldb.table.CacheKey
+-keepnames class org.iq80.leveldb.table.CustomUserComparator
+-keepnames class org.iq80.leveldb.table.FilterBlockBuilder
+-keepnames class org.iq80.leveldb.table.FilterBlockReader
+-keepnames class org.iq80.leveldb.table.FilterPolicy
+-keepnames class org.iq80.leveldb.table.Footer
+-keepnames class org.iq80.leveldb.table.KeyValueFunction
+-keepnames class org.iq80.leveldb.table.RestartPositions
+-keepnames class org.iq80.leveldb.table.Table
+-keepnames class org.iq80.leveldb.table.TableBuilder
 -keepnames class org.iq80.leveldb.table.UserComparator
 
 # ===== 基础属性保留 =====
