@@ -29,7 +29,6 @@
     public java.lang.String[] getVersion();
 }
 
--keepnames class org.iq80.leveldb.table.** { *; }
 -keepnames class org.iq80.leveldb.util.** { *; }
 
 # ===== 基础属性保留 =====
