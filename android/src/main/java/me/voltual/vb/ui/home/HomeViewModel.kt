@@ -34,6 +34,11 @@ class HomeViewModel : ViewModel() {
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
+    // 新增中转站文件状态
+    var hasExistingInput by mutableStateOf(false)
+        private set
+    var useExistingInput by mutableStateOf(false)
+
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
         formats.add("MINECLONIA（实验性）")
@@ -86,16 +91,47 @@ class HomeViewModel : ViewModel() {
         return worldsDir
     }
 
-    fun startCopyAndNavigate(context: Context, navigator: Navigator) {
-        val source = selectedFolder ?: return
-        val format = selectedFormat ?: return
+    fun checkExistingInput(context: Context) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val worldsDir = getWorldsDir(context)
+            val inputDir = File(worldsDir, "world_input")
+            val hasFiles = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
+            withContext(Dispatchers.Main) {
+                hasExistingInput = hasFiles
+            }
+        }
+    }
 
+    fun startCopyAndNavigate(context: Context, navigator: Navigator) {
+        val format = selectedFormat ?: return
+        val worldsDir = getWorldsDir(context)
+        val localInputPath = File(worldsDir, "world_input").absolutePath
+        val localOutputPath = File(worldsDir, "world_output").absolutePath
+
+        // 如果用户选择直接使用 FTP 导入的文件，则不进行 SAF 复制
+        if (useExistingInput) {
+            val outputDir = File(localOutputPath)
+            if (outputDir.exists()) {
+                outputDir.deleteRecursively()
+            }
+            outputDir.mkdirs()
+
+            navigator.navigate(
+                TerminalExec(
+                    inputPath = localInputPath,
+                    outputPath = localOutputPath,
+                    format = format
+                )
+            )
+            return
+        }
+
+        val source = selectedFolder ?: return
         isCopying = true
         copyProgress = 0f
         copyStatusText = "正在准备复制..."
 
         viewModelScope.launch(Dispatchers.IO) {
-            val worldsDir = getWorldsDir(context)
             val inputDir = File(worldsDir, "world_input")
             if (inputDir.exists()) {
                 inputDir.deleteRecursively()
@@ -138,8 +174,6 @@ class HomeViewModel : ViewModel() {
                         is SingleFolderResult.Completed -> {
                             isCopying = false
                             copyStatusText = "复制完成！"
-                            val localInputPath = File(worldsDir, "world_input").absolutePath
-                            val localOutputPath = File(worldsDir, "world_output").absolutePath
                             val outputDir = File(localOutputPath)
                             if (outputDir.exists()) {
                                 outputDir.deleteRecursively()
@@ -154,7 +188,7 @@ class HomeViewModel : ViewModel() {
                                 )
                             )
                         }
-                        is SingleFolderResult.Error -> {
+                        is SingleFileResult.Error -> {
                             isCopying = false
                             copyStatusText = "复制失败: ${result.errorCode}"
                         }
