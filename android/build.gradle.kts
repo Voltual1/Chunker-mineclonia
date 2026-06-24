@@ -2,12 +2,10 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
-//    id("kotlin-parcelize")
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.androidx.room3)    
-//    alias(libs.plugins.shizuku.refine)
 }
 
 android {
@@ -20,7 +18,6 @@ android {
     namespace = "me.voltual.vb"
     compileSdk = 37
 
-    // AGP 9.0 新的基础包名设置方式
     base {
         archivesName.set("Vector-Breakthrough")
     }
@@ -29,14 +26,12 @@ android {
         applicationId = "me.voltual.vb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
         multiDexEnabled = true
         buildConfigField("String", "LICENSE", "\"GPLv3\"")
-        // 此处删除了 resourceConfigurations
     }
 
-    // AGP 9.0 替代 resourceConfigurations 的新写法
     androidResources {
         localeFilters += "zh"
     }
@@ -54,7 +49,7 @@ android {
         abi {
             isEnable = true
             reset()
-            include("arm64-v8a")
+            include("armeabi-v7a", "arm64-v8a")
             isUniversalApk = false
         }
     }
@@ -116,7 +111,7 @@ dependencies {
     implementation(libs.google.material)
     implementation(libs.okhttp)
     
-                    implementation(libs.room3.runtime)
+    implementation(libs.room3.runtime)
     
     // Compose
     implementation(platform(libs.compose.bom))  
@@ -146,16 +141,7 @@ dependencies {
     // 持久化
     implementation(libs.datastore.preferences)
     implementation(libs.datastore.core)
-/*    
-    //Shizuku
-    implementation(libs.shizuku.api)
-    implementation(libs.shizuku.provider)
-    implementation(libs.shizuku.refine)
-    compileOnly(libs.shizuku.hidden)
-    
-    //Libsu
-    implementation(libs.libsu.core)
-*/
+
     // Koin 注入
     implementation(libs.koin.android.compose)
     implementation(libs.koin.core)

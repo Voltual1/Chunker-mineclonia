@@ -3,7 +3,6 @@
 
 package me.voltual.vb
 
-// Jetpack Compose 核心基础与布局
 import androidx.compose.foundation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -13,8 +12,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.unit.dp
-
-// Jetpack Material 3 设计组件与图标
 import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -22,38 +19,24 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Search
-
-// Jetpack Compose 状态管理
 import androidx.compose.runtime.*
-
-// Jetpack Lifecycle & ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-
-// Jetpack Navigation 3
 import androidx.navigation3.runtime.*
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.NavBackStack
-
-// Kotlin 协程与流
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-
-// Koin 依赖注入
 import org.koin.compose.koinInject
-
-// 项目核心基础库、数据层与网络 (Core & Data)
 import me.voltual.vb.KtorClient
 import me.voltual.vb.data.UpdateInfo
 import me.voltual.vb.data.UpdateSettingsDataStore
 import me.voltual.vb.data.UserAgreementDataStore
 import me.voltual.vb.core.utils.UpdateCheckResult
 import me.voltual.vb.core.utils.UpdateChecker
-
-// 项目通用 UI 组件、主题与动画 (Core UI)
 import me.voltual.vb.core.ui.theme.*
 import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
 import me.voltual.vb.core.ui.components.UserAgreementDialog

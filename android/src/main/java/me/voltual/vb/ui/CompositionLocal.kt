@@ -39,7 +39,7 @@ class TopAppBarController {
 
   var customTitle by mutableStateOf<String?>(null)
   
-  // 新增：支持完全自定义的标题区域
+  // 支持完全自定义的标题区域
   var titleContent by mutableStateOf<(@Composable () -> Unit)?>(null)
 
   fun updateActions(newActions: List<TopAppBarAction>) {
