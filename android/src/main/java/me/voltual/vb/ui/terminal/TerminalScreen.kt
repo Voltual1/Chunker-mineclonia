@@ -26,12 +26,12 @@ fun TerminalScreen(
     }
 
     // 初始化一个只有 1 页的 Pager 状态
-    val pagerState = rememberPagerState(pageCount = { 1 })
+    val pagerState = rememberPagerState(initialPage = 0) { 1 }
 
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = false
+        userScrollEnabled = true
     ) { page ->
         when (page) {
         0 -> {        
