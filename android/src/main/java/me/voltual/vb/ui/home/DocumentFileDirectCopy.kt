@@ -3,7 +3,6 @@ package me.voltual.vb.ui.home
 import android.content.Context
 import androidx.documentfile.provider.DocumentFile
 import com.anggrayudi.storage.extension.closeStreamQuietly
-import com.anggrayudi.storage.extension.openInputStream
 import com.anggrayudi.storage.extension.openOutputStream
 import com.anggrayudi.storage.file.CreateMode
 import com.anggrayudi.storage.file.makeFile
@@ -49,8 +48,8 @@ fun DocumentFile.copyFolderDirectlyTo(
                 val destFile = currentDestDir.makeFile(context, child.name.orEmpty(), child.type, CreateMode.REUSE)
                 if (destFile == null) continue
 
-                // 流式传输数据
-                var inputStream = child.openInputStream(context)
+                // 使用原生 ContentResolver 打开源文件的输入流，安全避开编译链接问题
+                var inputStream = context.contentResolver.openInputStream(child.uri)
                 var outputStream = destFile.openOutputStream(context, append = false)
                 try {
                     if (inputStream != null && outputStream != null) {
