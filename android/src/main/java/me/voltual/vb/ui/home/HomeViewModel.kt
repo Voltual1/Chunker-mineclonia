@@ -69,9 +69,6 @@ class HomeViewModel : ViewModel() {
             availableFormats.filter { it.contains(searchQuery, ignoreCase = true) }
         }
 
-    // ... 保持原有导入不变
-// 导入我们新写的包
-
 fun startCopyAndNavigate(context: Context, navigator: Navigator) {
     val source = selectedFolder ?: return
     val format = selectedFormat ?: return
@@ -135,4 +132,7 @@ fun startCopyAndNavigate(context: Context, navigator: Navigator) {
         }
     }
 }
+}
+sealed interface HomeUiState {
+    data object Idle : HomeUiState
 }
