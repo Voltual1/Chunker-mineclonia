@@ -220,7 +220,6 @@ fun HomeScreen(
         }
 
         // 复制进度弹窗
-        // 复制进度弹窗
         if (viewModel.isCopying) {
             AlertDialog(
                 onDismissRequest = {},
@@ -229,31 +228,14 @@ fun HomeScreen(
                 text = {
                     Column(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = viewModel.copyStatusText,
-                            style = MaterialTheme.typography.bodyMedium
+                        Text(text = viewModel.copyStatusText)
+                        LinearProgressIndicator(
+                            progress = { viewModel.copyProgress },
+                            modifier = Modifier.fillMaxWidth()
                         )
-                        
-                        // 根据 ViewModel 的状态切换动态进度条
-                        if (viewModel.isIndeterminateProgress) {
-                            // 不确定进度条：一直处于流光动画状态，表示“我没死，正在后台努力传输”
-                            LinearProgressIndicator(
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        } else {
-                            // 确定进度条：展示实际百分比
-                            LinearProgressIndicator(
-                                progress = { viewModel.copyProgress },
-                                modifier = Modifier.fillMaxWidth(),
-                                color = MaterialTheme.colorScheme.primary,
-                                trackColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
-                        }
                     }
                 }
             )
