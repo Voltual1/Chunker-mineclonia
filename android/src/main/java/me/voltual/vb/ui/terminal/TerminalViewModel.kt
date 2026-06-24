@@ -17,14 +17,13 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
-import com.hivemc.chunker.cli.CLI
-import picocli.CommandLine
 import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
+import com.hivemc.chunker.conversion.encoding.base.Version
 import me.voltual.mcl.MclLevelWriter
 import java.util.UUID
 
@@ -131,10 +130,13 @@ class TerminalViewModel(
                 mclConverter.setProcessEntities(true)
                 mclConverter.setProcessBlockEntities(true)
                 mclConverter.setProcessBiomes(true)
-                
-                // 启用光照计算，恢复世界亮度；关闭 PreTransform 确保多线程转换不卡死
                 mclConverter.setProcessLighting(true)
                 mclConverter.setProcessColumnPreTransform(false)
+                
+                // 强制限制线程并行度（解决 Android OOM）
+                mclConverter.setThreadCount(1)
+                // 既然内存极度受限，小地图渲染直接放弃转换
+                mclConverter.setProcessMaps(false)
 
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, mclConverter)
@@ -166,22 +168,71 @@ class TerminalViewModel(
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Mineclonia conversion completed successfully!\u001B[0m")
                 isSuccess = true
             } else {
-                outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task...\u001B[0m")
+                // 通用 Bedrock/Java 格式转换改用“非侵入编程式”，彻底解决黑盒 CLI 线程暴走导致的 OOM。
+                outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task programmatically...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
                 outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
                 outBridge.println("================================================")
 
-                val cliArgs = arrayOf(
-                    "--inputDirectory", args.inputPath,
-                    "--outputFormat", args.format,
-                    "--outputDirectory", args.outputPath
-                )
+                val inputPathFile = File(args.inputPath)
+                val outputPathFile = File(args.outputPath)
 
-                val cli = CLI()
-                CommandLine(cli).execute(*cliArgs)
+                val converter = WorldConverter(UUID.randomUUID())
+                converter.setProcessItems(true)
+                converter.setProcessEntities(true)
+                converter.setProcessBlockEntities(true)
+                converter.setProcessBiomes(true)
+                converter.setProcessLighting(true)
+                converter.setProcessColumnPreTransform(false)
+                
+                // Android 极限内存控制配置
+                converter.setThreadCount(1) // 串行转换，确保极高稳定性
+                converter.setProcessMaps(false) // 绕过损坏的 map_*.dat 地图导致内存溢出
 
-                outBridge.println("\n\u001B[1;32m[SUCCESS] Conversion completed successfully!\u001B[0m")
+                outBridge.println("Detecting input world format...")
+                val readerOptional = EncodingType.findReader(inputPathFile, converter)
+                if (!readerOptional.isPresent) {
+                    throw IllegalStateException("Failed to detect input world format!")
+                }
+                val reader = readerOptional.get()
+                outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
+
+                // 解析目标版本和类型
+                // args.format 样式通常为 BEDROCK_1_21_50 或 JAVA_1_18_2
+                val targetTypeName = args.format.substringBefore("_")
+                val targetVersionString = args.format.substringAfter("_").replace("_", ".")
+                
+                val encodingType = EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
+                    ?: throw IllegalArgumentException("Unsupported output format target: $targetTypeName")
+                
+                val outputVersion = Version.fromString(targetVersionString)
+
+                outBridge.println("Creating Level Writer for target \u001B[32m${encodingType.name}\u001B[0m Version: \u001B[32m$outputVersion\u001B[0m...")
+                val writerOptional = encodingType.createWriter(outputPathFile, outputVersion, converter)
+                if (!writerOptional.isPresent) {
+                    throw IllegalStateException("Failed to create writer for format ${encodingType.name} at version $outputVersion")
+                }
+                val writer = writerOptional.get()
+
+                outBridge.println("Initializing programmatic Chunker conversion pipeline...")
+                val trackedTask = converter.convert(reader, writer)
+
+                val future = trackedTask.future()
+                var lastProgress = -1.0
+                while (!future.isDone) {
+                    val progress = trackedTask.progress
+                    if (progress != lastProgress) {
+                        val percentage = (progress * 100).toInt()
+                        outBridge.println("Conversion Progress: \u001B[33m$percentage%\u001B[0m")
+                        lastProgress = progress
+                    }
+                    Thread.sleep(100)
+                }
+
+                future.get()
+
+                outBridge.println("\n\u001B[1;32m[SUCCESS] Programmatic conversion completed successfully!\u001B[0m")
                 isSuccess = true
             }
         } catch (e: Exception) {
