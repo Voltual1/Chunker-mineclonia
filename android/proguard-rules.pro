@@ -30,8 +30,6 @@
     public *;
 }
 
--keep class !com.google.android.material.** { *; }
-
 -keep class * implements picocli.CommandLine$ITypeConverter {
     public <init>();
 }
