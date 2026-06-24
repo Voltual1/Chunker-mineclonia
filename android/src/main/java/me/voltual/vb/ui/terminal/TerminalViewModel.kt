@@ -87,10 +87,11 @@ class TerminalViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
+            // 通过 sh -c 先行执行 "stty -echo" 禁用 PTY 本地输入回显，解决 ANSI 颜色代码 caret 显示（如 ^[[33m）以及日志双重打印的问题
             val newSession = TerminalSession(
-                "/system/bin/cat",
+                "/system/bin/sh",
                 context.filesDir.absolutePath,
-                arrayOf("cat"),
+                arrayOf("sh", "-c", "stty -echo && cat"),
                 emptyArray(),
                 5000,
                 sessionClient
@@ -133,9 +134,7 @@ class TerminalViewModel(
                 mclConverter.setProcessLighting(true)
                 mclConverter.setProcessColumnPreTransform(false)
                 
-                // 强制限制线程并行度（解决 Android OOM）
                 mclConverter.setThreadCount(1)
-                // 既然内存极度受限，小地图渲染直接放弃转换
                 mclConverter.setProcessMaps(false)
 
                 outBridge.println("Detecting input world format...")
@@ -168,7 +167,6 @@ class TerminalViewModel(
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Mineclonia conversion completed successfully!\u001B[0m")
                 isSuccess = true
             } else {
-                // 通用 Bedrock/Java 格式转换改用“非侵入编程式”，彻底解决黑盒 CLI 线程暴走导致的 OOM。
                 outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task programmatically...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
@@ -186,9 +184,8 @@ class TerminalViewModel(
                 converter.setProcessLighting(true)
                 converter.setProcessColumnPreTransform(false)
                 
-                // Android 极限内存控制配置
-                converter.setThreadCount(1) // 串行转换，确保极高稳定性
-                converter.setProcessMaps(false) // 绕过损坏的 map_*.dat 地图导致内存溢出
+                converter.setThreadCount(1)
+                converter.setProcessMaps(false)
 
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, converter)
@@ -198,8 +195,6 @@ class TerminalViewModel(
                 val reader = readerOptional.get()
                 outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
 
-                // 解析目标版本和类型
-                // args.format 样式通常为 BEDROCK_1_21_50 或 JAVA_1_18_2
                 val targetTypeName = args.format.substringBefore("_")
                 val targetVersionString = args.format.substringAfter("_").replace("_", ".")
                 
