@@ -30,7 +30,6 @@
 }
 
 -keep class org.iq80.leveldb.table.TableBuilder { *; }
--keep class org.iq80.leveldb.table.UserComparator { *; }
 
 # ===== 基础属性保留 =====
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
