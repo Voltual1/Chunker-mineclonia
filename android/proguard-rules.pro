@@ -29,9 +29,6 @@
     public java.lang.String[] getVersion();
 }
 
--keepnames class org.iq80.leveldb.env.** { *; }
--keepnames class org.iq80.leveldb.impl.** { *; }
--keepnames class org.iq80.leveldb.iterator.** { *; }
 -keepnames class org.iq80.leveldb.table.** { *; }
 -keepnames class org.iq80.leveldb.util.** { *; }
 
