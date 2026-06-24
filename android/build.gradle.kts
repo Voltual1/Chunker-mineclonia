@@ -139,6 +139,9 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     
     // File
+    implementation(libs.filekit.core)
+    implementation(libs.filekit.dialogs)
+    implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
     implementation(libs.simple.storage.compose)
     
