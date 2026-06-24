@@ -1,5 +1,6 @@
 package me.voltual.vb.ui.settings.ftp
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -22,11 +23,16 @@ fun FtpSettingsScreen(
     
     // 获取当前应用私有外部存储空间，专门管理 World 文件夹
     val worldDir = remember {
-        File(context.getExternalFilesFile("worlds") ?: File(context.filesDir, "worlds"))
+        val externalDir = context.getExternalFilesDir(null)
+        if (externalDir != null) {
+            File(externalDir, "worlds")
+        } else {
+            File(context.filesDir, "worlds")
+        }
     }
 
-    var serverStatusText by remember { mutableStateOf(if (ftpManager.isRunning) "运行中" else "未启动") }
     var isFtpRunning by remember { mutableStateOf(ftpManager.isRunning) }
+    var serverStatusText by remember { mutableStateOf(if (isFtpRunning) "运行中" else "未启动") }
     var portInput by remember { mutableStateOf("2121") }
     var usernameInput by remember { mutableStateOf("admin") }
     var passwordInput by remember { mutableStateOf("admin123") }
@@ -124,9 +130,4 @@ fun FtpSettingsScreen(
             }
         }
     }
-}
-
-// 辅助方法：获取外置文件路径
-private fun Context.getExternalFilesFile(type: String): File? {
-    return this.getExternalFilesDir(null)?.let { File(it, type) }
 }

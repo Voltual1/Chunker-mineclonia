@@ -16,13 +16,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
-import me.voltual.vb.core.ui.icons.drawable.* // 导入转换后的图标
+import me.voltual.vb.core.ui.icons.drawable.*
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -60,13 +64,12 @@ fun NavigationDrawerItems(
     drawerState: DrawerState,
     scope: CoroutineScope
 ) {
-
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
+            DrawerItem("ftp_settings", "世界中转站 (FTP)", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("cache_settings", "缓存设置", IconSource.Vector(Icons.Default.DeleteSweep), CacheSettings),
-            DrawerItem("ftp_settings", "FTP服务", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("update_settings", "更新设置", IconSource.Vector(Asusupdate), UpdateSettings),
             DrawerItem("settings", "主题设置", IconSource.Vector(IcMenuSettings), ThemeCustomize),
         )
@@ -94,7 +97,7 @@ fun NavigationDrawerItems(
 
     LaunchedEffect(currentTopLevelRoute) {
         currentTopLevelRoute?.let { currentRoute ->
-            val matchedItem = orderedItems.find { it.route == currentRoute && it.id != "logout" }
+            val matchedItem = orderedItems.find { it.route == currentRoute }
             if (matchedItem != null && matchedItem.id != selectedItemId) {
                 selectedItemId = matchedItem.id
             }
@@ -105,7 +108,7 @@ fun NavigationDrawerItems(
         derivedStateOf {
             draggedItem?.let {
                 val initialIndex = orderedItems.indexOf(it)
-                val displacement = (dragOffsetY / itemHeight).toInt()
+                val displacement = if (itemHeight > 0) (dragOffsetY / itemHeight).toInt() else 0
                 (initialIndex + displacement).coerceIn(0, orderedItems.size - 1)
             }
         }
@@ -121,31 +124,16 @@ fun NavigationDrawerItems(
             items(orderedItems, key = { it.id }) { item ->
                 val isBeingDragged = item.id == draggedItem?.id
                 val index = orderedItems.indexOf(item)
-                val showPlaceholder = placeholderIndex == index && placeholderIndex != orderedItems.indexOf(draggedItem)
+                val showPlaceholder = placeholderIndex == index && draggedItem != null && placeholderIndex != orderedItems.indexOf(draggedItem)
 
                 if (showPlaceholder) {
-                    if (placeholderIndex!! > orderedItems.indexOf(draggedItem)) {
-                        ItemContent(
-                            item = item,
-                            selectedItemId = selectedItemId,
-                            onItemClick = { selectedItemId = it },
-                            isDragged = false,
-                            scope = scope,
-                            drawerState = drawerState,
-                            navigator = navigator
-                        )
+                    val isDraggedDown = placeholderIndex!! > orderedItems.indexOf(draggedItem)
+                    if (isDraggedDown) {
+                        ItemContent(item, selectedItemId, { selectedItemId = it }, false, scope, drawerState, navigator)
                         PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
                     } else {
                         PlaceholderItem(modifier = Modifier.onSizeChanged { itemHeight = it.height })
-                        ItemContent(
-                            item = item,
-                            selectedItemId = selectedItemId,
-                            onItemClick = { selectedItemId = it },
-                            isDragged = false,
-                            scope = scope,
-                            drawerState = drawerState,
-                            navigator = navigator
-                        )
+                        ItemContent(item, selectedItemId, { selectedItemId = it }, false, scope, drawerState, navigator)
                     }
                 } else {
                     ItemContent(
@@ -201,15 +189,7 @@ fun NavigationDrawerItems(
                     }
                     .padding(horizontal = 12.dp)
             ) {
-                ItemContent(
-                    item = item,
-                    selectedItemId = selectedItemId,
-                    onItemClick = { selectedItemId = it },
-                    isDragged = false,
-                    scope = scope,
-                    drawerState = drawerState,
-                    navigator = navigator
-                )
+                ItemContent(item, selectedItemId, { selectedItemId = it }, false, scope, drawerState, navigator)
             }
         }
     }
