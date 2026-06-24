@@ -10,4 +10,7 @@
 存档转换核心实现基于https://github.com/HiveGamesOSS/Chunker/
 本项目进行了安卓端适配
 
-终端实现基于https://github.com/termux/termux-app/
+鸣谢:
+https://github.com/termux/termux-app/
+https://github.com/rollerozxa/MC2MT
+（如果你发现了应该鸣谢的但是这处并未列出来的请向仓库提交一个pr来修复）
