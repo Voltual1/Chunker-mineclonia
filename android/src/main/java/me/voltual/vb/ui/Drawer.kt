@@ -68,7 +68,7 @@ fun NavigationDrawerItems(
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
-            DrawerItem("ftp_settings", "世界中转站 (FTP)", IconSource.Vector(Icons.Default.Share), FtpSettings),
+            DrawerItem("ftp_settings", "文件管理（FTP）", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("cache_settings", "缓存设置", IconSource.Vector(Icons.Default.DeleteSweep), CacheSettings),
             DrawerItem("update_settings", "更新设置", IconSource.Vector(Asusupdate), UpdateSettings),
             DrawerItem("settings", "主题设置", IconSource.Vector(IcMenuSettings), ThemeCustomize),
