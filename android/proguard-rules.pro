@@ -14,6 +14,9 @@
     public *;
 }
 
+# 保留 picocli 框架
+-keep class picocli.** { *; }
+
 # 保留类型转换器
 -keep class * implements picocli.CommandLine$ITypeConverter {
     public <init>();

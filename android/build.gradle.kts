@@ -130,11 +130,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.compose.navigation3)
     implementation("androidx.lifecycle:lifecycle-viewmodel-navigation3:2.10.0")
-    implementation(libs.compose.navigation3.ui)
-    implementation(libs.compose.adaptive)
-    implementation(libs.compose.adaptive.layout)
-    implementation(libs.compose.adaptive.navigation)
-    //MarkDown
+    implementation(libs.compose.navigation3.ui)    //MarkDown
     implementation(libs.markdown)
 
     // 图片与异步
@@ -143,9 +139,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.android)
     
     // File
-    implementation(libs.filekit.core)
-    implementation(libs.filekit.dialogs)
-    implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
     implementation(libs.simple.storage.compose)
     
@@ -173,7 +166,6 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
-    implementation(libs.work.runtime)
     implementation(libs.ktor.io)
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
@@ -182,7 +174,6 @@ dependencies {
     implementation("ro.andob.androidawt:androidawt:1.0.4")
 
     implementation(libs.kotlinx.datetime)
-    implementation(libs.kotlinx.collections.immutable)
     
     implementation(project(":cli"))
     implementation(project(":mcl"))
