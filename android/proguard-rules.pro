@@ -4,7 +4,22 @@
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
--keepnames class picocli.** { *; }
+-keep class picocli.** { *; }
+-keepclasseswithmembers class * {
+    @picocli.CommandLine$Option <fields>;
+}
+-keepclasseswithmembers class * {
+    @picocli.CommandLine$Parameters <fields>;
+}
+-keepclasseswithmembers class * {
+    @picocli.CommandLine$Mixin <fields>;
+}
+-keepclasseswithmembers class * {
+    @picocli.CommandLine$Unmatched <fields>;
+}
+-keepclasseswithmembers class * {
+    @picocli.CommandLine$Spec <fields>;
+}
 
 -keep class com.hivemc.chunker.cli.** {
     @picocli.CommandLine$Command *;
