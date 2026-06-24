@@ -29,17 +29,6 @@
     public java.lang.String[] getVersion();
 }
 
--keep class org.iq80.leveldb.table.Block { *; }
--keep class org.iq80.leveldb.table.BlockBuilder { *; }
--keep class org.iq80.leveldb.table.BlockEntry { *; }
--keep class org.iq80.leveldb.table.BlockHandle { *; }
--keep class org.iq80.leveldb.table.BlockHandleSliceWeigher { *; }
--keep class org.iq80.leveldb.table.BlockIterator { *; }
--keep class org.iq80.leveldb.table.BlockTrailer { *; }
--keep class org.iq80.leveldb.table.BloomFilterPolicy { *; }
--keep class org.iq80.leveldb.table.BytewiseComparator { *; }
--keep class org.iq80.leveldb.table.CacheKey { *; }
--keep class org.iq80.leveldb.table.CustomUserComparator { *; }
 -keep class org.iq80.leveldb.table.FilterBlockBuilder { *; }
 -keep class org.iq80.leveldb.table.FilterBlockReader { *; }
 -keep class org.iq80.leveldb.table.FilterPolicy { *; }
