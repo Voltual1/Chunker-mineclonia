@@ -21,7 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import coil3.compose.rememberAsyncImagePainter
 import io.github.vinceglb.filekit.dialogs.FileKitType
 import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
 import io.github.vinceglb.filekit.path
@@ -224,30 +223,6 @@ fun ThemeCustomizeScreen(
 }
 
 @Composable
-private fun DrawerBackgroundEditor(
-    title: String,
-    description: String,
-    backgroundUri: String?,
-    onSelectImage: () -> Unit,
-    onReset: () -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Text(text = title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))
-        Text(text = description, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth().height(180.dp).padding(horizontal = 16.dp, vertical = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            DrawerHeaderPreview(modifier = Modifier.fillMaxSize(), backgroundUri = backgroundUri)
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSelectImage, modifier = Modifier.weight(1f)) { Text("选择图片") }
-            OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) { Text("恢复默认") }
-        }
-    }
-}
-
-@Composable
 fun ColorEditItem(colorName: String, currentColor: Color, onColorChange: (Color) -> Unit, translate: Boolean) {
     var hexValue by remember(currentColor) { mutableStateOf(currentColor.toHex()) }
     var showColorPicker by remember { mutableStateOf(false) }
@@ -337,40 +312,6 @@ var value by remember { mutableStateOf(hsvArray[2]) }
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
         shape = AppShapes.medium
     )
-}
-
-@Composable
-private fun GlobalBackgroundEditor(title: String, backgroundUri: String?, onSelectImage: () -> Unit, onReset: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Text(text = title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(horizontal = 16.dp))
-        Card(
-            modifier = Modifier.fillMaxWidth().height(180.dp).padding(horizontal = 16.dp, vertical = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-        ) {
-            if (backgroundUri != null) {
-                Image(painter = rememberAsyncImagePainter(model = backgroundUri), contentDescription = "Global Background Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-            } else {
-                Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) {
-                    Text(text = "未选择图片", modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-        Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onSelectImage, modifier = Modifier.weight(1f)) { Text("选择图片") }
-            OutlinedButton(onClick = onReset, modifier = Modifier.weight(1f)) { Text("恢复默认") }
-        }
-    }
-}
-
-@Composable
-private fun DrawerHeaderPreview(modifier: Modifier = Modifier, backgroundUri: String?) {
-    Box(modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer)) {
-        if (backgroundUri != null) {
-            Image(painter = rememberAsyncImagePainter(model = backgroundUri), contentDescription = "Drawer Header Background Preview", contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
-        } else {
-            Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary))
-        }
-    }
 }
 
 fun Color.toHex(): String {

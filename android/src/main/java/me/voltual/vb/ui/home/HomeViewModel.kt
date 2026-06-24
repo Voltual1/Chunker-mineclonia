@@ -37,7 +37,7 @@ class HomeViewModel : ViewModel() {
     // 动态获取 Chunker 支持的全部输出格式，并加入 MINECLONIA 格式
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
-        formats.add("MINECLONIA") // 注册 Mineclonia 转换格式
+        formats.add("MINECLONIA（实验性）") // 注册 Mineclonia 转换格式
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {

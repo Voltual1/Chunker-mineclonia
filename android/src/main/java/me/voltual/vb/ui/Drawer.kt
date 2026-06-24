@@ -28,7 +28,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey        
-import coil3.compose.AsyncImage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -37,7 +36,6 @@ import org.koin.compose.koinInject
 
 sealed class IconSource {
     data class Vector(val imageVector: ImageVector) : IconSource()
-    data class Remote(val url: String) : IconSource()
 }
 
 data class DrawerItem(
@@ -52,14 +50,6 @@ fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
     Box(
         modifier = modifier.background(MaterialTheme.colorScheme.primaryContainer)
     ) {
-        if (backgroundUri != null) {
-            AsyncImage(
-                model = backgroundUri,
-                contentDescription = "Drawer Header Background",
-                contentScale = ContentScale.Crop,
-                modifier = Modifier.fillMaxSize()
-            )
-        }
     }
 }
 
@@ -243,11 +233,6 @@ private fun ItemContent(
             val iconModifier = Modifier.size(24.dp)
             when (val source = item.icon) {
                 is IconSource.Vector -> Icon(source.imageVector, null, modifier = iconModifier)
-                is IconSource.Remote -> AsyncImage(
-                    model = source.url,
-                    contentDescription = null,
-                    modifier = iconModifier
-                )
             }
         },
         selected = isSelected,
