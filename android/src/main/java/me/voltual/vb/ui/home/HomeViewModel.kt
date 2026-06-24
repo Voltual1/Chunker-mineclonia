@@ -188,7 +188,7 @@ class HomeViewModel : ViewModel() {
                                 )
                             )
                         }
-                        is SingleFileResult.Error -> {
+                        is SingleFolderResult.Error -> {
                             isCopying = false
                             copyStatusText = "复制失败: ${result.errorCode}"
                         }
