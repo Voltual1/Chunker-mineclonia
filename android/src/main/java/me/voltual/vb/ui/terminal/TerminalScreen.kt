@@ -31,7 +31,7 @@ fun TerminalScreen(
     HorizontalPager(
         state = pagerState,
         modifier = Modifier.fillMaxSize(),
-        userScrollEnabled = true
+        userScrollEnabled = false
     ) { page ->
         when (page) {
         0 -> {        
