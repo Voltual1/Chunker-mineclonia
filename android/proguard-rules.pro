@@ -29,8 +29,6 @@
     public java.lang.String[] getVersion();
 }
 
--keep class org.iq80.leveldb.table.RestartPositions { *; }
--keep class org.iq80.leveldb.table.Table { *; }
 -keep class org.iq80.leveldb.table.TableBuilder { *; }
 -keep class org.iq80.leveldb.table.UserComparator { *; }
 
