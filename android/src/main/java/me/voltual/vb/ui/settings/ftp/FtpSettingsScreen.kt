@@ -21,9 +21,14 @@ fun FtpSettingsScreen(
     val context = LocalContext.current
     val ftpManager: FtpServerManager = koinInject()
     
-    // 直接挂载应用的内部存储私有目录 context.filesDir
-    val ftpRootDir = remember {
-        "/data/data/me.voltual.vb"
+    // 获取当前应用私有外部存储空间，专门管理 World 文件夹
+    val worldDir = remember {
+        val externalDir = context.getExternalFilesDir(null)
+        if (externalDir != null) {
+            File(externalDir, "worlds")
+        } else {
+            File(context.filesDir, "worlds")
+        }
     }
 
     var isFtpRunning by remember { mutableStateOf(ftpManager.isRunning) }
@@ -62,7 +67,7 @@ fun FtpSettingsScreen(
             }
 
             Text(
-                text = "挂载内部目录:\n$ftpRootDir",
+                text = "外部挂载目录:\n${worldDir.absolutePath}",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -106,7 +111,7 @@ fun FtpSettingsScreen(
                             port = port,
                             username = usernameInput,
                             password = passwordInput,
-                            ftpRootDir = ftpRootDir
+                            ftpRootDir = worldDir
                         )
                         if (success) {
                             isFtpRunning = true
