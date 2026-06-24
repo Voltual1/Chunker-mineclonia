@@ -145,6 +145,8 @@ dependencies {
     
     // 持久化
     implementation(libs.datastore.preferences)
+    implementation(libs.datastore.tink)
+    implementation(libs.tink.android)
     implementation(libs.datastore.core)
 
     // Koin 注入

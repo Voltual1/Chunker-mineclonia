@@ -8,7 +8,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import kotlinx.coroutines.launch
 import me.voltual.vb.core.ftp.FtpServerManager
+import me.voltual.vb.data.FtpSettingsDataStore
 import org.koin.compose.koinInject
 import java.io.File
 
@@ -20,8 +22,9 @@ fun FtpSettingsScreen(
 ) {
     val context = LocalContext.current
     val ftpManager: FtpServerManager = koinInject()
+    val ftpSettingsStore: FtpSettingsDataStore = koinInject()
+    val scope = rememberCoroutineScope()
     
-    // 获取当前应用私有外部存储空间，专门管理 World 文件夹
     val worldDir = remember {
         val externalDir = context.getExternalFilesDir(null)
         if (externalDir != null) {
@@ -31,11 +34,25 @@ fun FtpSettingsScreen(
         }
     }
 
+    val ftpSettingsState by ftpSettingsStore.ftpSettingsFlow.collectAsState(initial = null)
+
+    var portInput by remember { mutableStateOf("") }
+    var usernameInput by remember { mutableStateOf("") }
+    var passwordInput by remember { mutableStateOf("") }
     var isFtpRunning by remember { mutableStateOf(ftpManager.isRunning) }
-    var serverStatusText by remember { mutableStateOf(if (isFtpRunning) "运行中" else "未启动") }
-    var portInput by remember { mutableStateOf("2121") }
-    var usernameInput by remember { mutableStateOf("admin") }
-    var passwordInput by remember { mutableStateOf("admin123") }
+
+    LaunchedEffect(ftpSettingsState) {
+        ftpSettingsState?.let {
+            portInput = it.port.toString()
+            usernameInput = it.username
+            passwordInput = it.password
+            isFtpRunning = it.isRunning
+        }
+    }
+
+    var serverStatusText by remember(isFtpRunning, portInput) {
+        mutableStateOf(if (isFtpRunning) "运行中 (端口: $portInput)" else "已停止")
+    }
 
     Card(
         modifier = modifier
@@ -51,7 +68,6 @@ fun FtpSettingsScreen(
         ) {
             Text(text = "FTP 世界管理中转站", style = MaterialTheme.typography.titleLarge)
             
-            // 运行状态指示器
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -74,50 +90,51 @@ fun FtpSettingsScreen(
 
             HorizontalDivider()
 
-            // 属性配置
             OutlinedTextField(
                 value = portInput,
                 onValueChange = { portInput = it },
                 label = { Text("FTP 端口") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isFtpRunning
             )
 
             OutlinedTextField(
                 value = usernameInput,
                 onValueChange = { usernameInput = it },
                 label = { Text("FTP 用户名") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isFtpRunning
             )
 
             OutlinedTextField(
                 value = passwordInput,
                 onValueChange = { passwordInput = it },
                 label = { Text("FTP 密码") },
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isFtpRunning
             )
 
             Spacer(modifier = Modifier.weight(1f))
 
-            // 控制按钮
             Button(
                 onClick = {
-                    if (isFtpRunning) {
-                        ftpManager.stopServer()
-                        isFtpRunning = false
-                        serverStatusText = "已停止"
-                    } else {
-                        val port = portInput.toIntOrNull() ?: 2121
-                        val success = ftpManager.startServer(
-                            port = port,
-                            username = usernameInput,
-                            password = passwordInput,
-                            ftpRootDir = worldDir
-                        )
-                        if (success) {
-                            isFtpRunning = true
-                            serverStatusText = "运行中 (端口: $port)"
+                    scope.launch {
+                        if (isFtpRunning) {
+                            ftpManager.stopServer()
+                            isFtpRunning = false
+                            serverStatusText = "已停止"
                         } else {
-                            serverStatusText = "启动失败"
+                            val port = portInput.toIntOrNull() ?: (20000..30000).random()
+                            ftpSettingsStore.updateSettings {
+                                it.copy(port = port, username = usernameInput, password = passwordInput)
+                            }
+                            val success = ftpManager.startServer(ftpRootDir = worldDir)
+                            if (success) {
+                                isFtpRunning = true
+                                serverStatusText = "运行中 (端口: $port)"
+                            } else {
+                                serverStatusText = "启动失败"
+                            }
                         }
                     }
                 },

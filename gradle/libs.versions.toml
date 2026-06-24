@@ -195,6 +195,8 @@ kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serializa
 kotlinx-io = { module = "org.jetbrains.kotlinx:kotlinx-io-core", version.ref = "kotlinx-io" }
 
 # --- 现代数据流安全性与格式规范 (Protobuf & Tink) ---
+# --- Datastore Tink 加密包 ---
+datastore-tink = { group = "androidx.datastore", name = "datastore-tink", version.ref = "datastore" }
 tink-android = { module = "com.google.crypto.tink:tink-android", version.ref = "tink" }
 protobuf-kotlin = { module = "com.google.protobuf:protobuf-kotlin", version.ref = "protobuf" }
 protoc-artifact = { module = "com.google.protobuf:protoc", version.ref = "protobuf" }

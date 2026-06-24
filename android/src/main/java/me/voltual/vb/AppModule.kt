@@ -1,11 +1,3 @@
-// Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-// （或任意更新的版本）的条款重新分发和/或修改它。
-// 本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.vb
 
 import me.voltual.vb.core.database.*
@@ -26,6 +18,7 @@ import androidx.datastore.core.DataStore
 import me.voltual.vb.ui.terminal.TerminalViewModel
 import me.voltual.vb.ui.export.ExportViewModel
 import androidx.datastore.preferences.core.Preferences
+import me.voltual.vb.core.ftp.FtpServerManager
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
 val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
@@ -48,6 +41,8 @@ val appModule = module {
     single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }
     single { ThemeColorDataStore(get(THEME_SETTINGS_STORE_QUALIFIER)) }
     single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }        
+    single { FtpSettingsDataStore(androidContext()) }
+    single { FtpServerManager(androidContext(), get()) }
     
     val storeFiles = mapOf(
         USER_AGREEMENT_STORE_QUALIFIER to "user_agreement_prefs.preferences_pb",
