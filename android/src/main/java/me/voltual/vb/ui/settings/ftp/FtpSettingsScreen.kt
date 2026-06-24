@@ -21,9 +21,9 @@ fun FtpSettingsScreen(
     val context = LocalContext.current
     val ftpManager: FtpServerManager = koinInject()
     
-    // 直接挂载应用的内部存储私有目录 context.filesDir
+    // 直接挂载应用的内部存储私有目录
     val ftpRootDir = remember {
-        context.filesDir
+        /data/user/0/me.voltual.vb/
     }
 
     var isFtpRunning by remember { mutableStateOf(ftpManager.isRunning) }
@@ -44,7 +44,6 @@ fun FtpSettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(text = "FTP 世界管理中转站", style = MaterialTheme.typography.titleLarge)
             
             // 运行状态指示器
             Row(
