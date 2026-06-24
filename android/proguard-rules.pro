@@ -29,9 +29,7 @@
     public java.lang.String[] getVersion();
 }
 
--keep class org.iq80.leveldb.fileenv.ByteBufferSupport {
-    *;
-}
+-keepnames class org.iq80.leveldb.fileenv.** { *; }
 
 # ===== 基础属性保留 =====
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
