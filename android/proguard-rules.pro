@@ -58,7 +58,6 @@
 # === transport ===
 -keep class org.apache.mina.transport.socket.** { *; }
 -keep class org.apache.mina.transport.socket.nio.** { *; }
--keep class org.apache.mina.transport.vmpipe.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
