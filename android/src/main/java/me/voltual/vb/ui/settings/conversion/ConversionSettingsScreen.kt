@@ -36,7 +36,7 @@ fun ConversionSettingsScreen(
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "根据您当前手机的硬件配置，调整多线程并行度以实现最大速度或最大兼容性。",
+            text = "调整多线程并行度以实现最大速度或最大兼容性。",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -75,7 +75,7 @@ fun ConversionSettingsScreen(
                 )
                 
                 Text(
-                    text = "系统检测到最大可用 CPU 核心数: ${viewModel.maxCores}。在 2GB/4GB 运存的旧机型上请硬性保持为 1 线程以防止 OOM 崩溃。",
+                    text = "最大可用 CPU 核心数: ${viewModel.maxCores}。如果要转换超大型存档你反而需要调低线程的比如调成1，小存档就拉满",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
