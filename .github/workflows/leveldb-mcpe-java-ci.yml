@@ -1,0 +1,57 @@
+name: Java CI with Maven
+
+# 手动触发
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 保持完整历史记录以便获取版本信息
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: maven
+
+      - name: Build with Maven
+        # --file 指向 maven 目录下的 pom.xml
+        run: mvn -B package -DskipTests --file maven/pom.xml -e
+
+      - name: Get version info
+        id: version
+        shell: bash
+        run: |
+          echo "BUILD_VERSION=leveldb-android-$(date +%Y%m%d_%H%M%S)-${GITHUB_SHA:0:8}" >> $GITHUB_OUTPUT
+          echo "TIMESTAMP=$(date +"%Y-%m-%d %H:%M:%S")" >> $GITHUB_OUTPUT
+
+      - name: Create Draft Release
+        if: github.ref == 'refs/heads/master'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.BUILD_VERSION }}
+          name: "LevelDB Android Build ${{ steps.version.outputs.BUILD_VERSION }}"
+          body: |
+            - **关联提交**: `${{ github.sha }}`
+            - **构建时间**: `${{ steps.version.outputs.TIMESTAMP }}`
+            
+            > 该版本专为 Android 运行环境优化，移除了 `MappedByteBuffer.duplicate()` 高版本协变方法引用。
+          draft: true
+          # 精确匹配 maven 子目录下的 target 包
+          files: |
+            maven/leveldb/target/leveldb-*.jar
+            maven/leveldb-api/target/leveldb-api-*.jar
+            !maven/**/target/*-sources.jar
+            !maven/**/target/*-javadoc.jar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
