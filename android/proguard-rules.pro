@@ -56,8 +56,8 @@
 # =====================================================================
 
 # === transport ===
--keep class org.apache.mina.transport.socket.AbstractDatagramSessionConfig { *; }
--keep class org.apache.mina.transport.socket.AbstractSocketSessionConfig { *; }
+-keep class org.apache.mina.transport.socket.DefaultDatagramSessionConfig { *; }
+-keep class org.apache.mina.transport.socket.DefaultSocketSessionConfig { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
