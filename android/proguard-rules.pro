@@ -52,4 +52,5 @@
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
 
 # === transport ===
--keep class org.apache.mina.transport.socket.nio.NioSession { *; }
+-keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
+-keep class org.apache.mina.transport.socket.nio.NioProcessor$* { *; }
