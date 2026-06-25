@@ -55,30 +55,10 @@
 # Apache FtpServer & Apache MINA 核心保持规则
 # =====================================================================
 
-# === handler ===
--keep class org.apache.mina.handler.chain.** { *; }
--keep class org.apache.mina.handler.demux.** { *; }
--keep class org.apache.mina.handler.multiton.** { *; }
--keep class org.apache.mina.handler.stream.** { *; }
-
-# === proxy ===
--keep class org.apache.mina.proxy.AbstractProxyIoHandler { *; }
--keep class org.apache.mina.proxy.AbstractProxyLogicHandler { *; }
--keep class org.apache.mina.proxy.AbstractProxyLogicHandler$Event { *; }
--keep class org.apache.mina.proxy.ProxyAuthException { *; }
--keep class org.apache.mina.proxy.ProxyConnector { *; }
--keep class org.apache.mina.proxy.ProxyLogicHandler { *; }
--keep class org.apache.mina.proxy.event.** { *; }
--keep class org.apache.mina.proxy.filter.** { *; }
--keep class org.apache.mina.proxy.handlers.** { *; }
--keep class org.apache.mina.proxy.handlers.http.** { *; }
--keep class org.apache.mina.proxy.handlers.http.basic.** { *; }
--keep class org.apache.mina.proxy.handlers.http.digest.** { *; }
--keep class org.apache.mina.proxy.handlers.http.ntlm.** { *; }
--keep class org.apache.mina.proxy.handlers.socks.** { *; }
--keep class org.apache.mina.proxy.session.** { *; }
--keep class org.apache.mina.proxy.utils.** { *; }
-
+# === transport ===
+-keep class org.apache.mina.transport.socket.** { *; }
+-keep class org.apache.mina.transport.socket.nio.** { *; }
+-keep class org.apache.mina.transport.vmpipe.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
