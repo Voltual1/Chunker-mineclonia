@@ -79,14 +79,6 @@
 -keep class org.apache.mina.proxy.session.** { *; }
 -keep class org.apache.mina.proxy.utils.** { *; }
 
-# === transport ===
--keep class org.apache.mina.transport.socket.** { *; }
--keep class org.apache.mina.transport.socket.nio.** { *; }
--keep class org.apache.mina.transport.vmpipe.** { *; }
-
-# === util ===
--keep class org.apache.mina.util.** { *; }
--keep class org.apache.mina.util.byteaccess.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
