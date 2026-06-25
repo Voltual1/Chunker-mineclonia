@@ -56,7 +56,7 @@
 # =====================================================================
 
 # 1. 保持 ftpserver 和 mina 的所有包、类、方法及构造函数不被混淆和裁剪
--keep class org.apache.mina.** { *; }
+
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
