@@ -1,4 +1,4 @@
--keep org.apache.mina.* { *; }
+-keep class org.apache.mina.** { *; }
 
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
