@@ -1,4 +1,4 @@
--keepnames class ** { *; }
+-keep class ** { *; }
 
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }

@@ -8,9 +8,35 @@
 
 完整的AGPLv3协议文本可访问：http://www.gnu.org/licenses/agpl-3.0.html
 
-# 免责声明
+# 你想倒卖？没问题啊。
+这里要澄清GPL并不是什么反商业许可证。AGPLv3原话是这样的（摘取了几段并附带翻译）:
+“When we speak of free software, we are referring to freedom, not price. Our General Public Licenses are designed to make sure that you have the freedom to distribute copies of free software (and charge for them if you wish).
+我们说的自由软件，指的是自由，而非价格。我们的许可证确保你可以分发自由软件的副本，如果你想，可以对它们收费。
+You may charge any price or no price for each copy that you convey...
+你可以对传递的每份副本收取任意价格或不收费。
+You may not impose a license fee, royalty, or other charge for exercise of rights granted under this License."
+你不得对行使本许可证授予的权利征收许可费、版税或其他费用。”
 
-本工具仅限个人学习与技术研究用途，请勿用于违法用途。对任何滥用造成的后果，本人概不负责。
+[为自由软件提供资金](https://gcc.gnu.org/onlinedocs/gcc/Funding.html)
+“If you want to have more free software a few years from now, it makes sense for you to help encourage people to contribute funds for its development. The most effective approach known is to encourage commercial redistributors to donate.”
+（如果你希望几年后有更多自由软件，就有理由鼓励人们为它的开发贡献资金。最有效的办法是鼓励商业再分发者捐赠。）
+
+[GNU宣言](https://www.gnu.org/gnu/manifesto.html)
+"GNU is not in the public domain. Everyone will be permitted to modify and redistribute GNU, but no distributor will be allowed to restrict its further redistribution."
+“GNU不属于公有领域。GNU允许任何人修改和再发布，但是任何发布者都不能限制它的继续发布。就是说，它不允许专有性的修改。我想让GNU的所有版本都保持自由。”
+“‘Nobody will use it if it is free, because that means they can't rely on any support.’ ‘You have to charge for the program to pay for providing the support.’
+If people would rather pay for GNU plus service than get GNU free without service, a company to provide just service to people who have obtained GNU free ought to be profitable. [...] Such services could be provided by companies that sell just handholding and repair service.”
+“‘如果免费，就没有人会用了，因为用户没有可靠的技术支持。’‘你必须对程序收钱才能提供技术支持。’
+如果人们宁愿免费获得没有服务的GNU，而不是付费给GNU获得服务，那么为免费GNU提供技术服务的公司应该是有利可图的。[...] 这些服务可以由那些只销售手把手服务和修复服务的公司提供。如果用户愿意花钱买带服务的产品，那么他们也应该会为免费的产品购买服务。服务公司竞争的是质量和价格；用户不会绑定在某个服务商上。”
+“‘You cannot reach many people without advertising, and you must charge for the program to support that.’ [...] There are various forms of free or very cheap publicity [...] a business which advertises the service of copying and mailing GNU for a fee ought to be successful enough to pay for its advertising and more.”
+中文：
+“‘不打广告，不可能有很多人知道，所以你必须对程序收费才能够支付广告费。’[...] 有很多免费或极其廉价的宣传形式 [...] 通过广告收费寄送GNU拷贝的业务应该可以赚回广告费及更多。这样的话，只有从该广告获利的用户才付费。”
+“‘Don't programmers deserve a reward for their creativity?’ [...] If anything deserves a reward, it is social contribution. Creativity can be a social contribution, but only in so far as society is free to use the results. [...]
+“The real reason programmers will not starve is that it will still be possible for them to get paid for programming; just not paid as much as now. Restricting copying is not the only basis for business in software.”
+“‘难道程序员不该因为他们的创造力得到回报吗？’[...] 值得回报的东西应该是对社会的贡献。创造力可以是一种社会贡献，但只有在社会能够自由使用其结果时才是。[...]
+程序员不会挨饿的真正原因是，他们仍然可以因为编程而获得报酬；只是不会像现在这么多。限制复制并不是软件业务的唯一基础。”
+
+所以如果你有良心的话倒卖完还可以捐助一些给项目贡献者
 
 ## 鸣谢
 本项目基于上游[A321](https://gitee.com/Voltula/A321)
