@@ -55,20 +55,27 @@
 # Apache FtpServer & Apache MINA 核心保持规则
 # =====================================================================
 
-# === core ===
--keep class org.apache.mina.core.IoUtil { *; }
--keep class org.apache.mina.core.RuntimeIoException { *; }
--keep class org.apache.mina.core.buffer.** { *; }
--keep class org.apache.mina.core.file.** { *; }
--keep class org.apache.mina.core.filterchain.** { *; }
--keep class org.apache.mina.core.future.** { *; }
--keep class org.apache.mina.core.polling.** { *; }
--keep class org.apache.mina.core.service.** { *; }
--keep class org.apache.mina.core.session.** { *; }
--keep class org.apache.mina.core.write.** { *; }
+# === core (注释掉) ===
+# -keep class org.apache.mina.core.** { *; }
 
-# === filter (注释掉) ===
-# -keep class org.apache.mina.filter.** { *; }
+# === filter ===
+-keep class org.apache.mina.filter.FilterEvent { *; }
+-keep class org.apache.mina.filter.buffer.** { *; }
+-keep class org.apache.mina.filter.codec.** { *; }
+-keep class org.apache.mina.filter.codec.demux.** { *; }
+-keep class org.apache.mina.filter.codec.prefixedstring.** { *; }
+-keep class org.apache.mina.filter.codec.serialization.** { *; }
+-keep class org.apache.mina.filter.codec.statemachine.** { *; }
+-keep class org.apache.mina.filter.codec.textline.** { *; }
+-keep class org.apache.mina.filter.errorgenerating.** { *; }
+-keep class org.apache.mina.filter.executor.** { *; }
+-keep class org.apache.mina.filter.firewall.** { *; }
+-keep class org.apache.mina.filter.keepalive.** { *; }
+-keep class org.apache.mina.filter.logging.** { *; }
+-keep class org.apache.mina.filter.ssl.** { *; }
+-keep class org.apache.mina.filter.statistic.** { *; }
+-keep class org.apache.mina.filter.stream.** { *; }
+-keep class org.apache.mina.filter.util.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
