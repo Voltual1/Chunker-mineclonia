@@ -55,27 +55,35 @@
 # Apache FtpServer & Apache MINA 核心保持规则
 # =====================================================================
 
-# === core (注释掉) ===
-# -keep class org.apache.mina.core.** { *; }
+# === handler ===
+-keep class org.apache.mina.handler.chain.** { *; }
+-keep class org.apache.mina.handler.demux.** { *; }
+-keep class org.apache.mina.handler.multiton.** { *; }
+-keep class org.apache.mina.handler.stream.** { *; }
 
-# === filter ===
--keep class org.apache.mina.filter.FilterEvent { *; }
--keep class org.apache.mina.filter.buffer.** { *; }
--keep class org.apache.mina.filter.codec.** { *; }
--keep class org.apache.mina.filter.codec.demux.** { *; }
--keep class org.apache.mina.filter.codec.prefixedstring.** { *; }
--keep class org.apache.mina.filter.codec.serialization.** { *; }
--keep class org.apache.mina.filter.codec.statemachine.** { *; }
--keep class org.apache.mina.filter.codec.textline.** { *; }
--keep class org.apache.mina.filter.errorgenerating.** { *; }
--keep class org.apache.mina.filter.executor.** { *; }
--keep class org.apache.mina.filter.firewall.** { *; }
--keep class org.apache.mina.filter.keepalive.** { *; }
--keep class org.apache.mina.filter.logging.** { *; }
--keep class org.apache.mina.filter.ssl.** { *; }
--keep class org.apache.mina.filter.statistic.** { *; }
--keep class org.apache.mina.filter.stream.** { *; }
--keep class org.apache.mina.filter.util.** { *; }
+# === proxy ===
+-keep class org.apache.mina.proxy.AbstractProxyIoHandler { *; }
+-keep class org.apache.mina.proxy.AbstractProxyLogicHandler { *; }
+-keep class org.apache.mina.proxy.AbstractProxyLogicHandler$Event { *; }
+-keep class org.apache.mina.proxy.ProxyAuthException { *; }
+-keep class org.apache.mina.proxy.ProxyConnector { *; }
+-keep class org.apache.mina.proxy.ProxyLogicHandler { *; }
+-keep class org.apache.mina.proxy.event.** { *; }
+-keep class org.apache.mina.proxy.filter.** { *; }
+-keep class org.apache.mina.proxy.handlers.** { *; }
+-keep class org.apache.mina.proxy.handlers.http.** { *; }
+-keep class org.apache.mina.proxy.handlers.http.basic.** { *; }
+-keep class org.apache.mina.proxy.handlers.http.digest.** { *; }
+-keep class org.apache.mina.proxy.handlers.http.ntlm.** { *; }
+-keep class org.apache.mina.proxy.handlers.socks.** { *; }
+-keep class org.apache.mina.proxy.session.** { *; }
+-keep class org.apache.mina.proxy.utils.** { *; }
+
+# === transport (注释) ===
+# -keep class org.apache.mina.transport.** { *; }
+
+# === util (注释) ===
+# -keep class org.apache.mina.util.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
