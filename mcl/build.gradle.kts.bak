@@ -1,6 +1,6 @@
 plugins {
-    alias(libs.plugins.kotlin.multiplatform)
     alias(libs.plugins.android.multiplatform.library)    
+    alias(libs.plugins.kotlin.multiplatform)
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.14.0"
 }
 
