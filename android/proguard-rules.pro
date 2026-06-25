@@ -57,13 +57,7 @@
 -keep class org.apache.mina.transport.socket.nio.NioDatagramConnector { *; }
 -keep class org.apache.mina.transport.socket.nio.NioDatagramSession { *; }
 -keep class org.apache.mina.transport.socket.nio.NioDatagramSessionConfig { *; }
--keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
--keep class org.apache.mina.transport.socket.nio.NioProcessor$* { *; }
--keep class org.apache.mina.transport.socket.nio.NioSession { *; }
 
-# -keep class org.apache.mina.transport.socket.nio.NioSocketAcceptor { *; }
-# -keep class org.apache.mina.transport.socket.nio.NioSocketAcceptor$* { *; }
-# -keep class org.apache.mina.transport.socket.nio.NioSocketConnector { *; }
-# -keep class org.apache.mina.transport.socket.nio.NioSocketConnector$* { *; }
-# -keep class org.apache.mina.transport.socket.nio.NioSocketSession { *; }
-# -keep class org.apache.mina.transport.socket.nio.NioSocketSession$* { *; }
+# -keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
+# -keep class org.apache.mina.transport.socket.nio.NioProcessor$* { *; }
+# -keep class org.apache.mina.transport.socket.nio.NioSession { *; }
