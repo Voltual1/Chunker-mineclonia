@@ -51,27 +51,5 @@
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
 
-# =====================================================================
-# Apache FtpServer & Apache MINA 核心保持规则
-# =====================================================================
-
 # === transport ===
--keepclassmembers class org.apache.mina.transport.socket.AbstractDatagramSessionConfig { *; }
--keepclassmembers class org.apache.mina.transport.socket.AbstractSocketSessionConfig { *; }
--keepclassmembers class org.apache.mina.transport.socket.DatagramAcceptor { *; }
--keepclassmembers class org.apache.mina.transport.socket.DatagramConnector { *; }
--keepclassmembers class org.apache.mina.transport.socket.DatagramSessionConfig { *; }
--keepclassmembers class org.apache.mina.transport.socket.DefaultDatagramSessionConfig { *; }
--keepclassmembers class org.apache.mina.transport.socket.DefaultSocketSessionConfig { *; }
--keepclassmembers class org.apache.mina.transport.socket.SocketAcceptor { *; }
--keepclassmembers class org.apache.mina.transport.socket.SocketConnector { *; }
--keepclassmembers class org.apache.mina.transport.socket.SocketSessionConfig { *; }
-
-# 防止编译期因某些 Java 环境类缺失而报错
--dontwarn org.apache.ftpserver.**
--dontwarn org.apache.mina.**
-
-# 保持反射相关的构造函数
--keepclassmembers class * extends org.apache.ftpserver.usermanager.impl.AbstractUserManager {
-    public <init>(...);
-}
+-keepclassmembers class org.apache.mina.transport.socket.** { *; }
