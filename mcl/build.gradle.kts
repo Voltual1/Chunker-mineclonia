@@ -1,16 +1,26 @@
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
-    kotlin("jvm") version "2.3.21"
+    alias(libs.plugins.kotlin.multiplatform)
+    id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.14.0"
 }
 
-version = "1.0.0"
+version = "1.1"
 
-dependencies {
-    implementation(project(":cli"))
-    implementation("org.xerial:sqlite-jdbc:3.45.1.0") 
-}
-
-tasks.register<JavaExec>("runConverter") {
-    mainClass.set("me.voltual.mcl.MclMain")
-    classpath = sourceSets["main"].runtimeClasspath
-    args = listOf("/path/to/input", "/path/to/output") // 替换为实际路径
+kotlin 
+    jvm()
+	    
+    sourceSets {
+        val commonMain by getting {
+            dependencies {
+                implementation(kotlin("stdlib-common"))
+            }
+        }
+        val jvmMain by getting {
+            dependencies {
+                implementation("org.xerial:sqlite-jdbc:3.45.1.0") 
+            }
+        }
+    }
 }
