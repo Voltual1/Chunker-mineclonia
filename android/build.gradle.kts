@@ -26,10 +26,10 @@ android {
         applicationId = "me.voltual.vb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 2
-        versionName = "2.0"
+        versionCode = 3
+        versionName = "2.1"
         multiDexEnabled = true
-        buildConfigField("String", "LICENSE", "\"GPLv3\"")
+        buildConfigField("String", "LICENSE", "\"AGPLv3\"")
     }
 
     androidResources {
