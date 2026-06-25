@@ -1,11 +1,6 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
-# 排除关键的东西
--assumenosideeffects class com.google.android.material.** {
-    public void set*(...);  # 不删除 setter
-    public static *;        # 不删除静态方法
-}
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }

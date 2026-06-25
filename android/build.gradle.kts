@@ -57,7 +57,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
+        isCoreLibraryDesugaringEnabled = false
     }
 
     buildTypes {
@@ -107,7 +107,8 @@ android {
 
 dependencies {
     // 基础
-    coreLibraryDesugaring(libs.android.desugar)
+//    coreLibraryDesugaring(libs.android.desugar)
+//minsdk为26没必要脱糖了
     implementation(libs.google.material)
     implementation(libs.okhttp)
     
