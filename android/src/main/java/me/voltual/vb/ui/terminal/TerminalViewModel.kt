@@ -9,6 +9,7 @@ import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.ui.TerminalExec
@@ -24,11 +25,13 @@ import org.koin.core.component.inject
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
+import me.voltual.vb.data.ConversionSettingsDataStore
 import me.voltual.mcl.MclLevelWriter
 import java.util.UUID
 
 class TerminalViewModel(
-    private val context: Context
+    private val context: Context,
+    private val conversionSettingsDataStore: ConversionSettingsDataStore
 ) : ViewModel(), KoinComponent {
 
     private val logRepository: LogRepository by inject()
@@ -87,7 +90,6 @@ class TerminalViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
-            // 通过 sh -c 先行执行 "stty -echo" 禁用 PTY 本地输入回显，解决 ANSI 颜色代码 caret 显示（如 ^[[33m）以及日志双重打印的问题
             val newSession = TerminalSession(
                 "/system/bin/sh",
                 context.filesDir.absolutePath,
@@ -105,7 +107,7 @@ class TerminalViewModel(
         }
     }
 
-    private fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
+    private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
         val outBridge = TerminalPrintStream(session, crashLogFile)
         val oldOut = System.`out`
@@ -116,11 +118,17 @@ class TerminalViewModel(
 
         var isSuccess = false
 
+        // 从 DataStore 获取用户配置
+        val userThreadCount = conversionSettingsDataStore.threadCount.first()
+        val userProcessMaps = conversionSettingsDataStore.processMaps.first()
+
         try {
             if (args.format == "MINECLONIA") {
                 outBridge.println("\u001B[1;36m[Mineclonia Engine] Starting Minecraft to Mineclonia Conversion...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
+                outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
+                outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
                 outBridge.println("================================================")
 
                 val inputPathFile = File(args.inputPath)
@@ -134,8 +142,9 @@ class TerminalViewModel(
                 mclConverter.setProcessLighting(true)
                 mclConverter.setProcessColumnPreTransform(false)
                 
-                mclConverter.setThreadCount(1)
-                mclConverter.setProcessMaps(false)
+                // 应用用户自定义设置
+                mclConverter.setThreadCount(userThreadCount)
+                mclConverter.setProcessMaps(userProcessMaps)
 
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, mclConverter)
@@ -171,6 +180,8 @@ class TerminalViewModel(
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
                 outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
                 outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
+                outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
+                outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
                 outBridge.println("================================================")
 
                 val inputPathFile = File(args.inputPath)
@@ -184,8 +195,9 @@ class TerminalViewModel(
                 converter.setProcessLighting(true)
                 converter.setProcessColumnPreTransform(false)
                 
-                converter.setThreadCount(1)
-                converter.setProcessMaps(false)
+                // 应用用户自定义设置
+                converter.setThreadCount(userThreadCount)
+                converter.setProcessMaps(userProcessMaps)
 
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, converter)
