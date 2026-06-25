@@ -52,4 +52,4 @@
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
 
 # === transport ===
--keepclassmembers class org.apache.mina.transport.socket.** { *; }
+-keepnames class org.apache.mina.transport.socket.** { *; }
