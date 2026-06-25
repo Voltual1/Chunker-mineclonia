@@ -1,4 +1,4 @@
--keep class org.apache.mina.** { *; }
+-keep class org.apache.ftpserver.** { *; }
 
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }

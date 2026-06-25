@@ -115,7 +115,7 @@ dependencies {
     
     implementation(libs.ftpserver.core)
     implementation(libs.ftpserver.api)
-    implementation(libs.mina.core)
+//    implementation(libs.mina.core)
     
     // Compose
     implementation(platform(libs.compose.bom))  
