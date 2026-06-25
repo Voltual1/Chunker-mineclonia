@@ -7,15 +7,6 @@ version = "1.1"
 
 kotlin {
     jvm()
-        android {
-        namespace = "me.voltual.mcl"
-        compileSdk = 37
-        minSdk = 24
-        
-        compilerOptions {
-            jvmTarget.set(JvmTarget.JVM_17)
-        }
-    }
         
     sourceSets {
         val commonMain by getting {
@@ -25,7 +16,7 @@ kotlin {
             }
         }
         
-                val androidMain by getting {
+        androidMain {
             dependencies {
             }
         }
