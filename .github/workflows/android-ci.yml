@@ -54,7 +54,7 @@ jobs:
           echo "所有补丁应用完成！"
 
       - name: Build with Gradle
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
         env:
           KEYSTORE_PATH: tag_keystore.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
