@@ -1,6 +1,3 @@
--keep class org.apache.ftpserver.** { *; }
--keep class org.springframework.beans.** { *; }
-
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
