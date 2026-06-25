@@ -20,8 +20,7 @@ sealed interface AppDestination : NavKey
 
 @Serializable data object ThemeCustomize : AppDestination
 
-@Serializable
-data object LogViewer : AppDestination
+@Serializable data object LogViewer : AppDestination
 
 /** 终端执行界面，接收输入路径、输出路径和格式作为参数 */
 @Serializable 
@@ -37,3 +36,6 @@ data class TerminalExec(
 @Serializable data object FtpSettings : AppDestination
 
 @Serializable data object CacheSettings : AppDestination
+
+/** 转换设置界面 */
+@Serializable data object ConversionSettings : AppDestination

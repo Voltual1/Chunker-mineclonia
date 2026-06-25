@@ -13,6 +13,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ConversionSettingsScreen(
+    modifier: Modifier = Modifier,
     viewModel: ConversionSettingsViewModel = koinViewModel()
 ) {
     val threadCount by viewModel.threadCount.collectAsState()
@@ -21,7 +22,7 @@ fun ConversionSettingsScreen(
     val scrollState = rememberScrollState()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
             .padding(16.dp)
             .verticalScroll(scrollState)
