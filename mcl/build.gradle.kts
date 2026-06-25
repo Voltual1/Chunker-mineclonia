@@ -9,10 +9,9 @@ version = "1.1"
 
 kotlin {
     jvm()
-    androidTarget()
     
         android {
-        namespace = "me.voltual.pyrolysis.mcl"
+        namespace = "me.voltual.mcl"
         compileSdk = 37
         minSdk = 24
         
