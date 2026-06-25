@@ -68,26 +68,7 @@
 -keep class org.apache.mina.core.write.** { *; }
 
 # === filter (注释掉) ===
-# -keep class org.apache.mina.filter.FilterEvent { *; }
-# -keep class org.apache.mina.filter.buffer.** { *; }
-# -keep class org.apache.mina.filter.codec.** { *; }
-# -keep class org.apache.mina.filter.codec.demux.** { *; }
-# -keep class org.apache.mina.filter.codec.prefixedstring.** { *; }
-# -keep class org.apache.mina.filter.codec.serialization.** { *; }
-# -keep class org.apache.mina.filter.codec.statemachine.** { *; }
-# -keep class org.apache.mina.filter.codec.textline.** { *; }
-# -keep class org.apache.mina.filter.errorgenerating.** { *; }
-# -keep class org.apache.mina.filter.executor.** { *; }
-# -keep class org.apache.mina.filter.firewall.** { *; }
-# -keep class org.apache.mina.filter.keepalive.** { *; }
-# -keep class org.apache.mina.filter.logging.** { *; }
-# -keep class org.apache.mina.filter.ssl.** { *; }
-# -keep class org.apache.mina.filter.statistic.** { *; }
-# -keep class org.apache.mina.filter.stream.** { *; }
-# -keep class org.apache.mina.filter.util.** { *; }
-
-# === handler / proxy / transport / util (全注释) ===
-# ... 不变
+# -keep class org.apache.mina.filter.** { *; }
 
 # 防止编译期因某些 Java 环境类缺失而报错
 -dontwarn org.apache.ftpserver.**
