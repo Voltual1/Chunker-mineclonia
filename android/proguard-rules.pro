@@ -39,7 +39,11 @@
     public java.lang.String[] getVersion();
 }
 
--keep class org.iq80.leveldb.table.TableBuilder { *; }
+-keepclassmembers class org.iq80.leveldb.table.TableBuilder {
+    static <clinit>();
+    public <methods>;
+    protected <methods>;
+}
 
 -keep class com.google.common.reflect.TypeToken { public protected *; }
 -keep class com.google.common.reflect.TypeCapture { public protected *; }
