@@ -20,10 +20,5 @@ kotlin {
                 implementation("org.xerial:sqlite-jdbc:3.45.1.0") 
             }
         }
-
-        val androidMain by getting {
-            dependencies {
-            }
-        }
     }
 }
