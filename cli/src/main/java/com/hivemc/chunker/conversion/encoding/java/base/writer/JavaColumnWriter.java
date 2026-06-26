@@ -11,15 +11,7 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkerChunk;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerBlockType;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.BlockState;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.BlockStateValue;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.SlabType;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Distance;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Axis;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.heightmap.JavaLegacyHeightMap;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
@@ -43,6 +35,7 @@ import com.hivemc.chunker.util.BlockPosition;
 import com.hivemc.chunker.conversion.encoding.bedrock.util.ColumnUtil;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectMap;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectOpenHashMap;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -296,10 +289,10 @@ public class JavaColumnWriter implements ColumnWriter {
     }
 
     /**
-     * Write all the chunks inside the column.
+     * Write all the chunks in the column.
      *
-     * @param column the column being written.
-     * @return a task that resolves when all chunks have been written.
+     * @param column the input column.
+     * @return a task which resolves to a tag containing the chunks.
      */
     protected Task<TagWithName<?>> writeChunks(ChunkerColumn column) {
         // Sections are created here, so we can return them but filled async
