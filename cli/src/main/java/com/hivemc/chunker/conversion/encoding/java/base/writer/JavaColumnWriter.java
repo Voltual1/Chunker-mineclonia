@@ -11,20 +11,16 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkerChunk;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.SlabType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.heightmap.JavaLegacyHeightMap;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerPortal;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
-import com.hivemc.chunker.mapping.identifier.Identifier;
 import com.hivemc.chunker.nbt.TagType;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.TagWithName;
-import com.hivemc.chunker.nbt.tags.array.ByteArrayTag;
 import com.hivemc.chunker.nbt.tags.array.IntArrayTag;
+import com.hivemc.chunker.nbt.tags.array.ByteArrayTag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
 import com.hivemc.chunker.scheduling.task.FutureTask;
@@ -87,7 +83,7 @@ public class JavaColumnWriter implements ColumnWriter {
         processing.add(Task.async("Writing Biomes", TaskWeight.NORMAL, this::writeBiomes, chunkerColumn));
         processing.add(Task.async("Writing Entities", TaskWeight.HIGH, this::writeEntities, chunkerColumn));
         processing.add(Task.async("Writing Block Entities", TaskWeight.HIGH, this::writeBlockEntities, chunkerColumn));
-        processing.add(Task.async("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
+        processing.add(Task.asyncUnwrap("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
 
         // Write POI
         Task.asyncConsume("Writing POI", TaskWeight.LOW, this::writePOI, chunkerColumn);
@@ -286,10 +282,9 @@ public class JavaColumnWriter implements ColumnWriter {
      * Write all the chunks in the column.
      *
      * @param column the input column.
-     * @return a tag containing the chunks.
+     * @return a task which resolves to a tag containing the chunks.
      */
-    @Nullable
-    protected TagWithName<?> writeChunks(ChunkerColumn column) {
+    protected Task<TagWithName<?>> writeChunks(ChunkerColumn column) {
         // Sections are created here, so we can return them but filled async
         ListTag<CompoundTag, Map<String, Tag<?>>> sections = new ListTag<>(TagType.COMPOUND, column.getChunks().size());
 
@@ -297,20 +292,20 @@ public class JavaColumnWriter implements ColumnWriter {
         JavaChunkWriter chunkWriter = createChunkWriter(column);
 
         // Schedule each chunk to be written
-        FutureTask<List<CompoundTag>> outputs = Task.asyncForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, ChunkerChunk[]::new, column.getChunks().values());
+        FutureTask<List<CompoundTag>> outputs = Task.asyncForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
 
         // Turn the results into sections (they may be null if it did not yield a chunk)
-        outputs.thenConsume("Writing Sections", TaskWeight.LOW, (chunks) -> {
+        return outputs.then("Writing Sections", TaskWeight.LOW, (chunks) -> {
             for (CompoundTag tag : chunks) {
                 if (tag == null) continue;
 
                 // Add the tag
                 sections.add(tag);
             }
-        });
 
-        // Below 1.18 used Sections with capital S
-        return new TagWithName<>("Sections", sections);
+            // Below 1.18 used Sections with capital S
+            return new TagWithName<>("Sections", sections);
+        });
     }
 
     /**
