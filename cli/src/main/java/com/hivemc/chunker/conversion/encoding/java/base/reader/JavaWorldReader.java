@@ -26,7 +26,6 @@ import java.io.RandomAccessFile;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -98,14 +97,32 @@ public class JavaWorldReader implements WorldReader {
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
         // Handle the reading of the regions
-        Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
-            if (columnConversionHandler == null) return null;
+        Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
+            if (columnConversionHandler == null) return;
 
-            // Read the regions sequentially to prevent OOM
-            Task<Void> readingRegionFiles = readRegionsSequentially(regionsCopy, knownRegionFiles, columnConversionHandler);
+            Object lock = new Object();
+            new Thread(() -> {
+                try {
+                    readRegionsSync(regionsCopy, knownRegionFiles, columnConversionHandler);
+                } catch (Throwable t) {
+                    converter.logNonFatalException(t);
+                } finally {
+                    synchronized (lock) {
+                        lock.notifyAll();
+                    }
+                }
+            }, "Chunker-Reader-Java-" + dimension.getIdentifier()).start();
+
+            synchronized (lock) {
+                try {
+                    lock.wait(); // Blocks the TaskExecutor thread until the dedicated reader thread finishes
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
 
             // Call the flush task after all the region files have been read
-            return readingRegionFiles.then("Flushing columns", TaskWeight.MEDIUM, columnConversionHandler::flushColumns);
+            columnConversionHandler.flushColumns();
         });
 
         // When the region processing is done flush the world
@@ -113,147 +130,95 @@ public class JavaWorldReader implements WorldReader {
     }
 
     /**
-     * Read all the regions in the world sequentially to control memory footprint.
-     *
-     * @param regions                 the regions to read.
-     * @param knownRegionFiles        the known files.
-     * @param columnConversionHandler the handler to submit the read columns to.
-     * @return a task that finishes when all regions have been processed.
+     * Synchronously read regions one by one.
      */
-    public Task<Void> readRegionsSequentially(Set<RegionCoordPair> regions, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
-        return readRegionsSequentially(regions.iterator(), knownRegionFiles, columnConversionHandler);
-    }
-
-    private Task<Void> readRegionsSequentially(Iterator<RegionCoordPair> iterator, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
-        if (!iterator.hasNext()) {
-            return Task.async("Finished regions", TaskWeight.LOW, () -> {});
-        }
-        RegionCoordPair region = iterator.next();
-        if (converter.shouldProcessRegion(dimension, region)) {
-            File[] regionFiles = getRegionFiles(region, knownRegionFiles);
-            return Task.asyncUnwrap("Reading region " + region, TaskWeight.NORMAL, () -> readRegion(regionFiles, region, columnConversionHandler))
-                    .then("Region - Flushing " + region, TaskWeight.MEDIUM, () -> columnConversionHandler.flushRegion(region))
-                    .then("GC", TaskWeight.LOW, System::gc)
-                    .thenUnwrap("Next region", TaskWeight.LOW, (ignored) -> readRegionsSequentially(iterator, knownRegionFiles, columnConversionHandler));
-        } else {
-            return readRegionsSequentially(iterator, knownRegionFiles, columnConversionHandler);
+    protected void readRegionsSync(Set<RegionCoordPair> regions, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
+        for (RegionCoordPair region : regions) {
+            if (converter.isCancelled()) break;
+            if (converter.shouldProcessRegion(dimension, region)) {
+                readRegionSync(region, knownRegionFiles, columnConversionHandler);
+                columnConversionHandler.flushRegion(region); // This blocks the reader thread until written
+                System.gc(); // Suggest Garbage Collection after each region
+            }
         }
     }
 
     /**
-     * Read a region file.
-     *
-     * @param regionFiles             the region files which should be read for the region (e.g. entities in later
-     *                                versions).
-     * @param region                  the region co-ordinates.
-     * @param columnConversionHandler the conversion handler to submit the read columns to.
-     * @return the MCAReaders associated with the region.
+     * Synchronously read a region's columns.
      */
-    @SuppressWarnings("resource")
-    protected Task<Void> readRegion(@Nullable File[] regionFiles, RegionCoordPair region, ColumnConversionHandler columnConversionHandler) {
+    protected void readRegionSync(RegionCoordPair region, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
+        File[] regionFiles = getRegionFiles(region, knownRegionFiles);
         int regionFilesCount = regionFiles.length;
         MCAReader[] mcaReaders = new MCAReader[regionFilesCount];
 
-        // Open all our required files
         boolean foundValidFile = false;
         for (int i = 0; i < regionFilesCount; i++) {
             File file = regionFiles[i];
-
-            // Skip if the file doesn't exist / is invalid
             if (file == null) continue;
-
-            // Otherwise open a random access file
             try {
                 mcaReaders[i] = new MCAReader(converter, file);
                 foundValidFile = true;
             } catch (FileNotFoundException e) {
-                // Ignored, it'll be null if this happens
+                // Ignore
             }
         }
 
-        // Don't continue if there's no files to read
         if (!foundValidFile) {
-            converter.logNonFatalException(new Exception("Misnamed region file for " + dimension + ", " + region));
-            return Task.async("Failed region", TaskWeight.LOW, () -> {});
+            return;
         }
 
-        // Stage 1. Collect all known offsets
-        Int2ObjectMap<int[]> positionsToOffsets = new Int2ObjectOpenHashMap<>();
-        for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
-            MCAReader mcaReader = mcaReaders[regionFileIndex];
-            if (mcaReader == null) continue;
+        try {
+            Int2ObjectMap<int[]> positionsToOffsets = new Int2ObjectOpenHashMap<>();
+            for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
+                MCAReader mcaReader = mcaReaders[regionFileIndex];
+                if (mcaReader == null) continue;
 
-            try {
-                // Read the header which contains the chunk offsets
                 int[] offsets = mcaReader.readOffsetTable();
                 for (int i = 0; i < offsets.length; i++) {
                     int offset = offsets[i];
-
-                    // Only record the offset if it's more than 0, the first 4096 is the header, so it's invalid to be there
                     if (offset > 0) {
                         int[] mcaOffsets = positionsToOffsets.computeIfAbsent(i, (ignored) -> new int[regionFilesCount]);
                         mcaOffsets[regionFileIndex] = offset;
                     }
                 }
-            } catch (Exception e) {
-                converter.logNonFatalException(e);
             }
-        }
 
-        // Stage 2. Iterate found regions, lookup each one and combine the results.
-        List<Map.Entry<Integer, int[]>> entries = new ArrayList<>(positionsToOffsets.int2ObjectEntrySet());
-        return readColumnsSequentially(entries.iterator(), region, mcaReaders, columnConversionHandler);
-    }
+            for (Int2ObjectMap.Entry<int[]> entry : positionsToOffsets.int2ObjectEntrySet()) {
+                if (converter.isCancelled()) break;
 
-    private Task<Void> readColumnsSequentially(Iterator<Map.Entry<Integer, int[]>> iterator, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler columnConversionHandler) {
-        if (!iterator.hasNext()) {
-            closeReaders(mcaReaders);
-            return Task.async("Finished columns for region", TaskWeight.LOW, () -> {});
-        }
-        Map.Entry<Integer, int[]> entry = iterator.next();
-        ChunkCoordPair localCoords = new ChunkCoordPair(
-                entry.getKey() & 31,
-                entry.getKey() >> 5
-        );
-        ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
-        int[] columnFileOffsets = entry.getValue();
+                ChunkCoordPair localCoords = new ChunkCoordPair(
+                        entry.getIntKey() & 31,
+                        entry.getKey() >> 5
+                );
+                ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
+                int[] columnFileOffsets = entry.getValue();
 
-        if (!converter.shouldProcessColumn(dimension, columnsCoords)) {
-            return readColumnsSequentially(iterator, region, mcaReaders, columnConversionHandler);
-        }
+                if (!converter.shouldProcessColumn(dimension, columnsCoords)) continue;
 
-        return Task.asyncUnwrap("Processing column " + columnsCoords, TaskWeight.NORMAL, () -> {
-            converter.awaitFreeColumnSlot();
-            converter.incrementActiveColumns();
+                // Read column NBT from all region files synchronously
+                CompoundTag[] compoundTags = new CompoundTag[regionFilesCount];
+                for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
+                    MCAReader mcaReader = mcaReaders[regionFileIndex];
+                    if (mcaReader == null) continue;
 
-            List<Task<CompoundTag>> decompressingTasks = new ArrayList<>(mcaReaders.length);
-            List<Integer> decompressingTasksIndexes = new ArrayList<>(mcaReaders.length);
+                    int offset = columnFileOffsets[regionFileIndex];
+                    if (offset <= 0) continue;
 
-            for (int regionFileIndex = 0; regionFileIndex < mcaReaders.length; regionFileIndex++) {
-                MCAReader mcaReader = mcaReaders[regionFileIndex];
-                if (mcaReader == null) continue;
-
-                int offset = columnFileOffsets[regionFileIndex];
-                if (offset <= 0) continue;
-
-                synchronized (mcaReader) {
-                    decompressingTasks.add(mcaReader.readColumn(columnsCoords, offset));
+                    compoundTags[regionFileIndex] = mcaReader.readColumnSync(columnsCoords, offset);
                 }
-                decompressingTasksIndexes.add(regionFileIndex);
-            }
 
-            return Task.join(decompressingTasks)
-                    .then("Combining NBT " + columnsCoords, TaskWeight.LOW, (results) -> {
-                        CompoundTag[] compoundTags = new CompoundTag[mcaReaders.length];
-                        for (int i = 0; i < decompressingTasksIndexes.size(); i++) {
-                            compoundTags[decompressingTasksIndexes.get(i)] = results.get(i);
-                        }
-                        return combineColumnCompounds(compoundTags);
-                    })
-                    .then("Creating Reader " + columnsCoords, TaskWeight.LOW, (columnNbt) -> createColumnReader(columnsCoords, columnNbt))
-                    .thenUnwrap("Reading Column " + columnsCoords, TaskWeight.HIGHER, (columnReader) -> columnReader.readColumn(columnConversionHandler))
-                    .thenUnwrap("Next Column", TaskWeight.LOW, (ignored) -> readColumnsSequentially(iterator, region, mcaReaders, columnConversionHandler));
-        });
+                CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
+                JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
+
+                // Process the column asynchronously via TaskExecutor
+                Task.asyncConsume("Reading Column " + columnsCoords, TaskWeight.HIGHER,
+                        columnReader::readColumn, columnConversionHandler);
+            }
+        } catch (Exception e) {
+            converter.logNonFatalException(e);
+        } finally {
+            closeReaders(mcaReaders);
+        }
     }
 
     /**

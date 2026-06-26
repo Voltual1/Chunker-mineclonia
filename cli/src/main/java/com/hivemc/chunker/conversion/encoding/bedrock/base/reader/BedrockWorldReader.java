@@ -15,9 +15,6 @@ import com.hivemc.chunker.scheduling.task.TaskWeight;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.iq80.leveldb.DB;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -50,66 +47,83 @@ public class BedrockWorldReader implements WorldReader {
 
     @Override
     public void readWorld(WorldConversionHandler worldConversionHandler) {
+        // Use a copy for the present region hashset in the case of something modifying it
         ChunkerWorld chunkerWorld = new ChunkerWorld(
                 dimension,
                 new ObjectOpenHashSet<>(presentRegions.keySet())
         );
 
+        // Submit world info (done before column reading)
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
-        Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
-            if (columnConversionHandler == null) return null;
+        // Handle the reading of the regions
+        Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
+            if (columnConversionHandler == null) return;
 
-            Task<Void> readingRegionFiles = readRegionsSequentially(presentRegions, columnConversionHandler);
-            return readingRegionFiles.then("Flushing columns", TaskWeight.MEDIUM, columnConversionHandler::flushColumns);
+            Object lock = new Object();
+            new Thread(() -> {
+                try {
+                    readRegionsSync(presentRegions, columnConversionHandler);
+                } catch (Throwable t) {
+                    converter.logNonFatalException(t);
+                } finally {
+                    synchronized (lock) {
+                        lock.notifyAll();
+                    }
+                }
+            }, "Chunker-Reader-Bedrock-" + dimension.getIdentifier()).start();
+
+            synchronized (lock) {
+                try {
+                    lock.wait(); // Blocks the TaskExecutor thread until the dedicated reader thread finishes
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                }
+            }
+
+            // Call the flush task after all the region files have been read
+            columnConversionHandler.flushColumns();
         });
 
+        // When the region processing is done flush the world
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
-    public Task<Void> readRegionsSequentially(Map<RegionCoordPair, Set<ChunkCoordPair>> regions, ColumnConversionHandler columnConversionHandler) {
-        return readRegionsSequentially(regions.entrySet().iterator(), columnConversionHandler);
-    }
-
-    private Task<Void> readRegionsSequentially(Iterator<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> iterator, ColumnConversionHandler columnConversionHandler) {
-        if (!iterator.hasNext()) {
-            return Task.async("Finished regions", TaskWeight.LOW, () -> {});
-        }
-        Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region = iterator.next();
-        if (converter.shouldProcessRegion(dimension, region.getKey())) {
-            return readRegion(region, columnConversionHandler)
-                    .then("Region - Flushing " + region.getKey(), TaskWeight.MEDIUM, () -> columnConversionHandler.flushRegion(region.getKey()))
-                    .then("GC", TaskWeight.LOW, System::gc)
-                    .thenUnwrap("Next region", TaskWeight.LOW, (ignored) -> readRegionsSequentially(iterator, columnConversionHandler));
-        } else {
-            return readRegionsSequentially(iterator, columnConversionHandler);
+    /**
+     * Synchronously read regions one by one.
+     */
+    public void readRegionsSync(Map<RegionCoordPair, Set<ChunkCoordPair>> regions, ColumnConversionHandler columnConversionHandler) {
+        for (Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region : regions.entrySet()) {
+            if (converter.isCancelled()) break;
+            if (converter.shouldProcessRegion(dimension, region.getKey())) {
+                readRegionSync(region, columnConversionHandler);
+                columnConversionHandler.flushRegion(region.getKey()); // This blocks the reader thread until written
+                System.gc(); // Suggest Garbage Collection after each region
+            }
         }
     }
 
-    public Task<Void> readRegion(Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region, ColumnConversionHandler columnConversionHandler) {
-        List<ChunkCoordPair> chunks = new ArrayList<>(region.getValue());
-        return readColumnsSequentially(chunks.iterator(), columnConversionHandler);
+    /**
+     * Synchronously read a region's columns.
+     */
+    public void readRegionSync(Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region, ColumnConversionHandler columnConversionHandler) {
+        for (ChunkCoordPair chunkCoordPair : region.getValue()) {
+            if (converter.isCancelled()) break;
+            if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
+
+            // Process column (can be async since we wait for flushRegion at the end of the region anyway!)
+            BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
+            Task.asyncConsume("Reading Column " + chunkCoordPair, TaskWeight.HIGHER,
+                    columnReader::readColumn, columnConversionHandler);
+        }
     }
 
-    private Task<Void> readColumnsSequentially(Iterator<ChunkCoordPair> iterator, ColumnConversionHandler columnConversionHandler) {
-        if (!iterator.hasNext()) {
-            return Task.async("Finished columns for region", TaskWeight.LOW, () -> {});
-        }
-        ChunkCoordPair chunkCoordPair = iterator.next();
-        if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) {
-            return readColumnsSequentially(iterator, columnConversionHandler);
-        }
-
-        return Task.asyncUnwrap("Processing column " + chunkCoordPair, TaskWeight.NORMAL, () -> {
-            converter.awaitFreeColumnSlot();
-            converter.incrementActiveColumns();
-
-            return Task.async("Creating Column Reader", TaskWeight.LOW, () -> createColumnReader(chunkCoordPair))
-                    .thenUnwrap("Reading Column", TaskWeight.HIGHER, (columnReader) -> columnReader.readColumn(columnConversionHandler))
-                    .thenUnwrap("Next Column", TaskWeight.LOW, (ignored) -> readColumnsSequentially(iterator, columnConversionHandler));
-        });
-    }
-
+    /**
+     * Create the column reader used for reading a column.
+     *
+     * @param worldChunkCoords the column co-ordinates being read.
+     * @return the new column reader.
+     */
     public BedrockColumnReader createColumnReader(ChunkCoordPair worldChunkCoords) {
         return new BedrockColumnReader(resolvers, converter, database, dimension, worldChunkCoords);
     }
