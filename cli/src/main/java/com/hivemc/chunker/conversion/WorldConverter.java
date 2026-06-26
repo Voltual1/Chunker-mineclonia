@@ -97,6 +97,8 @@ public class WorldConverter implements Converter {
     private boolean exceptions = false;
     private boolean cancelled = false;
 
+    private final java.util.concurrent.atomic.AtomicInteger activeColumns = new java.util.concurrent.atomic.AtomicInteger(0);
+
     /**
      * Create a new WorldConverter with a sessionID.
      *
@@ -104,6 +106,33 @@ public class WorldConverter implements Converter {
      */
     public WorldConverter(UUID sessionID) {
         this.sessionID = sessionID;
+    }
+
+    @Override
+    public void incrementActiveColumns() {
+        activeColumns.incrementAndGet();
+    }
+
+    @Override
+    public void decrementActiveColumns() {
+        synchronized (activeColumns) {
+            activeColumns.decrementAndGet();
+            activeColumns.notifyAll();
+        }
+    }
+
+    @Override
+    public void awaitFreeColumnSlot() {
+        synchronized (activeColumns) {
+            while (activeColumns.get() >= 8) { // Throttle: Max 8 active columns in progress at any time
+                try {
+                    activeColumns.wait(100);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    break;
+                }
+            }
+        }
     }
 
     /**
@@ -559,7 +588,7 @@ public class WorldConverter implements Converter {
 
         try {
             // Create the handler that calls the writer
-            LevelWriterConversionHandler writerHandler = new LevelWriterConversionHandler(writer);
+            LevelWriterConversionHandler writerHandler = new LevelWriterConversionHandler(writer, this);
 
             // Create the conversion pipeline (it always uses the writer as a base)
             Pipeline pipeline = new Pipeline(writerHandler);

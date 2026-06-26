@@ -199,6 +199,21 @@ public interface Converter {
     Optional<ChunkerLevel> level();
 
     /**
+     * Increment the count of active columns in flight.
+     */
+    default void incrementActiveColumns() {}
+
+    /**
+     * Decrement the count of active columns in flight.
+     */
+    default void decrementActiveColumns() {}
+
+    /**
+     * Block the current thread until there is a free slot for a column.
+     */
+    default void awaitFreeColumnSlot() {}
+
+    /**
      * The type of missing mapping.
      */
     enum MissingMappingType {

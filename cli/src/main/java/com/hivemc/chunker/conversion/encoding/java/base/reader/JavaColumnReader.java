@@ -28,9 +28,6 @@ import java.util.*;
  * A reader for Java columns.
  */
 public class JavaColumnReader implements ColumnReader {
-    /**
-     * A list of chunk statuses which are counted as incomplete and should be ignored.
-     */
     private static final Set<String> UNFINISHED_STATUSES = Set.of(
             "empty",
             "structure_starts",
@@ -74,36 +71,28 @@ public class JavaColumnReader implements ColumnReader {
     }
 
     @Override
-    public void readColumn(ColumnConversionHandler columnConversionHandler) {
-        if (columnNBT == null) return; // Ignore invalid chunks
+    public Task<Void> readColumn(ColumnConversionHandler columnConversionHandler) {
+        if (columnNBT == null) return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
 
-        // Unwrap the level tag if it's provided (below 1.18)
         columnNBT = columnNBT.getCompound("Level", columnNBT);
 
-        // Validate there is position data
         if (!columnNBT.contains("xPos") || !columnNBT.contains("zPos")) {
-            return;
+            return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
         }
 
-        // Validate the file position is the same as the NBT
         int xPos = columnNBT.getInt("xPos");
         int zPos = columnNBT.getInt("zPos");
         if (xPos != columnCoords.chunkX() || zPos != columnCoords.chunkZ()) {
             converter.logNonFatalException(new Exception("Mislocated chunk, chunk states " + xPos + ", " + zPos + " but actually at " + columnCoords));
         }
 
-        // Ensure the chunk isn't in a state where it's not populated
         if (columnNBT.contains("Status") && UNFINISHED_STATUSES.contains(columnNBT.getString("Status"))) {
-            return;
+            return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
         }
 
-        // Create the column and start parsing
         ChunkerColumn column = new ChunkerColumn(columnCoords);
-
-        // Load light populated
         readLightPopulated(column);
 
-        // Load other parts of the column
         ArrayList<Task<Void>> processing = new ArrayList<>(5);
         if (converter.shouldProcessHeightMap()) {
             processing.add(Task.asyncConsume("Reading HeightMap", TaskWeight.NORMAL, this::readHeightMap, column));
@@ -119,32 +108,20 @@ public class JavaColumnReader implements ColumnReader {
         }
         processing.add(Task.asyncConsume("Reading Chunks", TaskWeight.HIGHER, this::readChunks, column));
 
-        // When they're done apply post-processing
-        Task.join(processing)
+        return Task.join(processing)
                 .then("Post-processing column", TaskWeight.HIGH, this::postProcess, column)
                 .thenConsume("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
     }
 
-    /**
-     * Read whether the lighting is present for this column.
-     *
-     * @param column the output to set the light populated state on.
-     */
     protected void readLightPopulated(ChunkerColumn column) {
         if (columnNBT.contains("LightPopulated")) {
             column.setLightPopulated(columnNBT.getByte("LightPopulated") != (byte) 0);
         }
     }
 
-    /**
-     * Read the height map data from the NBT.
-     *
-     * @param column the output to place the height map data into.
-     */
     protected void readHeightMap(ChunkerColumn column) {
         if (!columnNBT.contains("HeightMap")) return;
 
-        // Note: Removed in 1.13.2 and above
         short[][] heightMapOutput = new short[16][16];
         int[] heightMap = columnNBT.getIntArray("HeightMap");
         for (int i = 0; i < heightMap.length; i++) {
@@ -153,20 +130,14 @@ public class JavaColumnReader implements ColumnReader {
         column.setHeightMap(new JavaLegacyHeightMap(heightMapOutput));
     }
 
-    /**
-     * Read the biomes from the NBT.
-     *
-     * @param column the output to put the biomes into.
-     */
     protected void readBiomes(ChunkerColumn column) {
         Tag<?> biomes = columnNBT.get("Biomes", Tag.class);
-        if (biomes == null) return; // No biomes present
+        if (biomes == null) return;
 
         if (biomes instanceof ByteArrayTag byteArrayTag && byteArrayTag.getValue() != null) {
             ChunkerBiome[] chunkerBiomeArray = new ChunkerBiome[256];
             byte[] value = byteArrayTag.getValue();
 
-            // Read each byte and convert it to a chunker biome
             for (int i = 0; i < chunkerBiomeArray.length; i++) {
                 chunkerBiomeArray[i] = resolvers.readBiome(value[i] & 0xFF, dimension);
             }
@@ -174,17 +145,11 @@ public class JavaColumnReader implements ColumnReader {
         }
     }
 
-    /**
-     * Read the entities from the NBT.
-     *
-     * @param column the output to add the entities to.
-     */
     protected void readEntities(ChunkerColumn column) {
         ListTag<CompoundTag, Map<String, Tag<?>>> entities = columnNBT.getList("Entities", CompoundTag.class, null);
         if (entities != null) {
             for (CompoundTag entityTag : entities) {
                 try {
-                    // Process the tag
                     readEntity(column, entityTag);
                 } catch (Exception e) {
                     converter.logNonFatalException(new Exception("Failed to process Entity " + entityTag, e));
@@ -193,12 +158,6 @@ public class JavaColumnReader implements ColumnReader {
         }
     }
 
-    /**
-     * Read an entity from a NBT tag.
-     *
-     * @param chunkerColumn the output column to add the entity to.
-     * @param compoundTag   the input entity.
-     */
     protected void readEntity(ChunkerColumn chunkerColumn, CompoundTag compoundTag) {
         Optional<Entity> entity = resolvers.entityResolver().to(compoundTag);
         if (entity.isPresent()) {
@@ -209,17 +168,11 @@ public class JavaColumnReader implements ColumnReader {
         }
     }
 
-    /**
-     * Read the block entities from the NBT.
-     *
-     * @param column the output to add the block entities to.
-     */
     protected void readBlockEntities(ChunkerColumn column) {
         ListTag<CompoundTag, Map<String, Tag<?>>> blockEntities = columnNBT.getList("TileEntities", CompoundTag.class, null);
         if (blockEntities != null) {
             for (CompoundTag blockEntityTag : blockEntities) {
                 try {
-                    // Process the tag
                     readBlockEntity(column, blockEntityTag);
                 } catch (Exception e) {
                     converter.logNonFatalException(new Exception("Failed to process BlockEntity " + blockEntityTag, e));
@@ -228,12 +181,6 @@ public class JavaColumnReader implements ColumnReader {
         }
     }
 
-    /**
-     * Read a block entity from a NBT tag.
-     *
-     * @param chunkerColumn the output column to add the block entity to.
-     * @param compoundTag   the input block entity.
-     */
     protected void readBlockEntity(ChunkerColumn chunkerColumn, CompoundTag compoundTag) {
         Optional<BlockEntity> blockEntity = resolvers.blockEntityResolver().to(compoundTag);
         if (blockEntity.isPresent()) {
@@ -244,50 +191,37 @@ public class JavaColumnReader implements ColumnReader {
         }
     }
 
-    /**
-     * Read all the chunks inside the column.
-     *
-     * @param column the output for adding chunks to.
-     */
     protected void readChunks(ChunkerColumn column) {
         ListTag<CompoundTag, Map<String, Tag<?>>> sections = columnNBT.getList("Sections", CompoundTag.class, null);
         if (sections == null) {
-            // Try lowercase
             sections = columnNBT.getList("sections", CompoundTag.class, null);
             if (sections == null) {
-                return; // No valid chunk data
+                return;
             }
         }
 
-        // Create a list of the tasks
         List<Task<ChunkerChunk>> tasks = new ArrayList<>(sections.size());
 
-        // Loop through each chunk in the column
         for (CompoundTag section : sections) {
             Tag<?> tag = section.get("Y");
             if (tag == null || section.size() <= 1) continue;
 
-            // Get the Y index of the sub-chunk
             byte y;
             if (tag instanceof ByteTag byteYTag) {
                 y = byteYTag.getValue();
             } else if (tag instanceof IntTag intYTag) {
-                // Allow Y to be an int, Minecraft still parses this and some software uses integers
                 y = intYTag.getBoxedValue().byteValue();
             } else {
                 throw new IllegalArgumentException("Invalid Section Y NBT Tag: " + tag);
             }
 
-            // Create the chunk and add it to the column
             ChunkerChunk chunk = new ChunkerChunk(y);
 
-            // Start the task
             tasks.add(Task.async("Creating Chunk Reader", TaskWeight.LOW, () -> createChunkReader(column, chunk))
                     .thenConsume("Reading Chunk", TaskWeight.HIGHER, (chunkReader) -> chunkReader.readChunk(section))
                     .then(chunk));
         }
 
-        // Set the chunks on the column when they're done
         Task.join(tasks).thenConsume("Adding chunks to column", TaskWeight.LOW, (chunks) -> {
             for (ChunkerChunk chunk : chunks) {
                 column.getChunks().put(chunk.getY(), chunk);
@@ -295,20 +229,12 @@ public class JavaColumnReader implements ColumnReader {
         });
     }
 
-    /**
-     * Post-process the column after reading (sync).
-     *
-     * @param column the column which was read.
-     * @return the column output to submit.
-     */
     protected ChunkerColumn postProcess(ChunkerColumn column) {
-        // Create any block entities / entities which are based on blocks
         for (ChunkerChunk chunk : column.getChunks().values()) {
             resolvers.blockEntityResolver().generateBeforeProcessBlockEntities(column, chunk);
             resolvers.entityResolver().generateBeforeProcessEntities(column, chunk);
         }
 
-        // Update the column from the block entities
         List<BlockEntity> blockEntities = column.getBlockEntities();
         for (int i = 0; i < blockEntities.size(); i++) {
             BlockEntity blockEntity = blockEntities.get(i);
@@ -320,25 +246,21 @@ public class JavaColumnReader implements ColumnReader {
                     blockEntity
             );
 
-            // Apply replacement if needed
             if (replacement != blockEntity) {
                 blockEntities.set(i, replacement);
             }
         }
 
-        // Update the column from the entities
         List<Entity> entities = column.getEntities();
         for (int i = 0; i < entities.size(); i++) {
             Entity entity = entities.get(i);
             Entity replacement = resolvers.entityResolver().updateBeforeProcess(column, entity);
 
-            // Apply replacement if needed
             if (replacement != entity) {
                 entities.set(i, replacement);
             }
         }
 
-        // Run any block entity removal logic
         column.getBlockEntities().removeIf(blockEntity -> resolvers.blockEntityResolver().shouldRemoveBeforeProcess(
                 column,
                 blockEntity.getX(),
@@ -347,26 +269,16 @@ public class JavaColumnReader implements ColumnReader {
                 blockEntity
         ));
 
-        // Run any entity removal logic
         column.getEntities().removeIf(entity -> resolvers.entityResolver().shouldRemoveBeforeProcess(
                 column,
                 entity
         ));
 
-        // Calculate any pre-transforms
-        // Note: This will solve any connections which are already possible to keep as much async as possible
         resolvers.preTransformManager().solve(column, converter.shouldProcessColumnPreTransform());
 
         return column;
     }
 
-    /**
-     * Create a new chunk reader.
-     *
-     * @param column the column being read.
-     * @param chunk  the chunk being read.
-     * @return a newly created chunk reader.
-     */
     public JavaChunkReader createChunkReader(ChunkerColumn column, ChunkerChunk chunk) {
         return new JavaChunkReader(converter, resolvers, column, chunk);
     }
