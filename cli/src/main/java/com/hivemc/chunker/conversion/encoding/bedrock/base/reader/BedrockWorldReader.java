@@ -15,6 +15,7 @@ import com.hivemc.chunker.scheduling.task.TaskWeight;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import org.iq80.leveldb.DB;
 
+import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -57,14 +58,14 @@ public class BedrockWorldReader implements WorldReader {
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
         // Handle the reading of the regions
-        Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
-            if (columnConversionHandler == null) return; // This can be null if the columns aren't handled by the reader
+        Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
+            if (columnConversionHandler == null) return null;
 
-            // Read the regions
-            ProgressiveTask<Void> readingRegionFiles = Task.async("Reading regions", TaskWeight.HIGHER, () -> readRegions(presentRegions, columnConversionHandler));
+            // Read the regions sequentially to prevent OOM
+            Task<Void> readingRegionFiles = readRegionsSequentially(presentRegions, columnConversionHandler);
 
             // Call the flush task after all the region files have been read
-            readingRegionFiles.then("Flushing columns", TaskWeight.MEDIUM, columnConversionHandler::flushColumns);
+            return readingRegionFiles.then("Flushing columns", TaskWeight.MEDIUM, columnConversionHandler::flushColumns);
         });
 
         // When the region processing is done flush the world
@@ -72,17 +73,28 @@ public class BedrockWorldReader implements WorldReader {
     }
 
     /**
-     * Read all the regions in the world.
+     * Read all the regions in the world sequentially.
      *
      * @param regions                 the regions to read.
      * @param columnConversionHandler the handler to submit the read columns to.
+     * @return a task that finishes when all regions have been processed.
      */
-    public void readRegions(Map<RegionCoordPair, Set<ChunkCoordPair>> regions, ColumnConversionHandler columnConversionHandler) {
-        for (Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region : regions.entrySet()) {
-            if (converter.shouldProcessRegion(dimension, region.getKey())) {
-                Task.async("Reading region", TaskWeight.NORMAL, () -> readRegion(region, columnConversionHandler))
-                        .then("Region - Flushing", TaskWeight.MEDIUM, () -> columnConversionHandler.flushRegion(region.getKey()));
-            }
+    public Task<Void> readRegionsSequentially(Map<RegionCoordPair, Set<ChunkCoordPair>> regions, ColumnConversionHandler columnConversionHandler) {
+        return readRegionsSequentially(regions.entrySet().iterator(), columnConversionHandler);
+    }
+
+    private Task<Void> readRegionsSequentially(Iterator<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> iterator, ColumnConversionHandler columnConversionHandler) {
+        if (!iterator.hasNext()) {
+            return Task.async("Finished regions", TaskWeight.LOW, () -> {});
+        }
+        Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region = iterator.next();
+        if (converter.shouldProcessRegion(dimension, region.getKey())) {
+            return Task.async("Reading region " + region.getKey(), TaskWeight.NORMAL, () -> readRegion(region, columnConversionHandler))
+                    .then("Region - Flushing " + region.getKey(), TaskWeight.MEDIUM, () -> columnConversionHandler.flushRegion(region.getKey()))
+                    .then("GC", TaskWeight.LOW, System::gc)
+                    .thenUnwrap("Next region", TaskWeight.LOW, (ignored) -> readRegionsSequentially(iterator, columnConversionHandler));
+        } else {
+            return readRegionsSequentially(iterator, columnConversionHandler);
         }
     }
 
