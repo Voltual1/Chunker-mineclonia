@@ -260,32 +260,10 @@ public class ColumnPreTransformConversionHandler implements ColumnConversionHand
                 return;
             }
 
-            // Remove any solve-able columns
-            region.entrySet().removeIf(entry -> {
-                ColumnData columnData = entry.getValue();
-                ChunkCoordPair chunkCoordPair = entry.getKey();
-
-                // We just need to determine if all the required edges have been fulfilled
-                columnData.getPendingCheckEdges().removeIf(edge -> regionCoordPair.isInside(edge.getRelative(chunkCoordPair)));
-                columnData.getRequiredColumns().entrySet().removeIf(edge -> edge.getValue() == null && regionCoordPair.isInside(edge.getKey().getRelative(chunkCoordPair)));
-
-                // Can be removed if there is no further requirement from this column
-                if (columnData.getRequiredColumns().isEmpty() && columnData.getPendingCheckEdges().isEmpty()) {
-                    // Add to cache for solving
-                    cachedSolved.add(columnData);
-                    return true;
-                }
-
-                // Could not be instantly solved
-                return false;
-            });
-
-            // Now that we've solved the entries, we can transform them
-            if (!cachedSolved.isEmpty()) {
-                // Transform columns
-                transformCluster(cachedSolved);
-                cachedSolved.clear();
-            }
+            // Force solve all remaining columns in this region to free memory
+            transformCluster(region.values());
+            region.clear();
+            pending.remove(regionCoordPair);
 
             // Mark each corner as empty
             markAsEmpty(regionCoordPair.getChunk(0, 0), EnumSet.of(Edge.NEGATIVE_X, Edge.NEGATIVE_Z));
@@ -311,10 +289,7 @@ public class ColumnPreTransformConversionHandler implements ColumnConversionHand
                 markAsEmpty(regionCoordPair.getChunk(31, z), EnumSet.of(Edge.POSITIVE_X));
             }
 
-            // If the region is now empty, we can call the parent flush
-            if (region.isEmpty() && pending.remove(regionCoordPair) != null) {
-                delegate.flushRegion(regionCoordPair);
-            }
+            delegate.flushRegion(regionCoordPair);
         }
     }
 
