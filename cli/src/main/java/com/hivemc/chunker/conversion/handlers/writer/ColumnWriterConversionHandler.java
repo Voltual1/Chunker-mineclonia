@@ -1,5 +1,6 @@
 package com.hivemc.chunker.conversion.handlers.writer;
 
+import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
@@ -14,15 +15,18 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public class ColumnWriterConversionHandler implements ColumnConversionHandler {
     protected final ColumnWriter writer;
+    protected final Converter converter;
     private final AtomicInteger activeWrites = new AtomicInteger(0);
 
     /**
      * Create a new column writer conversion handler.
      *
-     * @param writer the writer to delegate methods to.
+     * @param writer    the writer to delegate methods to.
+     * @param converter the converter instance.
      */
-    public ColumnWriterConversionHandler(ColumnWriter writer) {
+    public ColumnWriterConversionHandler(ColumnWriter writer, Converter converter) {
         this.writer = writer;
+        this.converter = converter;
     }
 
     @Override
@@ -32,9 +36,10 @@ public class ColumnWriterConversionHandler implements ColumnConversionHandler {
             try {
                 writer.writeColumn(col);
             } finally {
+                converter.decrementActiveColumns(); // Release the global throttle slot
                 synchronized (activeWrites) {
                     if (activeWrites.decrementAndGet() == 0) {
-                        activeWrites.notifyAll();
+                        activeWrites.notifyAll(); // Notify region flush
                     }
                 }
             }
