@@ -214,6 +214,15 @@ public interface Converter {
     default void awaitFreeColumnSlot() {}
 
     /**
+     * Whether the conversion has been cancelled.
+     *
+     * @return true if it was cancelled.
+     */
+    default boolean isCancelled() {
+        return false;
+    }
+
+    /**
      * The type of missing mapping.
      */
     enum MissingMappingType {
