@@ -32,18 +32,27 @@ public class ColumnWriterConversionHandler implements ColumnConversionHandler {
     @Override
     public void convertColumn(ChunkerColumn column) {
         activeWrites.incrementAndGet();
-        Task.asyncConsume("Writing Column", TaskWeight.NORMAL, (col) -> {
+        Task.asyncUnwrap("Writing Column Dispatch", TaskWeight.NORMAL, () -> {
             try {
-                writer.writeColumn(col);
-            } finally {
-                converter.decrementActiveColumns(); // Release the global throttle slot
+                return writer.writeColumn(column).then("Writing Column Done", TaskWeight.LOW, () -> {
+                    converter.decrementActiveColumns(); // Release the global throttle slot
+                    synchronized (activeWrites) {
+                        if (activeWrites.decrementAndGet() == 0) {
+                            activeWrites.notifyAll(); // Notify region flush
+                        }
+                    }
+                });
+            } catch (Throwable t) {
+                converter.logNonFatalException(t);
+                converter.decrementActiveColumns();
                 synchronized (activeWrites) {
                     if (activeWrites.decrementAndGet() == 0) {
-                        activeWrites.notifyAll(); // Notify region flush
+                        activeWrites.notifyAll();
                     }
                 }
+                return Task.async("Failed Write Column", TaskWeight.LOW, () -> {});
             }
-        }, column);
+        });
     }
 
     @Override

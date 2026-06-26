@@ -11,6 +11,9 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkerChunk;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.SlabType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.heightmap.JavaLegacyHeightMap;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
@@ -59,7 +62,7 @@ public class JavaColumnWriter implements ColumnWriter {
     }
 
     @Override
-    public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+    public Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception {
         CompoundTag root = new CompoundTag(10);
 
         // Write base details
@@ -90,7 +93,7 @@ public class JavaColumnWriter implements ColumnWriter {
         Task.asyncConsume("Writing POI", TaskWeight.LOW, this::writePOI, chunkerColumn);
 
         // When they're done apply post-processing
-        Task.join(processing)
+        return Task.join(processing)
                 .thenConsume("Combining NBT", TaskWeight.LOW, (result) -> combineNBT(root, result))
                 .then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn, root))
                 .then("Writing column NBT", TaskWeight.LOW, () -> writeNBT(chunkerColumn, root));
@@ -294,7 +297,7 @@ public class JavaColumnWriter implements ColumnWriter {
         JavaChunkWriter chunkWriter = createChunkWriter(column);
 
         // Schedule each chunk to be written
-        FutureTask<List<CompoundTag>> outputs = Task.asyncForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
+        FutureTask<List<CompoundTag>> outputs = Task.asyncForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, ChunkerChunk[]::new, column.getChunks().values());
 
         // Turn the results into sections (they may be null if it did not yield a chunk)
         outputs.thenConsume("Writing Sections", TaskWeight.LOW, (chunks) -> {

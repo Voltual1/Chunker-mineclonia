@@ -61,7 +61,7 @@ public class BedrockColumnWriter implements ColumnWriter {
     }
 
     @Override
-    public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+    public Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception {
         // Run any preprocessing
         preProcessColumn(chunkerColumn);
 
@@ -79,7 +79,7 @@ public class BedrockColumnWriter implements ColumnWriter {
         processing.add(Task.asyncConsume("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
 
         // When they're done apply post-processing
-        Task.join(processing).then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn));
+        return Task.join(processing).then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn));
     }
 
     @Override
@@ -372,7 +372,7 @@ public class BedrockColumnWriter implements ColumnWriter {
         BedrockChunkWriter chunkWriter = createChunkWriter(column);
 
         // Schedule each chunk to be written
-        Task.asyncConsumeForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
+        Task.asyncConsumeForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, ChunkerChunk[]::new, column.getChunks().values());
     }
 
     /**
