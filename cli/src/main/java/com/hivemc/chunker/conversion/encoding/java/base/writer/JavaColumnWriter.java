@@ -1,31 +1,49 @@
 package com.hivemc.chunker.conversion.encoding.java.base.writer;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
+import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
+import com.hivemc.chunker.conversion.handlers.pretransform.Edge;
 import com.hivemc.chunker.conversion.handlers.pretransform.manager.PreTransformManager;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome;
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkerChunk;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerBlockType;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.BlockState;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.BlockStateValue;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.SlabType;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Distance;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Axis;
 import com.hivemc.chunker.conversion.intermediate.column.entity.Entity;
 import com.hivemc.chunker.conversion.intermediate.column.heightmap.JavaLegacyHeightMap;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerPortal;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.mapping.identifier.Identifier;
+import com.hivemc.chunker.nbt.TagType;
 import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.TagWithName;
-import com.hivemc.chunker.nbt.tags.array.IntArrayTag;
 import com.hivemc.chunker.nbt.tags.array.ByteArrayTag;
+import com.hivemc.chunker.nbt.tags.array.IntArrayTag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
+import com.hivemc.chunker.nbt.tags.primitive.ByteTag;
+import com.hivemc.chunker.nbt.tags.primitive.IntTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
+import com.hivemc.chunker.scheduling.task.FutureTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
-import org.iq80.leveldb.DB;
-import org.iq80.leveldb.WriteBatch;
-import org.jetbrains.annotations.Nullable;
+import com.hivemc.chunker.util.BlockPosition;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.ColumnUtil;
+import it.unimi.dsi.fastutil.bytes.Byte2ObjectMap;
+import it.unimi.dsi.fastutil.bytes.Byte2ObjectOpenHashMap;
 
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -53,14 +71,23 @@ public class JavaColumnWriter implements ColumnWriter {
         this.parent = parent;
         this.converter = converter;
         this.resolvers = resolvers;
-        this.database = database;
         this.dimension = dimension;
     }
 
     @Override
     public Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+        CompoundTag root = new CompoundTag(10);
+
+        // Write base details
+        root.put("xPos", chunkerColumn.getPosition().chunkX());
+        root.put("zPos", chunkerColumn.getPosition().chunkZ());
+
+        // Mark as populated
+        writeLightPopulated(chunkerColumn, root);
+        root.put("TerrainPopulated", (byte) 1);
+
         // Run any preprocessing
-        preProcessColumn(chunkerColumn);
+        preProcessColumn(chunkerColumn, root);
 
         // Compact any chunk palettes to ensure unused values are removed from pre-processing
         chunkerColumn.getChunks().values().forEach(chunk -> {
