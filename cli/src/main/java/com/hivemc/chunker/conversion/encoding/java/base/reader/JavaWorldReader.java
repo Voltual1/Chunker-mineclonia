@@ -100,25 +100,11 @@ public class JavaWorldReader implements WorldReader {
         Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
             if (columnConversionHandler == null) return;
 
-            Object lock = new Object();
-            new Thread(() -> {
-                try {
-                    readRegionsSync(regionsCopy, knownRegionFiles, columnConversionHandler);
-                } catch (Throwable t) {
-                    converter.logNonFatalException(t);
-                } finally {
-                    synchronized (lock) {
-                        lock.notifyAll();
-                    }
-                }
-            }, "Chunker-Reader-Java-" + dimension.getIdentifier()).start();
-
-            synchronized (lock) {
-                try {
-                    lock.wait(); // Blocks the TaskExecutor thread until the dedicated reader thread finishes
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+            try {
+                // Synchronously loop over regions (blocks the single dimension reader task safely)
+                readRegionsSync(regionsCopy, knownRegionFiles, columnConversionHandler);
+            } catch (Throwable t) {
+                converter.logNonFatalException(t);
             }
 
             // Call the flush task after all the region files have been read
@@ -130,15 +116,15 @@ public class JavaWorldReader implements WorldReader {
     }
 
     /**
-     * Synchronously read regions one by one.
+     * Synchronously read regions one by one to ensure memory containment.
      */
     protected void readRegionsSync(Set<RegionCoordPair> regions, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
         for (RegionCoordPair region : regions) {
             if (converter.isCancelled()) break;
             if (converter.shouldProcessRegion(dimension, region)) {
                 readRegionSync(region, knownRegionFiles, columnConversionHandler);
-                columnConversionHandler.flushRegion(region); // This blocks the reader thread until written
-                System.gc(); // Suggest Garbage Collection after each region
+                columnConversionHandler.flushRegion(region); // Blocks until all active writes of this region are finished
+                System.gc(); // Explicit hint to JVM for memory reclaim
             }
         }
     }
@@ -209,6 +195,10 @@ public class JavaWorldReader implements WorldReader {
 
                 CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
                 JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
+
+                // Throttle: wait if there are too many active writes to avoid memory bloat
+                converter.awaitFreeColumnSlot();
+                converter.incrementActiveColumns();
 
                 // Process the column asynchronously via TaskExecutor
                 Task.asyncConsume("Reading Column " + columnsCoords, TaskWeight.HIGHER,

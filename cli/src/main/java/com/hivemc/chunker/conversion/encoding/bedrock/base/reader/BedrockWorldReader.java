@@ -60,25 +60,11 @@ public class BedrockWorldReader implements WorldReader {
         Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
             if (columnConversionHandler == null) return;
 
-            Object lock = new Object();
-            new Thread(() -> {
-                try {
-                    readRegionsSync(presentRegions, columnConversionHandler);
-                } catch (Throwable t) {
-                    converter.logNonFatalException(t);
-                } finally {
-                    synchronized (lock) {
-                        lock.notifyAll();
-                    }
-                }
-            }, "Chunker-Reader-Bedrock-" + dimension.getIdentifier()).start();
-
-            synchronized (lock) {
-                try {
-                    lock.wait(); // Blocks the TaskExecutor thread until the dedicated reader thread finishes
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                }
+            try {
+                // Synchronously loop over regions (blocks the single dimension reader task safely)
+                readRegionsSync(presentRegions, columnConversionHandler);
+            } catch (Throwable t) {
+                converter.logNonFatalException(t);
             }
 
             // Call the flush task after all the region files have been read
@@ -97,7 +83,7 @@ public class BedrockWorldReader implements WorldReader {
             if (converter.isCancelled()) break;
             if (converter.shouldProcessRegion(dimension, region.getKey())) {
                 readRegionSync(region, columnConversionHandler);
-                columnConversionHandler.flushRegion(region.getKey()); // This blocks the reader thread until written
+                columnConversionHandler.flushRegion(region.getKey()); // Blocks until all active writes of this region are finished
                 System.gc(); // Suggest Garbage Collection after each region
             }
         }
@@ -111,7 +97,11 @@ public class BedrockWorldReader implements WorldReader {
             if (converter.isCancelled()) break;
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
 
-            // Process column (can be async since we wait for flushRegion at the end of the region anyway!)
+            // Throttle: wait if there are too many active writes to avoid memory bloat
+            converter.awaitFreeColumnSlot();
+            converter.incrementActiveColumns();
+
+            // Process column asynchronously
             BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
             Task.asyncConsume("Reading Column " + chunkCoordPair, TaskWeight.HIGHER,
                     columnReader::readColumn, columnConversionHandler);
