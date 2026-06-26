@@ -63,6 +63,7 @@ public class JavaWorldReader implements WorldReader {
                 regions
         );
 
+        // Get each region file and loop through
         File[] folders = getMCAFolders();
         Set<String> knownRegionFiles = new ObjectOpenHashSet<>();
 
@@ -73,32 +74,52 @@ public class JavaWorldReader implements WorldReader {
                     String[] parts = regionFile.getName().split("\\.");
                     if (parts.length != 4 || regionFile.length() < 4096) continue;
 
+                    // Add to the known files
                     knownRegionFiles.add(regionFile.getAbsolutePath());
 
+                    // Parse and add the region
                     try {
                         int x = Integer.parseInt(parts[1]);
                         int z = Integer.parseInt(parts[2]);
+
+                        // Add to the list of regions
                         regions.add(new RegionCoordPair(x, z));
                     } catch (NumberFormatException e) {
-                        // Ignore
+                        // Ignore the region file
                     }
                 }
             }
         }
 
+        // Copy the regions for reading of the world
         HashSet<RegionCoordPair> regionsCopy = new HashSet<>(regions);
+
+        // Submit world info (done before column reading)
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
+        // Handle the reading of the regions
         Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
             if (columnConversionHandler == null) return null;
 
+            // Read the regions sequentially to prevent OOM
             Task<Void> readingRegionFiles = readRegionsSequentially(regionsCopy, knownRegionFiles, columnConversionHandler);
+
+            // Call the flush task after all the region files have been read
             return readingRegionFiles.then("Flushing columns", TaskWeight.MEDIUM, columnConversionHandler::flushColumns);
         });
 
+        // When the region processing is done flush the world
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
+    /**
+     * Read all the regions in the world sequentially to control memory footprint.
+     *
+     * @param regions                 the regions to read.
+     * @param knownRegionFiles        the known files.
+     * @param columnConversionHandler the handler to submit the read columns to.
+     * @return a task that finishes when all regions have been processed.
+     */
     public Task<Void> readRegionsSequentially(Set<RegionCoordPair> regions, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
         return readRegionsSequentially(regions.iterator(), knownRegionFiles, columnConversionHandler);
     }
@@ -111,7 +132,6 @@ public class JavaWorldReader implements WorldReader {
         if (converter.shouldProcessRegion(dimension, region)) {
             File[] regionFiles = getRegionFiles(region, knownRegionFiles);
             return Task.asyncUnwrap("Reading region " + region, TaskWeight.NORMAL, () -> readRegion(regionFiles, region, columnConversionHandler))
-                    .thenConsume("Closing region readers", TaskWeight.NONE, this::closeReaders)
                     .then("Region - Flushing " + region, TaskWeight.MEDIUM, () -> columnConversionHandler.flushRegion(region))
                     .then("GC", TaskWeight.LOW, System::gc)
                     .thenUnwrap("Next region", TaskWeight.LOW, (ignored) -> readRegionsSequentially(iterator, knownRegionFiles, columnConversionHandler));
@@ -120,36 +140,56 @@ public class JavaWorldReader implements WorldReader {
         }
     }
 
+    /**
+     * Read a region file.
+     *
+     * @param regionFiles             the region files which should be read for the region (e.g. entities in later
+     *                                versions).
+     * @param region                  the region co-ordinates.
+     * @param columnConversionHandler the conversion handler to submit the read columns to.
+     * @return the MCAReaders associated with the region.
+     */
+    @SuppressWarnings("resource")
     protected Task<Void> readRegion(@Nullable File[] regionFiles, RegionCoordPair region, ColumnConversionHandler columnConversionHandler) {
         int regionFilesCount = regionFiles.length;
         MCAReader[] mcaReaders = new MCAReader[regionFilesCount];
 
+        // Open all our required files
         boolean foundValidFile = false;
         for (int i = 0; i < regionFilesCount; i++) {
             File file = regionFiles[i];
+
+            // Skip if the file doesn't exist / is invalid
             if (file == null) continue;
+
+            // Otherwise open a random access file
             try {
                 mcaReaders[i] = new MCAReader(converter, file);
                 foundValidFile = true;
             } catch (FileNotFoundException e) {
-                // Ignore
+                // Ignored, it'll be null if this happens
             }
         }
 
+        // Don't continue if there's no files to read
         if (!foundValidFile) {
             converter.logNonFatalException(new Exception("Misnamed region file for " + dimension + ", " + region));
             return Task.async("Failed region", TaskWeight.LOW, () -> {});
         }
 
+        // Stage 1. Collect all known offsets
         Int2ObjectMap<int[]> positionsToOffsets = new Int2ObjectOpenHashMap<>();
         for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
             MCAReader mcaReader = mcaReaders[regionFileIndex];
             if (mcaReader == null) continue;
 
             try {
+                // Read the header which contains the chunk offsets
                 int[] offsets = mcaReader.readOffsetTable();
                 for (int i = 0; i < offsets.length; i++) {
                     int offset = offsets[i];
+
+                    // Only record the offset if it's more than 0, the first 4096 is the header, so it's invalid to be there
                     if (offset > 0) {
                         int[] mcaOffsets = positionsToOffsets.computeIfAbsent(i, (ignored) -> new int[regionFilesCount]);
                         mcaOffsets[regionFileIndex] = offset;
@@ -160,12 +200,14 @@ public class JavaWorldReader implements WorldReader {
             }
         }
 
+        // Stage 2. Iterate found regions, lookup each one and combine the results.
         List<Map.Entry<Integer, int[]>> entries = new ArrayList<>(positionsToOffsets.int2ObjectEntrySet());
         return readColumnsSequentially(entries.iterator(), region, mcaReaders, columnConversionHandler);
     }
 
     private Task<Void> readColumnsSequentially(Iterator<Map.Entry<Integer, int[]>> iterator, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler columnConversionHandler) {
         if (!iterator.hasNext()) {
+            closeReaders(mcaReaders);
             return Task.async("Finished columns for region", TaskWeight.LOW, () -> {});
         }
         Map.Entry<Integer, int[]> entry = iterator.next();
@@ -214,12 +256,24 @@ public class JavaWorldReader implements WorldReader {
         });
     }
 
+    /**
+     * Combine compoundTags fetched from multiple files.
+     *
+     * @param compoundTags the compound tags in the same order as the folders array with null when a tag is missing.
+     * @return the combined compound tag.
+     */
     protected CompoundTag combineColumnCompounds(CompoundTag[] compoundTags) {
+        // By default, no combining is supported in older versions
         if (compoundTags.length > 1)
             throw new IllegalArgumentException("Combining compounds is unsupported at this version");
         return compoundTags[0];
     }
 
+    /**
+     * Close all the MCAReaders in an array.
+     *
+     * @param mcaReaders the readers.
+     */
     protected void closeReaders(MCAReader[] mcaReaders) {
         for (MCAReader mcaReader : mcaReaders) {
             if (mcaReader == null) continue;
@@ -231,27 +285,50 @@ public class JavaWorldReader implements WorldReader {
         }
     }
 
+    /**
+     * Get all the folders which contain MCA files for this dimension.
+     *
+     * @return an array of all the folders (to be combined).
+     */
     protected File[] getMCAFolders() {
+        // Base version only uses region folder
         return new File[]{resolvers.javaLevelDirectoryResolver().getDimensionRegionDirectory(dimensionFolder)};
     }
 
+    /**
+     * Get a list of all the valid MCA files for a region.
+     *
+     * @param region     the region co-ordinates.
+     * @param knownFiles a hashset of absolute paths to known files within the MCAFolders.
+     * @return an array of all the matching .mca files, null entries are used when the file isn't present.
+     */
     protected @Nullable File[] getRegionFiles(RegionCoordPair region, Set<String> knownFiles) {
         File[] folders = getMCAFolders();
         File[] files = new File[folders.length];
 
+        // Create a path for each MCA folder
         File[] mcaFolders = getMCAFolders();
         for (int i = 0; i < mcaFolders.length; i++) {
             File folder = mcaFolders[i];
             File temp = new File(folder, "r." + region.regionX() + "." + region.regionZ() + ".mca");
 
+            // Only add the file if it's known to exist
             if (knownFiles.contains(temp.getAbsolutePath())) {
                 files[i] = temp;
             }
         }
 
+        // Return the files
         return files;
     }
 
+    /**
+     * Create a new column reader.
+     *
+     * @param worldChunkCoords the co-ordinates of the column.
+     * @param columnNBT        the NBT compound which was read for the column.
+     * @return a newly created column reader.
+     */
     public JavaColumnReader createColumnReader(ChunkCoordPair worldChunkCoords, CompoundTag columnNBT) {
         return new JavaColumnReader(converter, resolvers, dimension, worldChunkCoords, columnNBT);
     }
