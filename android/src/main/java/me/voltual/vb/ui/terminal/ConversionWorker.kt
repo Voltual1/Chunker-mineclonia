@@ -16,7 +16,7 @@ import java.io.FileOutputStream
 import java.io.PrintStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.charset.StandardCharsets // 引入标准字符集声明
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
 import okio.FileSystem
@@ -33,7 +33,6 @@ class ConversionWorker(
 
     private var currentConverter: WorldConverter? = null
     private var srcDb: org.iq80.leveldb.DB? = null
-    private var destDb: org.iq80.leveldb.DB? = null
 
     override suspend fun doRemoteWork(): Result {
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
@@ -85,21 +84,7 @@ class ConversionWorker(
         deleteDirectory(sliceInputDir)
         deleteDirectory(sliceOutputDir)
 
-        val isTargetBedrock = targetTypeName.contains("BEDROCK", ignoreCase = true)
-
         try {
-            if (isTargetBedrock) {
-                val finalDbDir = File(outputPathFile, "db")
-                finalDbDir.mkdirs()
-                
-                File(finalDbDir, "LOCK").delete()
-
-                val writeOptions = Options().createIfMissing(true)
-                writeOptions.writeBufferSize(8 * 1024 * 1024)
-                writeOptions.blockSize(4 * 1024)
-                destDb = factory.open(finalDbDir, writeOptions)
-            }
-
             if (srcFormat.contains("JAVA", ignoreCase = true)) {
                 val regionDir = File(inputPathFile, "region")
                 val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
@@ -173,7 +158,7 @@ class ConversionWorker(
                     
                     delay(50)
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
                     ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
@@ -289,7 +274,7 @@ class ConversionWorker(
                     
                     delay(50)
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
                     ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
@@ -321,13 +306,6 @@ class ConversionWorker(
         } catch (ignored: Exception) {}
         finally {
             srcDb = null
-        }
-        
-        try {
-            destDb?.close()
-        } catch (ignored: Exception) {}
-        finally {
-            destDb = null
         }
     }
 
@@ -361,7 +339,7 @@ class ConversionWorker(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?, factory: Iq80DBFactory) {
+    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
         if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
@@ -380,20 +358,34 @@ class ConversionWorker(
             }
         } else if (targetFormat.contains("BEDROCK", ignoreCase = true)) {
             val sliceDbDir = File(sliceOutputDir, "db")
-            if (sliceDbDir.exists() && destDb != null) {
+            val finalDbDir = File(finalOutputDir, "db")
+            if (sliceDbDir.exists()) {
+                // 打开前清理可能悬空的 LOCK 锁文件
+                File(finalDbDir, "LOCK").delete()
+                
                 val writeOptions = Options().createIfMissing(true)
                 writeOptions.writeBufferSize(2 * 1024 * 1024)
                 writeOptions.blockSize(4 * 1024)
                 
-                val srcDb = factory.open(sliceDbDir, writeOptions)
-                val iterator = srcDb.iterator()
-                iterator.seekToFirst()
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    destDb.put(entry.key, entry.value)
+                var targetDb: org.iq80.leveldb.DB? = null
+                var sliceDb: org.iq80.leveldb.DB? = null
+                
+                try {
+                    // 仅在此处打开目标数据库进行极速写入并立马关闭，杜绝长期占用
+                    targetDb = factory.open(finalDbDir, writeOptions)
+                    sliceDb = factory.open(sliceDbDir, writeOptions)
+                    
+                    val iterator = sliceDb.iterator()
+                    iterator.seekToFirst()
+                    while (iterator.hasNext()) {
+                        val entry = iterator.next()
+                        targetDb.put(entry.key, entry.value)
+                    }
+                    iterator.close()
+                } finally {
+                    try { sliceDb?.close() } catch (ignored: Exception) {}
+                    try { targetDb?.close() } catch (ignored: Exception) {}
                 }
-                iterator.close()
-                srcDb.close()
             }
             val levelDat = File(sliceOutputDir, "level.dat")
             if (levelDat.exists()) {

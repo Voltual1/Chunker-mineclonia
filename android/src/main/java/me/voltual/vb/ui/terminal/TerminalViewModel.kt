@@ -123,7 +123,6 @@ class TerminalViewModel(
             logFile.delete()
         }
 
-        // 启动后台物理日志尾随轮询任务
         val tailJob = viewModelScope.launch(Dispatchers.IO) {
             val delayTime = 100L
             var filePointer = 0L
@@ -141,9 +140,7 @@ class TerminalViewModel(
                                 filePointer = length
                             }
                         }
-                    } catch (ignored: Exception) {
-                        // 防止文件读写竞态锁冲突异常
-                    }
+                    } catch (ignored: Exception) {}
                 }
                 delay(delayTime)
             }
@@ -189,7 +186,7 @@ class TerminalViewModel(
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion dispatch failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
-            tailJob.cancel() // 关闭日志尾随任务
+            tailJob.cancel() 
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false

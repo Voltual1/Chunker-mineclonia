@@ -13,7 +13,7 @@ import java.io.File
 
 /**
  * Stores the sliced conversion progress for worlds to allow resume functionality.
- * This object is fully independent of dependency injection frameworks (Koin).
+ * This object is fully independent of dependency injection frameworks (Koin) to allow multi-process safety.
  */
 object ConversionProgressDataStore {
     private var dataStoreInstance: DataStore<Preferences>? = null

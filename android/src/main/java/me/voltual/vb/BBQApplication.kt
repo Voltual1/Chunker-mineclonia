@@ -23,8 +23,6 @@ import java.io.File
 
 class BBQApplication : Application(), KoinStartup {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    
-    // Lazy delegate is only evaluated when accessed, which will never happen in the sub-process
     val themeStore: ThemeColorDataStore by inject()
 
     lateinit var database: AppDatabase
@@ -36,12 +34,11 @@ class BBQApplication : Application(), KoinStartup {
 
         val processName = getProcessName(this)
         
-        // 如果是 :conversion 子进程直接返回，完全跳过 Koin 懒加载评估和主库初始化
+        // 遇到远程多进程服务时，直接退避，防止数据库争锁以及 Koin 载入异常
         if (processName != null && processName.endsWith(":conversion")) {
             return
         }
 
-        // 仅在主进程中执行数据库和主题配置
         database = AppDatabase.getDatabase(this)
         runBlocking {
             ThemeManager.updateCustomColors(themeStore.colorsFlow.first())
