@@ -23,6 +23,7 @@ import java.io.PrintStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
@@ -31,6 +32,7 @@ import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
 import me.voltual.vb.data.ConversionSettingsDataStore
+import me.voltual.vb.data.ConversionProgressDataStore
 import me.voltual.mcl.MclLevelWriter
 import java.util.UUID
 import okio.FileSystem
@@ -40,7 +42,8 @@ import org.iq80.leveldb.impl.Iq80DBFactory
 
 class TerminalViewModel(
     private val context: Context,
-    private val conversionSettingsDataStore: ConversionSettingsDataStore
+    private val conversionSettingsDataStore: ConversionSettingsDataStore,
+    private val conversionProgressDataStore: ConversionProgressDataStore
 ) : ViewModel(), KoinComponent {
 
     private val logRepository: LogRepository by inject()
@@ -110,6 +113,36 @@ class TerminalViewModel(
         }
     }
 
+    private fun calculateWorldIdentity(inputDir: File): String {
+        val iconPng = File(inputDir, "icon.png")
+        val iconJpeg = File(inputDir, "world_icon.jpeg")
+        val targetFile = when {
+            iconPng.exists() -> iconPng
+            iconJpeg.exists() -> iconJpeg
+            else -> null
+        }
+        return if (targetFile != null) {
+            try {
+                val bytes = targetFile.readBytes()
+                val md = MessageDigest.getInstance("MD5")
+                val digest = md.digest(bytes)
+                digest.joinToString("") { "%02x".format(it) }
+            } catch (e: Exception) {
+                getFallbackIdentity(inputDir)
+            }
+        } else {
+            getFallbackIdentity(inputDir)
+        }
+    }
+
+    private fun getFallbackIdentity(inputDir: File): String {
+        val levelDat = File(inputDir, "level.dat")
+        val baseString = inputDir.absolutePath + "_" + (if (levelDat.exists()) levelDat.lastModified() else 0L)
+        val md = MessageDigest.getInstance("MD5")
+        val digest = md.digest(baseString.toByteArray(StandardCharsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
+    }
+
     private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
         val outBridge = TerminalPrintStream(session, crashLogFile)
@@ -142,6 +175,10 @@ class TerminalViewModel(
             val inputPathFile = File(args.inputPath)
             val outputPathFile = File(args.outputPath)
 
+            // 计算该世界存档的唯一识别 MD5 (通过 icon 或是 fallback)
+            val worldId = calculateWorldIdentity(inputPathFile)
+            val lastSavedProgressIndex = conversionProgressDataStore.getProgress(worldId)
+
             val tempDetectConverter = WorldConverter(UUID.randomUUID())
             val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
             if (!readerOptional.isPresent) {
@@ -159,18 +196,21 @@ class TerminalViewModel(
             val sliceInputDir = File(context.cacheDir, "slice_input")
             val sliceOutputDir = File(context.cacheDir, "slice_output")
             
+            // 如果不是断点续传（即初次运行），清空目标文件夹
+            if (lastSavedProgressIndex == 0) {
+                deleteDirectory(outputPathFile)
+            }
+            
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
-            deleteDirectory(outputPathFile)
 
             val isTargetBedrock = targetTypeName.contains("BEDROCK", ignoreCase = true)
-            val factory = Iq80DBFactory.factory
+            val factory = Iq80DBFactory() // 实例化
 
-            // 在最外层打开目标数据库连接以重用并减小开销
             if (isTargetBedrock) {
                 val finalDbDir = File(outputPathFile, "db")
                 val writeOptions = Options().createIfMissing(true)
-                writeOptions.writeBufferSize(8 * 1024 * 1024) // 限制为 8MB 缓存
+                writeOptions.writeBufferSize(8 * 1024 * 1024) 
                 writeOptions.blockSize(4 * 1024)
                 destDb = factory.open(finalDbDir, writeOptions)
             }
@@ -180,9 +220,16 @@ class TerminalViewModel(
                 val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
                 
                 outBridge.println("Java Save detected. Slicing world into ${mcaFiles.size} region files...")
+                if (lastSavedProgressIndex > 0) {
+                    outBridge.println("\u001B[36m[Resume] Found previous progress. Resuming from Region file ${lastSavedProgressIndex + 1}/${mcaFiles.size}...\u001B[0m")
+                }
 
                 for ((index, mcaFile) in mcaFiles.withIndex()) {
                     if (!isRunning) break
+                    // 断点续传过滤逻辑
+                    if (index < lastSavedProgressIndex) {
+                        continue;
+                    }
                     
                     val runtime = Runtime.getRuntime()
                     val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -229,8 +276,11 @@ class TerminalViewModel(
                     val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
                     trackedTask.future().get()
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     
+                    // 保存成功完成的分片索引进度
+                    conversionProgressDataStore.saveProgress(worldId, index + 1)
+
                     System.gc()
                     System.runFinalization()
                     val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -246,23 +296,32 @@ class TerminalViewModel(
                 outBridge.println("Bedrock Save detected. Analysing database keys...")
                 srcDb = factory.open(srcDbDir, dbOptions)
                 
-                val regionCoords = mutableSetOf<Pair<Int, Int>>()
+                val regionCoords = mutableListOf<Pair<Int, Int>>()
                 val iterator = srcDb.iterator()
                 iterator.seekToFirst()
                 while (iterator.hasNext()) {
                     val entry = iterator.next()
-                    val key = entry.key
+                    val key = entry.key()
                     if (isBedrockChunkKey(key)) {
                         val (cx, cz) = getBedrockChunkCoords(key)
-                        regionCoords.add(Pair(cx shr 5, cz shr 5))
+                        val pair = Pair(cx shr 5, cz shr 5)
+                        if (!regionCoords.contains(pair)) {
+                            regionCoords.add(pair)
+                        }
                     }
                 }
                 iterator.close()
 
                 outBridge.println("Slicing Bedrock database into ${regionCoords.size} region segments...")
+                if (lastSavedProgressIndex > 0) {
+                    outBridge.println("\u001B[36m[Resume] Found previous progress. Resuming from Bedrock Region ${lastSavedProgressIndex + 1}/${regionCoords.size}...\u001B[0m")
+                }
 
                 for ((index, region) in regionCoords.withIndex()) {
                     if (!isRunning) break
+                    if (index < lastSavedProgressIndex) {
+                        continue;
+                    }
                     
                     val runtime = Runtime.getRuntime()
                     val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -278,7 +337,6 @@ class TerminalViewModel(
                         copyFile(levelDat, File(sliceInputDir, "level.dat"))
                     }
 
-                    // 仅向临时数据库写入匹配当前坐标的块数据
                     val sliceDbDir = File(sliceInputDir, "db")
                     sliceDbDir.mkdirs()
                     val tempDbOptions = Options().createIfMissing(true)
@@ -290,14 +348,14 @@ class TerminalViewModel(
                     readIterator.seekToFirst()
                     while (readIterator.hasNext()) {
                         val entry = readIterator.next()
-                        val key = entry.key
+                        val key = entry.key()
                         if (isBedrockChunkKey(key)) {
                             val (cx, cz) = getBedrockChunkCoords(key)
                             if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
-                                tempDb.put(key, entry.value)
+                                tempDb.put(key, entry.value())
                             }
                         } else {
-                            tempDb.put(key, entry.value)
+                            tempDb.put(key, entry.value())
                         }
                     }
                     readIterator.close()
@@ -323,8 +381,10 @@ class TerminalViewModel(
                     val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
                     trackedTask.future().get()
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     
+                    conversionProgressDataStore.saveProgress(worldId, index + 1)
+
                     System.gc()
                     System.runFinalization()
                     val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -337,6 +397,8 @@ class TerminalViewModel(
             deleteDirectory(sliceOutputDir)
 
             if (isSuccess) {
+                // 如果完全成功，清除该世界的进度档案，防止下次转换强制断点续传
+                conversionProgressDataStore.clearProgress(worldId)
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Sliced conversion completed successfully!\u001B[0m")
             }
 
@@ -344,7 +406,6 @@ class TerminalViewModel(
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
-            // 确保最外层打开的数据库被完全关闭
             try { srcDb?.close() } catch (ignored: Exception) {}
             try { destDb?.close() } catch (ignored: Exception) {}
 
@@ -378,7 +439,7 @@ class TerminalViewModel(
         }
     }
 
-    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?) {
+    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?, factory: Iq80DBFactory) {
         if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
@@ -407,7 +468,7 @@ class TerminalViewModel(
                 iterator.seekToFirst()
                 while (iterator.hasNext()) {
                     val entry = iterator.next()
-                    destDb.put(entry.key, entry.value)
+                    destDb.put(entry.key(), entry.value())
                 }
                 iterator.close()
                 srcDb.close()
