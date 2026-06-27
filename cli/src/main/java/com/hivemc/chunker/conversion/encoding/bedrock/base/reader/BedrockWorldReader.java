@@ -10,7 +10,6 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
-import com.hivemc.chunker.scheduling.task.ProgressiveTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -50,61 +49,67 @@ public class BedrockWorldReader implements WorldReader {
 
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
-        Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
-            if (columnConversionHandler == null) return;
+        Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
+            if (columnConversionHandler == null) return Task.async("Skip", TaskWeight.LOW, () -> {});
 
-            try {
-                readRegionsSync(presentRegions, columnConversionHandler);
-            } catch (Throwable t) {
-                converter.logNonFatalException(t);
-            }
-
-            columnConversionHandler.flushColumns();
+            // Kick off the fully asynchronous recursive promise chain
+            List<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> regionList = new ArrayList<>(presentRegions.entrySet());
+            return processRegionsAsync(regionList, 0, columnConversionHandler);
         });
 
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
-    public void readRegionsSync(Map<RegionCoordPair, Set<ChunkCoordPair>> regions, ColumnConversionHandler columnConversionHandler) {
-        for (Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region : regions.entrySet()) {
-            if (converter.isCancelled()) break;
-            if (converter.shouldProcessRegion(dimension, region.getKey())) {
-                readRegionSync(region, columnConversionHandler);
-                columnConversionHandler.flushRegion(region.getKey()); 
-                System.gc(); 
-            }
+    /**
+     * Asynchronously process regions one by one using a promise chain.
+     */
+    protected Task<Void> processRegionsAsync(List<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> regions, int index, ColumnConversionHandler handler) {
+        if (index >= regions.size() || converter.isCancelled()) {
+            handler.flushColumns();
+            return Task.async("Regions Done", TaskWeight.LOW, () -> {});
         }
+
+        Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region = regions.get(index);
+        if (!converter.shouldProcessRegion(dimension, region.getKey())) {
+            return processRegionsAsync(regions, index + 1, handler);
+        }
+
+        List<ChunkCoordPair> chunks = new ArrayList<>(region.getValue());
+        return processBatchAsync(chunks, 0, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
+            handler.flushRegion(region.getKey());
+            System.gc(); // Explicit hint to JVM for memory reclaim
+            return processRegionsAsync(regions, index + 1, handler);
+        });
     }
 
-    public void readRegionSync(Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region, ColumnConversionHandler columnConversionHandler) {
-        List<Task<Void>> activeBatches = new ArrayList<>(MAX_CONCURRENT_COLUMNS);
+    /**
+     * Micro-batching using Promise chains. Processes 32 columns, then yields and chains the next 32.
+     */
+    protected Task<Void> processBatchAsync(List<ChunkCoordPair> chunks, int startIndex, ColumnConversionHandler handler) {
+        if (startIndex >= chunks.size() || converter.isCancelled()) {
+            return Task.async("Batch Done", TaskWeight.LOW, () -> {});
+        }
 
-        for (ChunkCoordPair chunkCoordPair : region.getValue()) {
-            if (converter.isCancelled()) break;
+        int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, chunks.size());
+        List<Task<Void>> activeBatches = new ArrayList<>(endIndex - startIndex);
+
+        for (int i = startIndex; i < endIndex; i++) {
+            ChunkCoordPair chunkCoordPair = chunks.get(i);
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
 
-            if (activeBatches.size() >= MAX_CONCURRENT_COLUMNS) {
-                try {
-                    Task.join(activeBatches).future().get();
-                } catch (Exception e) {
-                    converter.logNonFatalException(e);
-                }
-                activeBatches.clear();
-            }
-
             BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
-            Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, columnConversionHandler);
+            Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, handler);
             activeBatches.add(columnTask);
         }
 
-        if (!activeBatches.isEmpty()) {
-            try {
-                Task.join(activeBatches).future().get();
-            } catch (Exception e) {
-                converter.logNonFatalException(e);
-            }
-            activeBatches.clear();
+        if (activeBatches.isEmpty()) {
+            return processBatchAsync(chunks, endIndex, handler);
         }
+
+        // Wait for all 32 to finish NON-BLOCKING, then chain the next batch
+        return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
+            return processBatchAsync(chunks, endIndex, handler);
+        });
     }
 
     public BedrockColumnReader createColumnReader(ChunkCoordPair worldChunkCoords) {

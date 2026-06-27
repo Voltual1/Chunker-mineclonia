@@ -36,7 +36,7 @@ public class JavaWorldReader implements WorldReader {
     protected final File dimensionFolder;
     protected final Dimension dimension;
 
-    // The maximum number of columns to process concurrently before forcing a pipeline flush
+    // The maximum number of columns to process concurrently before chaining the next batch
     private static final int MAX_CONCURRENT_COLUMNS = 32;
 
     public JavaWorldReader(Converter converter, JavaResolvers resolvers, File dimensionFolder, Dimension dimension) {
@@ -77,41 +77,44 @@ public class JavaWorldReader implements WorldReader {
             }
         }
 
-        HashSet<RegionCoordPair> regionsCopy = new HashSet<>(regions);
         Task<ColumnConversionHandler> convertWorld = worldConversionHandler.convertWorld(chunkerWorld);
 
-        Task<Void> regionProcessing = convertWorld.thenConsume("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
-            if (columnConversionHandler == null) return;
-
-            try {
-                readRegionsSync(regionsCopy, knownRegionFiles, columnConversionHandler);
-            } catch (Throwable t) {
-                converter.logNonFatalException(t);
-            }
-
-            columnConversionHandler.flushColumns();
+        Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
+            if (columnConversionHandler == null) return Task.async("Skip", TaskWeight.LOW, () -> {});
+            
+            // Kick off the fully asynchronous recursive promise chain
+            return processRegionsAsync(new ArrayList<>(regions), 0, knownRegionFiles, columnConversionHandler);
         });
 
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
-    protected void readRegionsSync(Set<RegionCoordPair> regions, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
-        for (RegionCoordPair region : regions) {
-            if (converter.isCancelled()) break;
-            if (converter.shouldProcessRegion(dimension, region)) {
-                readRegionSync(region, knownRegionFiles, columnConversionHandler);
-                
-                // Block until ALL columns in the region have been written out to prevent runaway memory
-                columnConversionHandler.flushRegion(region); 
-                
-                // Force JVM GC to reclaim NBT objects immediately after a region is done
-                System.gc(); 
-            }
+    /**
+     * Asynchronously process regions one by one using a promise chain.
+     */
+    protected Task<Void> processRegionsAsync(List<RegionCoordPair> regions, int index, Set<String> knownFiles, ColumnConversionHandler handler) {
+        if (index >= regions.size() || converter.isCancelled()) {
+            handler.flushColumns();
+            return Task.async("Regions Done", TaskWeight.LOW, () -> {});
         }
+
+        RegionCoordPair region = regions.get(index);
+        if (!converter.shouldProcessRegion(dimension, region)) {
+            return processRegionsAsync(regions, index + 1, knownFiles, handler);
+        }
+
+        return readRegionAsync(region, knownFiles, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
+            handler.flushRegion(region); // Safe to flush, the previous region tasks are completely finished
+            System.gc(); // Explicit hint to JVM for memory reclaim
+            return processRegionsAsync(regions, index + 1, knownFiles, handler);
+        });
     }
 
-    protected void readRegionSync(RegionCoordPair region, Set<String> knownRegionFiles, ColumnConversionHandler columnConversionHandler) {
-        File[] regionFiles = getRegionFiles(region, knownRegionFiles);
+    /**
+     * Asynchronously read a region's columns via batching.
+     */
+    protected Task<Void> readRegionAsync(RegionCoordPair region, Set<String> knownFiles, ColumnConversionHandler handler) {
+        File[] regionFiles = getRegionFiles(region, knownFiles);
         int regionFilesCount = regionFiles.length;
         MCAReader[] mcaReaders = new MCAReader[regionFilesCount];
 
@@ -128,7 +131,7 @@ public class JavaWorldReader implements WorldReader {
         }
 
         if (!foundValidFile) {
-            return;
+            return Task.async("Skip Region", TaskWeight.LOW, () -> {});
         }
 
         try {
@@ -147,66 +150,73 @@ public class JavaWorldReader implements WorldReader {
                 }
             }
 
-            List<Task<Void>> activeBatches = new ArrayList<>(MAX_CONCURRENT_COLUMNS);
+            List<Int2ObjectMap.Entry<int[]>> entries = new ArrayList<>(positionsToOffsets.int2ObjectEntrySet());
+            
+            // Start processing batches asynchronously
+            return processBatchAsync(entries, 0, region, mcaReaders, handler)
+                    .thenConsume("Close Readers", TaskWeight.LOW, (ignore) -> closeReaders(mcaReaders));
 
-            for (Int2ObjectMap.Entry<int[]> entry : positionsToOffsets.int2ObjectEntrySet()) {
-                if (converter.isCancelled()) break;
+        } catch (Exception e) {
+            converter.logNonFatalException(e);
+            closeReaders(mcaReaders);
+            return Task.async("Region Error", TaskWeight.LOW, () -> {});
+        }
+    }
 
-                ChunkCoordPair localCoords = new ChunkCoordPair(
-                        entry.getIntKey() & 31,
-                        entry.getIntKey() >> 5
-                );
-                ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
-                int[] columnFileOffsets = entry.getValue();
+    /**
+     * Micro-batching using Promise chains. Processes 32 columns, then yields and chains the next 32.
+     */
+    protected Task<Void> processBatchAsync(List<Int2ObjectMap.Entry<int[]>> entries, int startIndex, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler handler) {
+        if (startIndex >= entries.size() || converter.isCancelled()) {
+            return Task.async("Batch Done", TaskWeight.LOW, () -> {});
+        }
 
-                if (!converter.shouldProcessColumn(dimension, columnsCoords)) continue;
+        int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, entries.size());
+        List<Task<Void>> activeBatches = new ArrayList<>(endIndex - startIndex);
 
-                // Micro-batching: Block completely if we hit our column limit
-                if (activeBatches.size() >= MAX_CONCURRENT_COLUMNS) {
-                    try {
-                        Task.join(activeBatches).future().get(); // Wait for all columns in this batch to finish completely
-                    } catch (Exception e) {
-                        converter.logNonFatalException(e);
-                    }
-                    activeBatches.clear();
-                }
+        for (int i = startIndex; i < endIndex; i++) {
+            Int2ObjectMap.Entry<int[]> entry = entries.get(i);
+            ChunkCoordPair localCoords = new ChunkCoordPair(
+                    entry.getIntKey() & 31,
+                    entry.getIntKey() >> 5
+            );
+            ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
+            int[] columnFileOffsets = entry.getValue();
 
-                // Read bytes synchronously to avoid OOM from queued readers
-                CompoundTag[] compoundTags = new CompoundTag[regionFilesCount];
-                for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
+            if (!converter.shouldProcessColumn(dimension, columnsCoords)) continue;
+
+            try {
+                // Sync read bytes
+                CompoundTag[] compoundTags = new CompoundTag[mcaReaders.length];
+                for (int regionFileIndex = 0; regionFileIndex < mcaReaders.length; regionFileIndex++) {
                     MCAReader mcaReader = mcaReaders[regionFileIndex];
                     if (mcaReader == null) continue;
 
                     int offset = columnFileOffsets[regionFileIndex];
                     if (offset <= 0) continue;
 
-                    // SYNC READ AND DECOMPRESS: Do not push this to queue. Memory is allocated strictly per-batch.
                     compoundTags[regionFileIndex] = mcaReader.readColumnSync(columnsCoords, offset);
                 }
 
                 CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
                 JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
-                
-                // Process in Task Executor and track it
-                Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, columnConversionHandler);
+
+                // Push inner conversion task
+                Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, handler);
                 activeBatches.add(columnTask);
+            } catch (Exception e) {
+                converter.logNonFatalException(e);
             }
-
-            // Await remainder of the batch
-            if (!activeBatches.isEmpty()) {
-                try {
-                    Task.join(activeBatches).future().get();
-                } catch (Exception e) {
-                    converter.logNonFatalException(e);
-                }
-                activeBatches.clear();
-            }
-
-        } catch (Exception e) {
-            converter.logNonFatalException(e);
-        } finally {
-            closeReaders(mcaReaders);
         }
+
+        if (activeBatches.isEmpty()) {
+            return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
+        }
+
+        // Wait for all 32 to finish NON-BLOCKING, then chain the next batch
+        return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
+            return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
+        });
     }
 
     protected CompoundTag combineColumnCompounds(CompoundTag[] compoundTags) {
@@ -243,6 +253,7 @@ public class JavaWorldReader implements WorldReader {
                 files[i] = temp;
             }
         }
+
         return files;
     }
 
