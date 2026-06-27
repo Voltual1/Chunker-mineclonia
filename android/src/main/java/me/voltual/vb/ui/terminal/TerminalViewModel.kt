@@ -124,6 +124,9 @@ class TerminalViewModel(
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
+        var srcDb: org.iq80.leveldb.DB? = null
+        var destDb: org.iq80.leveldb.DB? = null
+
         try {
             val isMineclonia = args.format == "MINECLONIA"
             val targetEngine = if (isMineclonia) "Mineclonia" else "Chunker"
@@ -139,7 +142,6 @@ class TerminalViewModel(
             val inputPathFile = File(args.inputPath)
             val outputPathFile = File(args.outputPath)
 
-            // 1. 检测输入格式
             val tempDetectConverter = WorldConverter(UUID.randomUUID())
             val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
             if (!readerOptional.isPresent) {
@@ -149,24 +151,31 @@ class TerminalViewModel(
             val srcFormat = reader.encodingType.name
             outBridge.println("Detected format: \u001B[32m$srcFormat\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
 
-            // 2. 解析目标输出设置
             val targetTypeName = if (isMineclonia) "MINECLONIA" else args.format.substringBefore("_")
             val targetVersionString = if (isMineclonia) "1.12.2" else args.format.substringAfter("_").replace("_", ".")
             val encodingType = if (isMineclonia) null else EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
             val outputVersion = if (isMineclonia) Version.fromString("1.12.2") else Version.fromString(targetVersionString)
 
-            // 创建物理切片和工作临时目录
             val sliceInputDir = File(context.cacheDir, "slice_input")
             val sliceOutputDir = File(context.cacheDir, "slice_output")
             
-            // 确保目录干净
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
             deleteDirectory(outputPathFile)
 
-            // 开始物理分片逻辑
+            val isTargetBedrock = targetTypeName.contains("BEDROCK", ignoreCase = true)
+            val factory = Iq80DBFactory.factory
+
+            // 在最外层打开目标数据库连接以重用并减小开销
+            if (isTargetBedrock) {
+                val finalDbDir = File(outputPathFile, "db")
+                val writeOptions = Options().createIfMissing(true)
+                writeOptions.writeBufferSize(8 * 1024 * 1024) // 限制为 8MB 缓存
+                writeOptions.blockSize(4 * 1024)
+                destDb = factory.open(finalDbDir, writeOptions)
+            }
+
             if (srcFormat.contains("JAVA", ignoreCase = true)) {
-                // Java 输入分片：搜集所有存在的 .mca 区域坐标
                 val regionDir = File(inputPathFile, "region")
                 val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
                 
@@ -174,24 +183,23 @@ class TerminalViewModel(
 
                 for ((index, mcaFile) in mcaFiles.withIndex()) {
                     if (!isRunning) break
-                    outBridge.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name}")
+                    
+                    val runtime = Runtime.getRuntime()
+                    val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+                    outBridge.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${preMem}MB")
 
-                    // 清空临时目录
                     deleteDirectory(sliceInputDir)
                     deleteDirectory(sliceOutputDir)
                     sliceInputDir.mkdirs()
                     sliceOutputDir.mkdirs()
 
-                    // 拷贝 level.dat
                     val levelDat = File(inputPathFile, "level.dat")
                     if (levelDat.exists()) {
                         copyFile(levelDat, File(sliceInputDir, "level.dat"))
                     }
 
-                    // 拷贝当前 MCA 片段
                     copyFile(mcaFile, File(sliceInputDir, "region/${mcaFile.name}"))
                     
-                    // 拷贝对应的 entities 和 poi MCA 副本（如果存在）
                     val entitiesFile = File(inputPathFile, "entities/${mcaFile.name}")
                     if (entitiesFile.exists()) {
                         copyFile(entitiesFile, File(sliceInputDir, "entities/${mcaFile.name}"))
@@ -201,104 +209,6 @@ class TerminalViewModel(
                         copyFile(poiFile, File(sliceInputDir, "poi/${mcaFile.name}"))
                     }
 
-                    // 运行 Chunker 转换这一个分片
-                    val sliceConverter = WorldConverter(UUID.randomUUID())
-                    sliceConverter.setProcessItems(true)
-                    sliceConverter.setProcessEntities(true)
-                    sliceConverter.setProcessBlockEntities(true)
-                    sliceConverter.setProcessBiomes(true)
-                    sliceConverter.setProcessLighting(true)
-                    sliceConverter.setProcessColumnPreTransform(false)
-                    sliceConverter.setThreadCount(userThreadCount)
-                    sliceConverter.setProcessMaps(userProcessMaps)
-
-                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-                    val sliceWriter = if (isMineclonia) {
-                        MclLevelWriter(sliceOutputDir)
-                    } else {
-                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
-                    }
-
-                    val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
-                    trackedTask.future().get() // 等待此分片转换完毕
-
-                    // 合并该分片到最终输出目录
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName)
-                    
-                    // 每一轮强制 GC，确保这 1 个区域产生的内存垃圾彻底烟消云散
-                    System.gc()
-                    System.runFinalization()
-                }
-                isSuccess = true
-            } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
-                // Bedrock 输入分片：按区域过滤 Key
-                val srcDbDir = File(inputPathFile, "db")
-                val factory = Iq80DBFactory.factory
-                val dbOptions = Options().createIfMissing(false)
-                
-                outBridge.println("Bedrock Save detected. Analysing database keys...")
-                val srcDb = factory.open(srcDbDir, dbOptions)
-                
-                // 整理所有的 Region 坐标
-                val regionCoords = mutableSetOf<Pair<Int, Int>>()
-                val iterator = srcDb.iterator()
-                iterator.seekToFirst()
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    val key = entry.key
-                    if (isBedrockChunkKey(key)) {
-                        val (cx, cz) = getBedrockChunkCoords(key)
-                        regionCoords.add(Pair(cx shr 5, cz shr 5))
-                    }
-                }
-                iterator.close()
-                srcDb.close()
-
-                outBridge.println("Slicing Bedrock database into ${regionCoords.size} region segments...")
-
-                for ((index, region) in regionCoords.withIndex()) {
-                    if (!isRunning) break
-                    outBridge.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second})")
-
-                    // 清空临时目录
-                    deleteDirectory(sliceInputDir)
-                    deleteDirectory(sliceOutputDir)
-                    sliceInputDir.mkdirs()
-                    sliceOutputDir.mkdirs()
-
-                    // 拷贝 level.dat
-                    val levelDat = File(inputPathFile, "level.dat")
-                    if (levelDat.exists()) {
-                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
-                    }
-
-                    // 从原版 Bedrock DB 提取只属于此 Region 的 Chunks 以及全局 Metadata 写入临时 Bedrock DB
-                    val sliceDbDir = File(sliceInputDir, "db")
-                    sliceDbDir.mkdirs()
-                    val tempDbOptions = Options().createIfMissing(true)
-                    val tempDb = factory.open(sliceDbDir, tempDbOptions)
-                    
-                    val readDb = factory.open(srcDbDir, dbOptions)
-                    val readIterator = readDb.iterator()
-                    readIterator.seekToFirst()
-                    while (readIterator.hasNext()) {
-                        val entry = readIterator.next()
-                        val key = entry.key
-                        if (isBedrockChunkKey(key)) {
-                            val (cx, cz) = getBedrockChunkCoords(key)
-                            if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
-                                tempDb.put(key, entry.value)
-                            }
-                        } else {
-                            // 拷贝全局 Metadata
-                            tempDb.put(key, entry.value)
-                        }
-                    }
-                    readIterator.close()
-                    readDb.close()
-                    tempDb.close()
-
-                    // 转换这个物理切片
                     val sliceConverter = WorldConverter(UUID.randomUUID())
                     sliceConverter.setProcessItems(true)
                     sliceConverter.setProcessEntities(true)
@@ -319,16 +229,110 @@ class TerminalViewModel(
                     val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
                     trackedTask.future().get()
 
-                    // 合并结果
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
                     
                     System.gc()
                     System.runFinalization()
+                    val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+                    outBridge.println("[Memory] GC completed. Heap: ${postMem}MB")
+                }
+                isSuccess = true
+            } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
+                val srcDbDir = File(inputPathFile, "db")
+                val dbOptions = Options().createIfMissing(false)
+                dbOptions.writeBufferSize(8 * 1024 * 1024)
+                dbOptions.blockSize(4 * 1024)
+                
+                outBridge.println("Bedrock Save detected. Analysing database keys...")
+                srcDb = factory.open(srcDbDir, dbOptions)
+                
+                val regionCoords = mutableSetOf<Pair<Int, Int>>()
+                val iterator = srcDb.iterator()
+                iterator.seekToFirst()
+                while (iterator.hasNext()) {
+                    val entry = iterator.next()
+                    val key = entry.key
+                    if (isBedrockChunkKey(key)) {
+                        val (cx, cz) = getBedrockChunkCoords(key)
+                        regionCoords.add(Pair(cx shr 5, cz shr 5))
+                    }
+                }
+                iterator.close()
+
+                outBridge.println("Slicing Bedrock database into ${regionCoords.size} region segments...")
+
+                for ((index, region) in regionCoords.withIndex()) {
+                    if (!isRunning) break
+                    
+                    val runtime = Runtime.getRuntime()
+                    val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+                    outBridge.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${preMem}MB")
+
+                    deleteDirectory(sliceInputDir)
+                    deleteDirectory(sliceOutputDir)
+                    sliceInputDir.mkdirs()
+                    sliceOutputDir.mkdirs()
+
+                    val levelDat = File(inputPathFile, "level.dat")
+                    if (levelDat.exists()) {
+                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
+                    }
+
+                    // 仅向临时数据库写入匹配当前坐标的块数据
+                    val sliceDbDir = File(sliceInputDir, "db")
+                    sliceDbDir.mkdirs()
+                    val tempDbOptions = Options().createIfMissing(true)
+                    tempDbOptions.writeBufferSize(2 * 1024 * 1024)
+                    tempDbOptions.blockSize(4 * 1024)
+                    val tempDb = factory.open(sliceDbDir, tempDbOptions)
+                    
+                    val readIterator = srcDb.iterator()
+                    readIterator.seekToFirst()
+                    while (readIterator.hasNext()) {
+                        val entry = readIterator.next()
+                        val key = entry.key
+                        if (isBedrockChunkKey(key)) {
+                            val (cx, cz) = getBedrockChunkCoords(key)
+                            if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
+                                tempDb.put(key, entry.value)
+                            }
+                        } else {
+                            tempDb.put(key, entry.value)
+                        }
+                    }
+                    readIterator.close()
+                    tempDb.close()
+
+                    val sliceConverter = WorldConverter(UUID.randomUUID())
+                    sliceConverter.setProcessItems(true)
+                    sliceConverter.setProcessEntities(true)
+                    sliceConverter.setProcessBlockEntities(true)
+                    sliceConverter.setProcessBiomes(true)
+                    sliceConverter.setProcessLighting(true)
+                    sliceConverter.setProcessColumnPreTransform(false)
+                    sliceConverter.setThreadCount(userThreadCount)
+                    sliceConverter.setProcessMaps(userProcessMaps)
+
+                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
+                    val sliceWriter = if (isMineclonia) {
+                        MclLevelWriter(sliceOutputDir)
+                    } else {
+                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
+                    }
+
+                    val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
+                    trackedTask.future().get()
+
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
+                    
+                    System.gc()
+                    System.runFinalization()
+                    val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+                    outBridge.println("[Memory] GC completed. Heap: ${postMem}MB")
                 }
                 isSuccess = true
             }
 
-            // 清理临时碎片文件
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
 
@@ -340,6 +344,10 @@ class TerminalViewModel(
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
+            // 确保最外层打开的数据库被完全关闭
+            try { srcDb?.close() } catch (ignored: Exception) {}
+            try { destDb?.close() } catch (ignored: Exception) {}
+
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false
@@ -370,12 +378,8 @@ class TerminalViewModel(
         }
     }
 
-    /**
-     * 将临时分片的转换结果，合并到最终存档中
-     */
-    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String) {
+    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?) {
         if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
-            // 合并到 Java 存档：直接物理拷贝所有的 MCA 文件
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
                 val srcFolder = File(sliceOutputDir, folderName)
@@ -387,23 +391,17 @@ class TerminalViewModel(
                     }
                 }
             }
-            // 覆盖拷贝 level.dat
             val levelDat = File(sliceOutputDir, "level.dat")
             if (levelDat.exists()) {
                 copyFile(levelDat, File(finalOutputDir, "level.dat"))
             }
         } else if (targetFormat.contains("BEDROCK", ignoreCase = true)) {
-            // 合并到 Bedrock 存档：将临时 LevelDB 写入总 LevelDB
             val sliceDbDir = File(sliceOutputDir, "db")
-            val finalDbDir = File(finalOutputDir, "db")
-            
-            val factory = Iq80DBFactory.factory
-            val writeOptions = Options().createIfMissing(true)
-            writeOptions.writeBufferSize(8 * 1024 * 1024)
-            writeOptions.blockSize(4 * 1024)
-
-            val destDb = factory.open(finalDbDir, writeOptions)
-            if (sliceDbDir.exists()) {
+            if (sliceDbDir.exists() && destDb != null) {
+                val writeOptions = Options().createIfMissing(true)
+                writeOptions.writeBufferSize(2 * 1024 * 1024)
+                writeOptions.blockSize(4 * 1024)
+                
                 val srcDb = factory.open(sliceDbDir, writeOptions)
                 val iterator = srcDb.iterator()
                 iterator.seekToFirst()
@@ -414,9 +412,6 @@ class TerminalViewModel(
                 iterator.close()
                 srcDb.close()
             }
-            destDb.close()
-
-            // 拷贝 level.dat
             val levelDat = File(sliceOutputDir, "level.dat")
             if (levelDat.exists()) {
                 copyFile(levelDat, File(finalOutputDir, "level.dat"))
