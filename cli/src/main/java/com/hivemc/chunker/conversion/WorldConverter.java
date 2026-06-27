@@ -31,7 +31,6 @@ import com.hivemc.chunker.scheduling.task.Environment;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import com.hivemc.chunker.scheduling.task.TrackedTask;
-import com.hivemc.chunker.scheduling.task.executor.TaskExecutor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -184,7 +183,7 @@ public class WorldConverter implements Converter {
                 if (overlap) return true;
             } else {
                 boolean fullyContained = minRegionChunk.chunkX() >= region.getMinChunkX() && maxRegionChunk.chunkX() <= region.getMaxChunkX() &&
-                        minRegionChunk.chunkZ() >= region.getMinChunkZ() && maxRegionChunk.chunkZ() <= region.getMaxChunkZ();
+                        minRegionChunk.chunkZ() >= region.getMinChunkZ() && maxRegionChunk.chunkZ() <= maxRegionChunk.chunkZ();
                 if (fullyContained) return false;
             }
         }
@@ -271,11 +270,13 @@ public class WorldConverter implements Converter {
             pipeline.worldHandlers((delegate, level) -> new WorldHandler(this, delegate));
 
             if (shouldProcessColumnPreTransform()) {
+                // If pre-transform is enabled, keep the heavy pending/caching logic
                 pipeline.columnHandlers(
                         (delegate, world) -> new ColumnPreTransformWriterConversionHandler(writer::getPreTransformManager, delegate, true),
                         ColumnPreTransformConversionHandler::new
                 );
             } else {
+                // FIX MEMORY LEAK: Completely omit the memory-hogging ColumnPreTransformConversionHandler caching layer
                 pipeline.columnHandlers(
                         (delegate, world) -> new ColumnPreTransformWriterConversionHandler(writer::getPreTransformManager, delegate, false)
                 );
