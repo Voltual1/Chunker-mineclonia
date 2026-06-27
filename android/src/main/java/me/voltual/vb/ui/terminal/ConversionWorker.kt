@@ -92,6 +92,11 @@ class ConversionWorker(
         try {
             if (isTargetBedrock) {
                 val finalDbDir = File(outputPathFile, "db")
+                finalDbDir.mkdirs()
+                
+                // 彻底删除残留的 LOCK 文件，确保打开前干净
+                File(finalDbDir, "LOCK").delete()
+
                 val writeOptions = Options().createIfMissing(true)
                 writeOptions.writeBufferSize(8 * 1024 * 1024)
                 writeOptions.blockSize(4 * 1024)
@@ -113,6 +118,9 @@ class ConversionWorker(
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
                         ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
+                        
+                        // 重要：返回 retry 前必须关闭所有持有 LOCK 的数据库连接句柄并置空
+                        closeDatabases()
                         return Result.retry()
                     }
 
@@ -167,6 +175,8 @@ class ConversionWorker(
                 }
             } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
                 val srcDbDir = File(inputPathFile, "db")
+                File(srcDbDir, "LOCK").delete()
+
                 val dbOptions = Options().createIfMissing(false)
                 dbOptions.writeBufferSize(8 * 1024 * 1024)
                 dbOptions.blockSize(4 * 1024)
@@ -200,6 +210,8 @@ class ConversionWorker(
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
                         ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
+                        
+                        closeDatabases()
                         return Result.retry()
                     }
 
@@ -217,6 +229,8 @@ class ConversionWorker(
 
                     val sliceDbDir = File(sliceInputDir, "db")
                     sliceDbDir.mkdirs()
+                    File(sliceDbDir, "LOCK").delete()
+
                     val tempDbOptions = Options().createIfMissing(true)
                     tempDbOptions.writeBufferSize(2 * 1024 * 1024)
                     tempDbOptions.blockSize(4 * 1024)
@@ -277,12 +291,26 @@ class ConversionWorker(
             e.printStackTrace()
             return Result.failure()
         } finally {
-            // FIX: Resource cleanup handled strictly here as onStopped is final in CoroutineWorker
-            currentConverter?.cancel(null)
-            try { srcDb?.close() } catch (ignored: Exception) {}
-            try { destDb?.close() } catch (ignored: Exception) {}
+            closeDatabases()
             System.setOut(oldOut)
             System.setErr(oldErr)
+        }
+    }
+
+    private fun closeDatabases() {
+        currentConverter?.cancel(null)
+        try {
+            srcDb?.close()
+        } catch (ignored: Exception) {}
+        finally {
+            srcDb = null
+        }
+        
+        try {
+            destDb?.close()
+        } catch (ignored: Exception) {}
+        finally {
+            destDb = null
         }
     }
 
