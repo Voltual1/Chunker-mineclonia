@@ -121,7 +121,8 @@ class TerminalViewModel(
                 outBridge.print(text)
             }
 
-            // RemoteWorkerService requires ARGUMENT_PACKAGE_NAME and ARGUMENT_CLASS_NAME parameters
+            // FIX BINDING ERROR: The arguments must point to the RemoteWorkerService declared in AndroidManifest.xml
+            // NOT the actual ConversionWorker class name!
             val workData = workDataOf(
                 "inputPath" to args.inputPath,
                 "outputPath" to args.outputPath,
@@ -129,7 +130,7 @@ class TerminalViewModel(
                 "threadCount" to userThreadCount,
                 "processMaps" to userProcessMaps,
                 "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
-                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to ConversionWorker::class.java.name
+                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
             )
 
             val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
@@ -141,7 +142,6 @@ class TerminalViewModel(
                 )
                 .build()
 
-            // To support multiple processes correctly we need RemoteWorkManager
             val workManager = RemoteWorkManager.getInstance(context)
             workManager.enqueueUniqueWork(
                 "world_conversion_work",
