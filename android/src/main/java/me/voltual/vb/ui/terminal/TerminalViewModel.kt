@@ -43,6 +43,9 @@ class TerminalViewModel(
         if (isRunning) return
         isRunning = true
 
+        // 彻底禁用 Iq80 LevelDB 的 MMAP 内存映射，防止底层引发 SIGBUS (Signal 7)
+        System.setProperty("leveldb.mmap", "false")
+
         viewModelScope.launch {
             val sessionClient = object : TerminalSessionClient {
                 override fun onTextChanged(changedSession: TerminalSession) {
@@ -141,16 +144,17 @@ class TerminalViewModel(
                 workRequest
             )
 
-            // FIX: Null-safety check for WorkInfo
             val finalWorkInfo = workManager.getWorkInfoByIdFlow(workRequest.id)
                 .first { it?.state?.isFinished == true }
 
             if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                 isSuccess = true
+            } else if (finalWorkInfo?.state == WorkInfo.State.FAILED) {
+                outBridge.println("\n\u001B[1;31m[FATAL ERROR] Background worker failed! Check system logs.\u001B[0m")
             }
 
         } catch (e: Exception) {
-            outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed!\u001B[0m")
+            outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion dispatch failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
             ConversionLogBridge.setListener(null)
