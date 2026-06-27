@@ -11,12 +11,11 @@ import me.voltual.mcl.MclLevelWriter
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
-import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.FileOutputStream
 import java.io.PrintStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
 import okio.FileSystem
@@ -26,7 +25,7 @@ import kotlinx.coroutines.delay
 class ConversionWorker(
     val context: Context,
     val params: WorkerParameters
-) : RemoteCoroutineWorker(context, params) { // Removed KoinComponent implementation
+) : RemoteCoroutineWorker(context, params) {
 
     private val fs = FileSystem.SYSTEM
     private val factory = Iq80DBFactory.factory
@@ -48,14 +47,13 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
-        val bridgePrintStream = PrintStream(object : ByteArrayOutputStream() {
-            override fun write(b: ByteArray, off: Int, len: Int) {
-                ConversionLogBridge.print(String(b, off, len, StandardCharsets.UTF_8))
-            }
-        }, true)
+        // 创建共享日志流文件，采用追加写入模式（Append = true）以兼容子进程自杀重建
+        val logFile = File(context.filesDir, "conversion_stream.log")
+        val fileOutputStream = FileOutputStream(logFile, true)
+        val filePrintStream = PrintStream(fileOutputStream, true)
 
-        System.setOut(bridgePrintStream)
-        System.setErr(bridgePrintStream)
+        System.setOut(filePrintStream)
+        System.setErr(filePrintStream)
 
         val isMineclonia = format == "MINECLONIA"
         val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
@@ -64,7 +62,6 @@ class ConversionWorker(
         val outputVersion = Version.fromString(targetVersionString)
 
         val worldId = calculateWorldIdentity(inputPathFile)
-        // Access statically without Koin injection
         val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
 
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
@@ -72,6 +69,7 @@ class ConversionWorker(
         if (!readerOptional.isPresent) {
             System.setOut(oldOut)
             System.setErr(oldErr)
+            filePrintStream.close()
             return Result.failure()
         }
         val reader = readerOptional.get()
@@ -114,18 +112,19 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        ConversionProgressDataStore.saveProgress(context, worldId, index)
+                        println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
+                        conversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
+                        filePrintStream.close()
                         
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 
-                    ConversionLogBridge.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
+                    println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
 
                     deleteDirectory(sliceInputDir)
                     deleteDirectory(sliceOutputDir)
@@ -174,7 +173,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
+                    conversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -214,18 +213,19 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        ConversionProgressDataStore.saveProgress(context, worldId, index)
+                        println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
+                        conversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
+                        filePrintStream.close()
                         
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 
-                    ConversionLogBridge.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
+                    println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
 
                     deleteDirectory(sliceInputDir)
                     deleteDirectory(sliceOutputDir)
@@ -289,7 +289,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
+                    conversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -299,7 +299,7 @@ class ConversionWorker(
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
 
-            ConversionProgressDataStore.clearProgress(context, worldId)
+            conversionProgressDataStore.clearProgress(context, worldId)
             return Result.success()
 
         } catch (e: Exception) {
@@ -309,6 +309,7 @@ class ConversionWorker(
             closeDatabases()
             System.setOut(oldOut)
             System.setErr(oldErr)
+            filePrintStream.close()
         }
     }
 

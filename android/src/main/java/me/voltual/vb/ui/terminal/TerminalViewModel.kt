@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import me.voltual.vb.ui.TerminalExec
 import me.voltual.vb.ui.Export
 import java.io.ByteArrayOutputStream
@@ -116,12 +117,13 @@ class TerminalViewModel(
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
-        try {
-            ConversionLogBridge.setListener { text ->
-                outBridge.print(text)
-            }
+        // 启动转换任务前，物理清空以前遗留的共享日志文件
+        val sharedLogFile = File(context.filesDir, "conversion_stream.log")
+        if (sharedLogFile.exists()) {
+            sharedLogFile.delete()
+        }
 
-            // FIX: ARGUMENT_CLASS_NAME must target the RemoteWorkerService class name, not the ConversionWorker class!
+        try {
             val workData = workDataOf(
                 "inputPath" to args.inputPath,
                 "outputPath" to args.outputPath,
@@ -148,8 +150,49 @@ class TerminalViewModel(
                 workRequest
             )
 
+            // 启动共享日志物理尾随协程：实时捕获子进程追加写入的转换输出
+            val tailJob = viewModelScope.launch(Dispatchers.IO) {
+                var lastPointer = 0L
+                while (isActive) {
+                    if (sharedLogFile.exists()) {
+                        val currentLength = sharedLogFile.length()
+                        if (currentLength > lastPointer) {
+                            try {
+                                sharedLogFile.inputStream().use { stream ->
+                                    stream.skip(lastPointer)
+                                    val bytes = stream.readBytes()
+                                    if (bytes.isNotEmpty()) {
+                                        outBridge.write(bytes)
+                                    }
+                                }
+                                lastPointer = currentLength
+                            } catch (e: Exception) {
+                                // 忽略读取冲突
+                            }
+                        }
+                    }
+                    delay(100)
+                }
+            }
+
             val finalWorkInfo = WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id)
                 .first { it?.state?.isFinished == true }
+
+            // 终止日志监听，做最后一次日志读取
+            tailJob.cancel()
+            if (sharedLogFile.exists()) {
+                val currentLength = sharedLogFile.length()
+                if (currentLength > 0) {
+                    try {
+                        sharedLogFile.inputStream().use { stream ->
+                            val bytes = stream.readBytes()
+                            if (bytes.isNotEmpty()) {
+                                outBridge.write(bytes)
+                            }
+                        }
+                    } catch (ignored: Exception) {}
+                }
+            }
 
             if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                 isSuccess = true
@@ -161,7 +204,6 @@ class TerminalViewModel(
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion dispatch failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
-            ConversionLogBridge.setListener(null)
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false
