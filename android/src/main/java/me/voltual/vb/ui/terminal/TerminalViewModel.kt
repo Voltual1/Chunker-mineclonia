@@ -121,8 +121,7 @@ class TerminalViewModel(
                 outBridge.print(text)
             }
 
-            // FIX BINDING ERROR: The arguments must point to the RemoteWorkerService declared in AndroidManifest.xml
-            // NOT the actual ConversionWorker class name!
+            // FIX: ARGUMENT_CLASS_NAME must target the RemoteWorkerService class name, not the ConversionWorker class!
             val workData = workDataOf(
                 "inputPath" to args.inputPath,
                 "outputPath" to args.outputPath,
