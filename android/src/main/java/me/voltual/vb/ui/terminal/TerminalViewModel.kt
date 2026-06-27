@@ -5,6 +5,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.*
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.Dispatchers
@@ -12,38 +13,23 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.isActive
 import me.voltual.vb.ui.TerminalExec
 import me.voltual.vb.ui.Export
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
 import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import com.hivemc.chunker.conversion.WorldConverter
-import com.hivemc.chunker.conversion.encoding.EncodingType
-import com.hivemc.chunker.conversion.encoding.base.Version
 import me.voltual.vb.data.ConversionSettingsDataStore
-import me.voltual.vb.data.ConversionProgressDataStore
-import me.voltual.mcl.MclLevelWriter
-import java.util.UUID
-import okio.FileSystem
-import okio.Path.Companion.toPath
-import org.iq80.leveldb.Options
-import org.iq80.leveldb.impl.Iq80DBFactory
+import java.util.concurrent.TimeUnit
 
 class TerminalViewModel(
     private val context: Context,
-    private val conversionSettingsDataStore: ConversionSettingsDataStore,
-    private val conversionProgressDataStore: ConversionProgressDataStore
+    private val conversionSettingsDataStore: ConversionSettingsDataStore
 ) : ViewModel(), KoinComponent {
 
     private val logRepository: LogRepository by inject()
@@ -52,7 +38,6 @@ class TerminalViewModel(
     val session = _session.asStateFlow()
 
     private var isRunning = false
-    private val fs = FileSystem.SYSTEM
 
     fun startExecution(args: TerminalExec, navigator: Navigator) {
         if (isRunning) return
@@ -113,36 +98,6 @@ class TerminalViewModel(
         }
     }
 
-    private fun calculateWorldIdentity(inputDir: File): String {
-        val iconPng = File(inputDir, "icon.png")
-        val iconJpeg = File(inputDir, "world_icon.jpeg")
-        val targetFile = when {
-            iconPng.exists() -> iconPng
-            iconJpeg.exists() -> iconJpeg
-            else -> null
-        }
-        return if (targetFile != null) {
-            try {
-                val bytes = targetFile.readBytes()
-                val md = MessageDigest.getInstance("MD5")
-                val digest = md.digest(bytes)
-                digest.joinToString("") { "%02x".format(it) }
-            } catch (e: Exception) {
-                getFallbackIdentity(inputDir)
-            }
-        } else {
-            getFallbackIdentity(inputDir)
-        }
-    }
-
-    private fun getFallbackIdentity(inputDir: File): String {
-        val levelDat = File(inputDir, "level.dat")
-        val baseString = inputDir.absolutePath + "_" + (if (levelDat.exists()) levelDat.lastModified() else 0L)
-        val md = MessageDigest.getInstance("MD5")
-        val digest = md.digest(baseString.toByteArray(StandardCharsets.UTF_8))
-        return digest.joinToString("") { "%02x".format(it) }
-    }
-
     private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
         val outBridge = TerminalPrintStream(session, crashLogFile)
@@ -157,261 +112,60 @@ class TerminalViewModel(
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
-        var srcDb: org.iq80.leveldb.DB? = null
-        var destDb: org.iq80.leveldb.DB? = null
-
         try {
-            val isMineclonia = args.format == "MINECLONIA"
-            val targetEngine = if (isMineclonia) {
-                "Mineclonia"
-            } else {
-                "Chunker"
+            // Register bridge output listener
+            ConversionLogBridge.setListener { text ->
+                outBridge.print(text)
             }
 
-            outBridge.println("\u001B[1;36m[$targetEngine Engine] Starting World Conversion Task...\u001B[0m")
-            outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
-            outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
-            outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
-            outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
-            outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
-            outBridge.println("================================================")
+            // Create inputs for WorkManager
+            val workData = workDataOf(
+                "inputPath" to args.inputPath,
+                "outputPath" to args.outputPath,
+                "format" to args.format,
+                "threadCount" to userThreadCount,
+                "processMaps" to userProcessMaps
+            )
 
-            val inputPathFile = File(args.inputPath)
-            val outputPathFile = File(args.outputPath)
+            val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
+                .setInputData(workData)
+                .setBackoffCriteria(
+                    BackoffPolicy.LINEAR,
+                    10,
+                    TimeUnit.SECONDS
+                )
+                .build()
 
-            val worldId = calculateWorldIdentity(inputPathFile)
-            val lastSavedProgressIndex = conversionProgressDataStore.getProgress(worldId)
+            val workManager = WorkManager.getInstance(context)
+            workManager.enqueueUniqueWork(
+                "world_conversion_work",
+                ExistingWorkPolicy.REPLACE,
+                workRequest
+            )
 
-            val tempDetectConverter = WorldConverter(UUID.randomUUID())
-            val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
-            if (!readerOptional.isPresent) {
-                throw IllegalStateException("Failed to detect input world format!")
-            }
-            val reader = readerOptional.get()
-            val srcFormat = reader.encodingType.name
-            outBridge.println("Detected format: \u001B[32m$srcFormat\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
+            // Block and wait until WorkManager reaches a terminal state (Success/Failure/Cancel)
+            // Intermediate retries (caused by memory pressure) will cycle states internally without completing this flow
+            val finalWorkInfo = workManager.getWorkInfoByIdFlow(workRequest.id)
+                .first { it.state.isFinished }
 
-            val targetTypeName = if (isMineclonia) "MINECLONIA" else args.format.substringBefore("_")
-            val targetVersionString = if (isMineclonia) "1.12.2" else args.format.substringAfter("_").replace("_", ".")
-            val encodingType = if (isMineclonia) null else EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
-            val outputVersion = if (isMineclonia) Version.fromString("1.12.2") else Version.fromString(targetVersionString)
-
-            val sliceInputDir = File(context.cacheDir, "slice_input")
-            val sliceOutputDir = File(context.cacheDir, "slice_output")
-            
-            if (lastSavedProgressIndex == 0) {
-                deleteDirectory(outputPathFile)
-            }
-            
-            deleteDirectory(sliceInputDir)
-            deleteDirectory(sliceOutputDir)
-
-            val isTargetBedrock = targetTypeName.contains("BEDROCK", ignoreCase = true)
-            val factory = Iq80DBFactory.factory
-
-            if (isTargetBedrock) {
-                val finalDbDir = File(outputPathFile, "db")
-                val writeOptions = Options().createIfMissing(true)
-                writeOptions.writeBufferSize(8 * 1024 * 1024) 
-                writeOptions.blockSize(4 * 1024)
-                destDb = factory.open(finalDbDir, writeOptions)
-            }
-
-            if (srcFormat.contains("JAVA", ignoreCase = true)) {
-                val regionDir = File(inputPathFile, "region")
-                val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
-                
-                outBridge.println("Java Save detected. Slicing world into ${mcaFiles.size} region files...")
-                if (lastSavedProgressIndex > 0) {
-                    outBridge.println("\u001B[36m[Resume] Found previous progress. Resuming from Region file ${lastSavedProgressIndex + 1}/${mcaFiles.size}...\u001B[0m")
-                }
-
-                for ((index, mcaFile) in mcaFiles.withIndex()) {
-                    if (!isRunning) break
-                    if (index < lastSavedProgressIndex) {
-                        continue
-                    }
-                    
-                    val runtime = Runtime.getRuntime()
-                    val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    outBridge.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${preMem}MB")
-
-                    deleteDirectory(sliceInputDir)
-                    deleteDirectory(sliceOutputDir)
-                    sliceInputDir.mkdirs()
-                    sliceOutputDir.mkdirs()
-
-                    val levelDat = File(inputPathFile, "level.dat")
-                    if (levelDat.exists()) {
-                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
-                    }
-
-                    copyFile(mcaFile, File(sliceInputDir, "region/${mcaFile.name}"))
-                    
-                    val entitiesFile = File(inputPathFile, "entities/${mcaFile.name}")
-                    if (entitiesFile.exists()) {
-                        copyFile(entitiesFile, File(sliceInputDir, "entities/${mcaFile.name}"))
-                    }
-                    val poiFile = File(inputPathFile, "poi/${mcaFile.name}")
-                    if (poiFile.exists()) {
-                        copyFile(poiFile, File(sliceInputDir, "poi/${mcaFile.name}"))
-                    }
-
-                    val sliceConverter = WorldConverter(UUID.randomUUID())
-                    sliceConverter.setProcessItems(true)
-                    sliceConverter.setProcessEntities(true)
-                    sliceConverter.setProcessBlockEntities(true)
-                    sliceConverter.setProcessBiomes(true)
-                    sliceConverter.setProcessLighting(true)
-                    sliceConverter.setProcessColumnPreTransform(false)
-                    sliceConverter.setThreadCount(userThreadCount)
-                    sliceConverter.setProcessMaps(userProcessMaps)
-
-                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-                    val sliceWriter = if (isMineclonia) {
-                        MclLevelWriter(sliceOutputDir)
-                    } else {
-                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
-                    }
-
-                    val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
-                    trackedTask.future().get()
-
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    
-                    conversionProgressDataStore.saveProgress(worldId, index + 1)
-
-                    System.gc()
-                    System.runFinalization()
-                    val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    outBridge.println("[Memory] GC completed. Heap: ${postMem}MB")
-                }
+            if (finalWorkInfo.state == WorkInfo.State.SUCCEEDED) {
                 isSuccess = true
-            } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
-                val srcDbDir = File(inputPathFile, "db")
-                val dbOptions = Options().createIfMissing(false)
-                dbOptions.writeBufferSize(8 * 1024 * 1024)
-                dbOptions.blockSize(4 * 1024)
-                
-                outBridge.println("Bedrock Save detected. Analysing database keys...")
-                srcDb = factory.open(srcDbDir, dbOptions)
-                
-                val regionCoords = mutableListOf<Pair<Int, Int>>()
-                val iterator = srcDb.iterator()
-                iterator.seekToFirst()
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    val key = entry.key
-                    if (isBedrockChunkKey(key)) {
-                        val (cx, cz) = getBedrockChunkCoords(key)
-                        val pair = Pair(cx shr 5, cz shr 5)
-                        if (!regionCoords.contains(pair)) {
-                            regionCoords.add(pair)
-                        }
-                    }
-                }
-                iterator.close()
-
-                outBridge.println("Slicing Bedrock database into ${regionCoords.size} region segments...")
-                if (lastSavedProgressIndex > 0) {
-                    outBridge.println("\u001B[36m[Resume] Found previous progress. Resuming from Bedrock Region ${lastSavedProgressIndex + 1}/${regionCoords.size}...\u001B[0m")
-                }
-
-                for ((index, region) in regionCoords.withIndex()) {
-                    if (!isRunning) break
-                    if (index < lastSavedProgressIndex) {
-                        continue
-                    }
-                    
-                    val runtime = Runtime.getRuntime()
-                    val preMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    outBridge.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${preMem}MB")
-
-                    deleteDirectory(sliceInputDir)
-                    deleteDirectory(sliceOutputDir)
-                    sliceInputDir.mkdirs()
-                    sliceOutputDir.mkdirs()
-
-                    val levelDat = File(inputPathFile, "level.dat")
-                    if (levelDat.exists()) {
-                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
-                    }
-
-                    val sliceDbDir = File(sliceInputDir, "db")
-                    sliceDbDir.mkdirs()
-                    val tempDbOptions = Options().createIfMissing(true)
-                    tempDbOptions.writeBufferSize(2 * 1024 * 1024)
-                    tempDbOptions.blockSize(4 * 1024)
-                    val tempDb = factory.open(sliceDbDir, tempDbOptions)
-                    
-                    val readIterator = srcDb.iterator()
-                    readIterator.seekToFirst()
-                    while (readIterator.hasNext()) {
-                        val entry = readIterator.next()
-                        val key = entry.key
-                        if (isBedrockChunkKey(key)) {
-                            val (cx, cz) = getBedrockChunkCoords(key)
-                            if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
-                                tempDb.put(key, entry.value)
-                            }
-                        } else {
-                            tempDb.put(key, entry.value)
-                        }
-                    }
-                    readIterator.close()
-                    tempDb.close()
-
-                    val sliceConverter = WorldConverter(UUID.randomUUID())
-                    sliceConverter.setProcessItems(true)
-                    sliceConverter.setProcessEntities(true)
-                    sliceConverter.setProcessBlockEntities(true)
-                    sliceConverter.setProcessBiomes(true)
-                    sliceConverter.setProcessLighting(true)
-                    sliceConverter.setProcessColumnPreTransform(false)
-                    sliceConverter.setThreadCount(userThreadCount)
-                    sliceConverter.setProcessMaps(userProcessMaps)
-
-                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-                    val sliceWriter = if (isMineclonia) {
-                        MclLevelWriter(sliceOutputDir)
-                    } else {
-                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
-                    }
-
-                    val trackedTask = sliceConverter.convert(sliceReader, sliceWriter)
-                    trackedTask.future().get()
-
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    
-                    conversionProgressDataStore.saveProgress(worldId, index + 1)
-
-                    System.gc()
-                    System.runFinalization()
-                    val postMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    outBridge.println("[Memory] GC completed. Heap: ${postMem}MB")
-                }
-                isSuccess = true
-            }
-
-            deleteDirectory(sliceInputDir)
-            deleteDirectory(sliceOutputDir)
-
-            if (isSuccess) {
-                conversionProgressDataStore.clearProgress(worldId)
-                outBridge.println("\n\u001B[1;32m[SUCCESS] Sliced conversion completed successfully!\u001B[0m")
             }
 
         } catch (e: Exception) {
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
-            try { srcDb?.close() } catch (ignored: Exception) {}
-            try { destDb?.close() } catch (ignored: Exception) {}
-
+            ConversionLogBridge.setListener(null)
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false
             session.finishIfRunning()
+
+            val inputDir = File(context.filesDir, "world_input")
+            if (inputDir.exists()) {
+                inputDir.deleteRecursively()
+            }
 
             viewModelScope.launch(Dispatchers.IO) {
                 try {
@@ -435,78 +189,6 @@ class TerminalViewModel(
                     }
                 }
             }
-        }
-    }
-
-    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?, factory: Iq80DBFactory) {
-        if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
-            val subFolders = listOf("region", "poi", "entities")
-            for (folderName in subFolders) {
-                val srcFolder = File(sliceOutputDir, folderName)
-                if (srcFolder.exists()) {
-                    val destFolder = File(finalOutputDir, folderName)
-                    destFolder.mkdirs()
-                    srcFolder.listFiles()?.forEach { file ->
-                        copyFile(file, File(destFolder, file.name))
-                    }
-                }
-            }
-            val levelDat = File(sliceOutputDir, "level.dat")
-            if (levelDat.exists()) {
-                copyFile(levelDat, File(finalOutputDir, "level.dat"))
-            }
-        } else if (targetFormat.contains("BEDROCK", ignoreCase = true)) {
-            val sliceDbDir = File(sliceOutputDir, "db")
-            if (sliceDbDir.exists() && destDb != null) {
-                val writeOptions = Options().createIfMissing(true)
-                writeOptions.writeBufferSize(2 * 1024 * 1024)
-                writeOptions.blockSize(4 * 1024)
-                
-                val srcDb = factory.open(sliceDbDir, writeOptions)
-                val iterator = srcDb.iterator()
-                iterator.seekToFirst()
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    destDb.put(entry.key, entry.value)
-                }
-                iterator.close()
-                srcDb.close()
-            }
-            val levelDat = File(sliceOutputDir, "level.dat")
-            if (levelDat.exists()) {
-                copyFile(levelDat, File(finalOutputDir, "level.dat"))
-            }
-        }
-    }
-
-    private fun isBedrockChunkKey(key: ByteArray): Boolean {
-        val len = key.size
-        if (len != 9 && len != 10 && len != 13 && len != 14) return false
-        val keyStr = String(key, StandardCharsets.UTF_8)
-        if (keyStr.startsWith("map_")) return false
-        if (keyStr == "~local_player") return false
-        if (keyStr == "portals") return false
-        return true
-    }
-
-    private fun getBedrockChunkCoords(key: ByteArray): Pair<Int, Int> {
-        val buffer = ByteBuffer.wrap(key).order(ByteOrder.LITTLE_ENDIAN)
-        val x = buffer.int
-        val z = buffer.int
-        return Pair(x, z)
-    }
-
-    private fun copyFile(src: File, dest: File) {
-        val srcPath = src.absolutePath.toPath()
-        val destPath = dest.absolutePath.toPath()
-        fs.createDirectories(destPath.parent!!)
-        fs.copy(srcPath, destPath)
-    }
-
-    private fun deleteDirectory(dir: File) {
-        val path = dir.absolutePath.toPath()
-        if (fs.exists(path)) {
-            fs.deleteRecursively(path)
         }
     }
 
