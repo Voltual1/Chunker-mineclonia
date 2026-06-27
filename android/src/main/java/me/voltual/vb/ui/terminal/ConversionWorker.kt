@@ -33,8 +33,16 @@ class ConversionWorker(
 
     private var currentConverter: WorldConverter? = null
     private var srcDb: org.iq80.leveldb.DB? = null
+    private var targetDb: org.iq80.leveldb.DB? = null
+    private var sliceDb: org.iq80.leveldb.DB? = null
+
+    @Volatile
+    private var isMerging = false
 
     override suspend fun doRemoteWork(): Result {
+        // 在子进程启动的第一时间，强行在此进程 JVM 中设置禁用 mmap，确保使用更稳健的物理文件 I/O 写入
+        System.setProperty("leveldb.mmap", "false")
+
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
         val format = inputData.getString("format") ?: return Result.failure()
@@ -55,7 +63,7 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
-        // 启动后台高频守护线程，每 100ms 实时监控内存，一旦过高直接执行自杀，预防任何中途 OOM
+        // 启动后台高频守护线程，每 100ms 实时监控内存
         val memoryMonitorThread = Thread {
             val runtime = Runtime.getRuntime()
             while (!Thread.currentThread().isInterrupted) {
@@ -66,6 +74,15 @@ class ConversionWorker(
                     val ratio = usedMem.toDouble() / maxMem.toDouble()
 
                     if (ratio > 0.80) {
+                        // 若子进程正处于极速 merge 合并阶段，暂缓执行自杀动作，等待合并落盘以防损坏 LevelDB 存档
+                        if (isMerging) {
+                            var waitCount = 0
+                            while (isMerging && waitCount < 15) {
+                                Thread.sleep(20)
+                                waitCount++
+                            }
+                        }
+
                         System.out.println("\u001B[31m[Memory Monitor] JVM Heap critically high (${usedMem / 1024 / 1024}MB / ${maxMem / 1024 / 1024}MB). Killing process immediately to prevent JVM OOM...\u001B[0m")
                         closeDatabases()
                         slicePrintStream.close()
@@ -128,7 +145,6 @@ class ConversionWorker(
                     val runtime = Runtime.getRuntime()
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
                     
-                    // 记录分片开始的当前进度（用于自杀后在此处断点续传）
                     ConversionProgressDataStore.saveProgress(context, worldId, index)
 
                     System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
@@ -317,6 +333,18 @@ class ConversionWorker(
         finally {
             srcDb = null
         }
+        try {
+            targetDb?.close()
+        } catch (ignored: Exception) {}
+        finally {
+            targetDb = null
+        }
+        try {
+            sliceDb?.close()
+        } catch (ignored: Exception) {}
+        finally {
+            sliceDb = null
+        }
     }
 
     private fun calculateWorldIdentity(inputDir: File): String {
@@ -370,29 +398,31 @@ class ConversionWorker(
             val sliceDbDir = File(sliceOutputDir, "db")
             val finalDbDir = File(finalOutputDir, "db")
             if (sliceDbDir.exists()) {
-                File(finalDbDir, "LOCK").delete()
-                
-                val writeOptions = Options().createIfMissing(true)
-                writeOptions.writeBufferSize(2 * 1024 * 1024)
-                writeOptions.blockSize(4 * 1024)
-                
-                var targetDb: org.iq80.leveldb.DB? = null
-                var sliceDb: org.iq80.leveldb.DB? = null
-                
+                isMerging = true
                 try {
+                    File(finalDbDir, "LOCK").delete()
+                    
+                    val writeOptions = Options().createIfMissing(true)
+                    writeOptions.writeBufferSize(2 * 1024 * 1024)
+                    writeOptions.blockSize(4 * 1024)
+                    
+                    // 将打开的库赋予类级别变量，以便自杀线程能提前释放句柄
                     targetDb = factory.open(finalDbDir, writeOptions)
                     sliceDb = factory.open(sliceDbDir, writeOptions)
                     
-                    val iterator = sliceDb.iterator()
+                    val iterator = sliceDb!!.iterator()
                     iterator.seekToFirst()
                     while (iterator.hasNext()) {
                         val entry = iterator.next()
-                        targetDb.put(entry.key, entry.value)
+                        targetDb!!.put(entry.key, entry.value)
                     }
                     iterator.close()
                 } finally {
                     try { sliceDb?.close() } catch (ignored: Exception) {}
+                    sliceDb = null
                     try { targetDb?.close() } catch (ignored: Exception) {}
+                    targetDb = null
+                    isMerging = false
                 }
             }
             val levelDat = File(sliceOutputDir, "level.dat")
