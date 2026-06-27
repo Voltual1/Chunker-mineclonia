@@ -23,7 +23,7 @@ import java.security.MessageDigest
 import java.util.UUID
 import okio.FileSystem
 import okio.Path.Companion.toPath
-import kotlinx.coroutines.delay // 引入挂起延迟函数
+import kotlinx.coroutines.delay
 
 class ConversionWorker(
     val context: Context,
@@ -115,11 +115,17 @@ class ConversionWorker(
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
+                    // 当内存达到 82% 时，直接自杀（System process death）以彻底净化内存
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
+                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Killing process to force complete memory reclaim...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
                         
                         closeDatabases()
+                        System.setOut(oldOut)
+                        System.setErr(oldErr)
+                        
+                        // 强制自杀，WorkManager 会因为子进程突然死亡而触发重新拉起（基于 retry 策略）
+                        android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 
@@ -212,10 +218,14 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
+                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Killing process to force complete memory reclaim...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
                         
                         closeDatabases()
+                        System.setOut(oldOut)
+                        System.setErr(oldErr)
+                        
+                        android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 

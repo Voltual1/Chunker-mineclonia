@@ -32,5 +32,25 @@
         <activity
             android:name=".ui.CrashLogActivity"
             android:exported="false" />
+
+        <!-- 注册多进程 WorkManager 服务，使其运行在独立的 :conversion 进程中 -->
+        <service
+            android:name="androidx.work.multiprocess.RemoteWorkerService"
+            android:exported="false"
+            android:process=":conversion"
+            tools:node="merge" />
+
+        <!-- 默认的 WorkManager 初始化器配置 -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="merge" />
+        </provider>
+
     </application>
 </manifest>
