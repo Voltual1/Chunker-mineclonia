@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import java.io.File
@@ -49,6 +50,30 @@ object ConversionProgressDataStore {
         val key = intPreferencesKey("progress_$worldHash")
         getDataStore(context).edit { preferences ->
             preferences.remove(key)
+        }
+    }
+
+    suspend fun saveActiveConversion(context: Context, inputPath: String, outputPath: String, format: String) {
+        getDataStore(context).edit { preferences ->
+            preferences[stringPreferencesKey("active_input_path")] = inputPath
+            preferences[stringPreferencesKey("active_output_path")] = outputPath
+            preferences[stringPreferencesKey("active_format")] = format
+        }
+    }
+
+    suspend fun getActiveConversion(context: Context): Triple<String, String, String>? {
+        val data = getDataStore(context).data.first()
+        val inputPath = data[stringPreferencesKey("active_input_path")] ?: return null
+        val outputPath = data[stringPreferencesKey("active_output_path")] ?: return null
+        val format = data[stringPreferencesKey("active_format")] ?: return null
+        return Triple(inputPath, outputPath, format)
+    }
+
+    suspend fun clearActiveConversion(context: Context) {
+        getDataStore(context).edit { preferences ->
+            preferences.remove(stringPreferencesKey("active_input_path"))
+            preferences.remove(stringPreferencesKey("active_output_path"))
+            preferences.remove(stringPreferencesKey("active_format"))
         }
     }
 }

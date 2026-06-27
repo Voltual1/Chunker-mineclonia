@@ -32,9 +32,6 @@ class BBQApplication : Application(), KoinStartup {
         super.onCreate()
         instance = this
 
-        // 强行对所有进程禁用 LevelDB mmap 以免写入意外中断引起文件物理损坏
-        System.setProperty("leveldb.mmap", "false")
-
         val processName = getProcessName(this)
         
         // 遇到远程多进程服务时，直接退避，防止数据库争锁以及 Koin 载入异常
@@ -93,6 +90,11 @@ class BBQApplication : Application(), KoinStartup {
     }
 
     companion object {
+        init {
+            // 最优先级静态初始化：强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
+            System.setProperty("leveldb.mmap", "false")
+        }
+
         lateinit var instance: BBQApplication
             private set
 

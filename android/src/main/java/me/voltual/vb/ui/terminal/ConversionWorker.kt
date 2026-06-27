@@ -40,9 +40,6 @@ class ConversionWorker(
     private var isMerging = false
 
     override suspend fun doRemoteWork(): Result {
-        // 在子进程启动的第一时间，强行在此进程 JVM 中设置禁用 mmap，确保使用更稳健的物理文件 I/O 写入
-        System.setProperty("leveldb.mmap", "false")
-
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
         val format = inputData.getString("format") ?: return Result.failure()
@@ -63,7 +60,7 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
-        // 启动后台高频守护线程，每 100ms 实时监控内存
+        // 启动后台高频守护线程，每 100ms 实时监控内存，一旦过高直接执行自杀，预防任何中途 OOM
         val memoryMonitorThread = Thread {
             val runtime = Runtime.getRuntime()
             while (!Thread.currentThread().isInterrupted) {
@@ -74,7 +71,7 @@ class ConversionWorker(
                     val ratio = usedMem.toDouble() / maxMem.toDouble()
 
                     if (ratio > 0.80) {
-                        // 若子进程正处于极速 merge 合并阶段，暂缓执行自杀动作，等待合并落盘以防损坏 LevelDB 存档
+                        // 如果正在进行合并落盘写库，延迟等其完成后再自杀
                         if (isMerging) {
                             var waitCount = 0
                             while (isMerging && waitCount < 15) {
@@ -89,7 +86,6 @@ class ConversionWorker(
                         System.setOut(oldOut)
                         System.setErr(oldErr)
 
-                        // 实施进程物理自杀
                         android.os.Process.killProcess(android.os.Process.myPid())
                         break
                     }
@@ -406,7 +402,6 @@ class ConversionWorker(
                     writeOptions.writeBufferSize(2 * 1024 * 1024)
                     writeOptions.blockSize(4 * 1024)
                     
-                    // 将打开的库赋予类级别变量，以便自杀线程能提前释放句柄
                     targetDb = factory.open(finalDbDir, writeOptions)
                     sliceDb = factory.open(sliceDbDir, writeOptions)
                     
@@ -460,6 +455,13 @@ class ConversionWorker(
         val path = dir.absolutePath.toPath()
         if (fs.exists(path)) {
             fs.deleteRecursively(path)
+        }
+    }
+
+    companion object {
+        init {
+            // 最优先级静态初始化：强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
+            System.setProperty("leveldb.mmap", "false")
         }
     }
 }

@@ -1,6 +1,7 @@
+// [file name]: me.voltual.vb.ui.NavigationGraph.kt
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发和/或修改它。
+//（或任意更新的版本）的条款重新分发和/或修改 it。
 //本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
@@ -17,6 +18,7 @@ import me.voltual.vb.ui.TerminalExec
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.*
 import androidx.navigation3.scene.DialogSceneStrategy
@@ -32,6 +34,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.conversion.ConversionSettingsScreen
+import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -79,6 +82,16 @@ fun BBQNavDisplay(
                 } else {
                     when (key) {
                         is Home -> {
+                            val context = LocalContext.current
+                            val navigator = LocalNavigator.current
+                            
+                            // 监听应用打开：若存在未完结转换，立刻引导用户跳回终端页实现 Swipe 断点无感恢复
+                            LaunchedEffect(Unit) {
+                                val active = ConversionProgressDataStore.getActiveConversion(context)
+                                if (active != null) {
+                                    navigator.navigate(TerminalExec(active.first, active.second, active.third))
+                                }
+                            }
                             HomeScreen(modifier = Modifier.fillMaxSize())
                         }
                         
