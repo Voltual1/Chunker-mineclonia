@@ -98,7 +98,8 @@ public class BedrockWorldReader implements WorldReader {
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
 
             BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
-            Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, handler);
+            // FIX: Directly capture the returned task from readColumn instead of wrapping it!
+            Task<Void> columnTask = columnReader.readColumn(handler);
             activeBatches.add(columnTask);
         }
 
@@ -106,7 +107,7 @@ public class BedrockWorldReader implements WorldReader {
             return processBatchAsync(chunks, endIndex, handler);
         }
 
-        // Wait for all 32 to finish NON-BLOCKING, then chain the next batch
+        // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
             return processBatchAsync(chunks, endIndex, handler);
         });

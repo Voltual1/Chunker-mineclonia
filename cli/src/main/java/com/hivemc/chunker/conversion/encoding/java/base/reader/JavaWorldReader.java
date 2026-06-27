@@ -201,8 +201,9 @@ public class JavaWorldReader implements WorldReader {
                 CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
                 JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
 
-                // Push inner conversion task
-                Task<Void> columnTask = Task.asyncConsume("Reading Column", TaskWeight.HIGHER, columnReader::readColumn, handler);
+                // FIX: Do NOT use Task.asyncConsume! Directly capture the returned task from readColumn
+                // This ensures the batch waits for the ENTIRE column processing logic to finish!
+                Task<Void> columnTask = columnReader.readColumn(handler);
                 activeBatches.add(columnTask);
             } catch (Exception e) {
                 converter.logNonFatalException(e);
@@ -213,7 +214,7 @@ public class JavaWorldReader implements WorldReader {
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         }
 
-        // Wait for all 32 to finish NON-BLOCKING, then chain the next batch
+        // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         });
