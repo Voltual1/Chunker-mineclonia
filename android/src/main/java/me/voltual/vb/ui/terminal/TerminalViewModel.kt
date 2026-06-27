@@ -128,150 +128,102 @@ class TerminalViewModel(
             converter.setThreadCount(userThreadCount)
             converter.setProcessMaps(userProcessMaps)
 
-            if (args.format == "MINECLONIA") {
-                outBridge.println("\u001B[1;36m[Mineclonia Engine] Starting Minecraft to Mineclonia Conversion...\u001B[0m")
-                outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
-                outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
-                outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
-                outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
-                outBridge.println("================================================")
+            val isMineclonia = args.format == "MINECLONIA"
+            val targetEngine = if (isMineclonia) "Mineclonia" else "Chunker"
 
-                val inputPathFile = File(args.inputPath)
-                val outputPathFile = File(args.outputPath)
+            outBridge.println("\u001B[1;36m[$targetEngine Engine] Starting World Conversion Task...\u001B[0m")
+            outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
+            outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
+            outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
+            outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
+            outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
+            outBridge.println("================================================")
 
-                outBridge.println("Detecting input world format...")
-                val readerOptional = EncodingType.findReader(inputPathFile, converter)
-                if (!readerOptional.isPresent) {
-                    throw IllegalStateException("Failed to detect input world format!")
-                }
-                val reader = readerOptional.get()
-                outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
+            val inputPathFile = File(args.inputPath)
+            val outputPathFile = File(args.outputPath)
 
-                val writer = MclLevelWriter(outputPathFile)
-                outBridge.println("Initializing Mineclonia conversion pipeline...")
-                val trackedTask = converter.convert(reader, writer)
-                val future = trackedTask.future()
+            outBridge.println("Detecting input world format...")
+            val readerOptional = EncodingType.findReader(inputPathFile, converter)
+            if (!readerOptional.isPresent) {
+                throw IllegalStateException("Failed to detect input world format!")
+            }
+            val reader = readerOptional.get()
+            outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
 
-                // Launch Memory Monitor Coroutine
-                val memMonitorJob = viewModelScope.launch(Dispatchers.IO) {
-                    val runtime = Runtime.getRuntime()
-                    while (isActive && !future.isDone) {
-                        val maxMemory = runtime.maxMemory()
-                        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-                        val ratio = usedMemory.toDouble() / maxMemory.toDouble()
-
-                        if (ratio > 0.80) { // 80% threshold (Danger, start throttling)
-                            if (!converter.isMemoryPaused) {
-                                outBridge.println("\u001B[31m[System] Heavy memory load (${usedMemory/1024/1024}MB / ${maxMemory/1024/1024}MB). Pausing pipeline to allow GC...\u001B[0m")
-                                converter.isMemoryPaused = true
-                            }
-                            System.gc() // Hint GC
-                        } else if (ratio < 0.70) { // 70% threshold (Safe, resume)
-                            if (converter.isMemoryPaused) {
-                                outBridge.println("\u001B[32m[System] Memory recovered (${usedMemory/1024/1024}MB). Resuming pipeline...\u001B[0m")
-                                converter.isMemoryPaused = false
-                            }
-                        }
-                        delay(250) // High frequency check
-                    }
-                }
-
-                var lastProgress = -1.0
-                while (!future.isDone) {
-                    val progress = trackedTask.progress
-                    if (progress != lastProgress) {
-                        val percentage = (progress * 100).toInt()
-                        outBridge.println("Conversion Progress: \u001B[33m$percentage%\u001B[0m")
-                        lastProgress = progress
-                    }
-                    Thread.sleep(100)
-                }
-
-                future.get()
-                memMonitorJob.cancel()
-
-                outBridge.println("\n\u001B[1;32m[SUCCESS] Mineclonia conversion completed successfully!\u001B[0m")
-                isSuccess = true
+            val writer = if (isMineclonia) {
+                MclLevelWriter(outputPathFile)
             } else {
-                outBridge.println("\u001B[1;36m[Chunker Engine] Starting World Conversion Task programmatically...\u001B[0m")
-                outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
-                outBridge.println("Target Path : \u001B[33m${args.outputPath}\u001B[0m")
-                outBridge.println("Target Format: \u001B[32m${args.format}\u001B[0m")
-                outBridge.println("Concurrency : \u001B[35m$userThreadCount Thread(s)\u001B[0m")
-                outBridge.println("Process Maps: \u001B[35m$userProcessMaps\u001B[0m")
-                outBridge.println("================================================")
-
-                val inputPathFile = File(args.inputPath)
-                val outputPathFile = File(args.outputPath)
-
-                outBridge.println("Detecting input world format...")
-                val readerOptional = EncodingType.findReader(inputPathFile, converter)
-                if (!readerOptional.isPresent) {
-                    throw IllegalStateException("Failed to detect input world format!")
-                }
-                val reader = readerOptional.get()
-                outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
-
                 val targetTypeName = args.format.substringBefore("_")
                 val targetVersionString = args.format.substringAfter("_").replace("_", ".")
-                
                 val encodingType = EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
                     ?: throw IllegalArgumentException("Unsupported output format target: $targetTypeName")
-                
                 val outputVersion = Version.fromString(targetVersionString)
-
                 outBridge.println("Creating Level Writer for target \u001B[32m${encodingType.name}\u001B[0m Version: \u001B[32m$outputVersion\u001B[0m...")
-                val writerOptional = encodingType.createWriter(outputPathFile, outputVersion, converter)
-                if (!writerOptional.isPresent) {
+                
+                val writerOpt = encodingType.createWriter(outputPathFile, outputVersion, converter)
+                if (!writerOpt.isPresent) {
                     throw IllegalStateException("Failed to create writer for format ${encodingType.name} at version $outputVersion")
                 }
-                val writer = writerOptional.get()
-
-                outBridge.println("Initializing programmatic Chunker conversion pipeline...")
-                val trackedTask = converter.convert(reader, writer)
-                val future = trackedTask.future()
-
-                // Launch Memory Monitor Coroutine
-                val memMonitorJob = viewModelScope.launch(Dispatchers.IO) {
-                    val runtime = Runtime.getRuntime()
-                    while (isActive && !future.isDone) {
-                        val maxMemory = runtime.maxMemory()
-                        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-                        val ratio = usedMemory.toDouble() / maxMemory.toDouble()
-
-                        if (ratio > 0.80) { // 80% threshold
-                            if (!converter.isMemoryPaused) {
-                                outBridge.println("\u001B[31m[System] Heavy memory load (${usedMemory/1024/1024}MB / ${maxMemory/1024/1024}MB). Pausing pipeline to allow GC...\u001B[0m")
-                                converter.isMemoryPaused = true
-                            }
-                            System.gc() // Hint GC
-                        } else if (ratio < 0.70) { // 70% threshold
-                            if (converter.isMemoryPaused) {
-                                outBridge.println("\u001B[32m[System] Memory recovered (${usedMemory/1024/1024}MB). Resuming pipeline...\u001B[0m")
-                                converter.isMemoryPaused = false
-                            }
-                        }
-                        delay(250) // High frequency check
-                    }
-                }
-
-                var lastProgress = -1.0
-                while (!future.isDone) {
-                    val progress = trackedTask.progress
-                    if (progress != lastProgress) {
-                        val percentage = (progress * 100).toInt()
-                        outBridge.println("Conversion Progress: \u001B[33m$percentage%\u001B[0m")
-                        lastProgress = progress
-                    }
-                    Thread.sleep(100)
-                }
-
-                future.get()
-                memMonitorJob.cancel()
-
-                outBridge.println("\n\u001B[1;32m[SUCCESS] Programmatic conversion completed successfully!\u001B[0m")
-                isSuccess = true
+                writerOpt.get()
             }
+
+            outBridge.println("Initializing conversion pipeline...")
+            val trackedTask = converter.convert(reader, writer)
+            val future = trackedTask.future()
+
+            // Launch aggressive Memory Monitor Coroutine
+            val memMonitorJob = viewModelScope.launch(Dispatchers.IO) {
+                val runtime = Runtime.getRuntime()
+                var gcAttemptCount = 0
+
+                while (isActive && !future.isDone) {
+                    val maxMemory = runtime.maxMemory()
+                    val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+                    val ratio = usedMemory.toDouble() / maxMemory.toDouble()
+
+                    if (ratio > 0.80) { // 80% threshold (Danger, start throttling)
+                        if (!converter.isMemoryPaused) {
+                            outBridge.println("\u001B[31m[System] Heavy memory load (${usedMemory/1024/1024}MB / ${maxMemory/1024/1024}MB). Pausing pipeline to allow GC...\u001B[0m")
+                            converter.isMemoryPaused = true
+                            gcAttemptCount = 0
+                        }
+
+                        // Aggressive GC polling while paused
+                        System.gc()
+                        System.runFinalization()
+                        gcAttemptCount++
+                        
+                        if (gcAttemptCount % 5 == 0) {
+                             outBridge.println("\u001B[33m[System] Still trying to free memory... Attempt $gcAttemptCount (${usedMemory/1024/1024}MB used)\u001B[0m")
+                        }
+
+                    } else if (ratio < 0.70) { // 70% threshold (Safe, resume)
+                        if (converter.isMemoryPaused) {
+                            outBridge.println("\u001B[32m[System] Memory recovered (${usedMemory/1024/1024}MB). Resuming pipeline...\u001B[0m")
+                            converter.isMemoryPaused = false
+                        }
+                    }
+                    delay(500) // Polling interval
+                }
+            }
+
+            var lastProgress = -1.0
+            while (!future.isDone) {
+                val progress = trackedTask.progress
+                if (progress != lastProgress) {
+                    val percentage = (progress * 100).toInt()
+                    outBridge.println("Conversion Progress: \u001B[33m$percentage%\u001B[0m")
+                    lastProgress = progress
+                }
+                Thread.sleep(100)
+            }
+
+            future.get()
+            memMonitorJob.cancel()
+
+            outBridge.println("\n\u001B[1;32m[SUCCESS] Conversion completed successfully!\u001B[0m")
+            isSuccess = true
+
         } catch (e: Exception) {
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Conversion failed!\u001B[0m")
             e.printStackTrace(outBridge)
