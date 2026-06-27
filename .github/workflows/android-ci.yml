@@ -47,11 +47,33 @@ jobs:
         run: |
           echo $ENCODED_STRING | base64 -d > android/tag_keystore.p12
 
-      - name: Apply Chunker Android Patches
+      # - name: Apply Chunker Android Patches
+      #   run: |
+      #     echo "正在应用自动化补丁脚本..."
+      #     python3 patch_chunker.py
+      #     echo "所有补丁应用完成！"
+
+      - name: Comment out System.exit in Java files
         run: |
-          echo "正在应用自动化补丁脚本..."
-          python3 patch_chunker.py
-          echo "所有补丁应用完成！"
+          echo "开始检索并注释 System.exit..."
+          find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
+          echo "替换完成！"
+
+      - name: Fix ChunkerBlockIdentifier StringBuilder.isEmpty
+        run: |
+          echo "正在精准修复 ChunkerBlockIdentifier.java..."
+          
+          TARGET_FILE=$(find . -name "ChunkerBlockIdentifier.java" | head -n 1)
+          
+          if [ -n "$TARGET_FILE" ]; then
+              echo "找到目标文件: $TARGET_FILE"
+              sed -i -E 's/!builder\.isEmpty\(\)/builder.length() > 0/g' "$TARGET_FILE"
+              sed -i -E 's/builder\.isEmpty\(\)/builder.length() == 0/g' "$TARGET_FILE"
+              echo "修改完毕！"
+          else
+              echo "未找到 ChunkerBlockIdentifier.java 文件，请检查路径！"
+              exit 1
+          fi
 
       - name: Build with Gradle
         run: ./gradlew assembleDebug
