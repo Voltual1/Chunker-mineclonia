@@ -1,3 +1,4 @@
+// [file name]: me.voltual.vb.ui.terminal.TerminalViewModel.kt
 package me.voltual.vb.ui.terminal
 
 import android.content.ClipboardManager
@@ -11,7 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.isActive
 import me.voltual.vb.ui.TerminalExec
 import me.voltual.vb.ui.Export
 import java.io.ByteArrayOutputStream
@@ -50,19 +53,15 @@ class TerminalViewModel(
                 override fun onTextChanged(changedSession: TerminalSession) {
                     _session.value = changedSession
                 }
-
                 override fun onTitleChanged(changedSession: TerminalSession) {}
-
                 override fun onSessionFinished(finishedSession: TerminalSession) {
                     isRunning = false
                 }
-
                 override fun onCopyTextToClipboard(session: TerminalSession, text: String) {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     val clip = android.content.ClipData.newPlainText("Terminal Copy", text)
                     clipboard?.setPrimaryClip(clip)
                 }
-
                 override fun onPasteTextFromClipboard(session: TerminalSession?) {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
                     val clip = clipboard?.primaryClip
@@ -71,16 +70,13 @@ class TerminalViewModel(
                         session.emulator.paste(text)
                     }
                 }
-
                 override fun onBell(session: TerminalSession) {}
                 override fun onColorsChanged(session: TerminalSession) {
                     _session.value = session
                 }
-
                 override fun onTerminalCursorStateChange(state: Boolean) {}
                 override fun setTerminalShellPid(session: TerminalSession, pid: Int) {}
                 override fun getTerminalCursorStyle(): Int = 0
-
                 override fun logError(tag: String, message: String) {}
                 override fun logWarn(tag: String, message: String) {}
                 override fun logInfo(tag: String, message: String) {}
@@ -118,11 +114,20 @@ class TerminalViewModel(
 
         var isSuccess = false
 
-        // 从 DataStore 获取用户配置
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
         try {
+            val converter = WorldConverter(UUID.randomUUID())
+            converter.setProcessItems(true)
+            converter.setProcessEntities(true)
+            converter.setProcessBlockEntities(true)
+            converter.setProcessBiomes(true)
+            converter.setProcessLighting(true)
+            converter.setProcessColumnPreTransform(false)
+            converter.setThreadCount(userThreadCount)
+            converter.setProcessMaps(userProcessMaps)
+
             if (args.format == "MINECLONIA") {
                 outBridge.println("\u001B[1;36m[Mineclonia Engine] Starting Minecraft to Mineclonia Conversion...\u001B[0m")
                 outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
@@ -134,20 +139,8 @@ class TerminalViewModel(
                 val inputPathFile = File(args.inputPath)
                 val outputPathFile = File(args.outputPath)
 
-                val mclConverter = WorldConverter(UUID.randomUUID())
-                mclConverter.setProcessItems(true)
-                mclConverter.setProcessEntities(true)
-                mclConverter.setProcessBlockEntities(true)
-                mclConverter.setProcessBiomes(true)
-                mclConverter.setProcessLighting(true)
-                mclConverter.setProcessColumnPreTransform(false)
-                
-                // 应用用户自定义设置
-                mclConverter.setThreadCount(userThreadCount)
-                mclConverter.setProcessMaps(userProcessMaps)
-
                 outBridge.println("Detecting input world format...")
-                val readerOptional = EncodingType.findReader(inputPathFile, mclConverter)
+                val readerOptional = EncodingType.findReader(inputPathFile, converter)
                 if (!readerOptional.isPresent) {
                     throw IllegalStateException("Failed to detect input world format!")
                 }
@@ -155,11 +148,34 @@ class TerminalViewModel(
                 outBridge.println("Detected format: \u001B[32m${reader.encodingType.name}\u001B[0m Version: \u001B[32m${reader.version}\u001B[0m")
 
                 val writer = MclLevelWriter(outputPathFile)
-
                 outBridge.println("Initializing Mineclonia conversion pipeline...")
-                val trackedTask = mclConverter.convert(reader, writer)
-
+                val trackedTask = converter.convert(reader, writer)
                 val future = trackedTask.future()
+
+                // Launch Memory Monitor Coroutine
+                val memMonitorJob = viewModelScope.launch(Dispatchers.IO) {
+                    val runtime = Runtime.getRuntime()
+                    while (isActive && !future.isDone) {
+                        val maxMemory = runtime.maxMemory()
+                        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+                        val ratio = usedMemory.toDouble() / maxMemory.toDouble()
+
+                        if (ratio > 0.80) { // 80% threshold (Danger, start throttling)
+                            if (!converter.isMemoryPaused) {
+                                outBridge.println("\u001B[31m[System] Heavy memory load (${usedMemory/1024/1024}MB / ${maxMemory/1024/1024}MB). Pausing pipeline to allow GC...\u001B[0m")
+                                converter.isMemoryPaused = true
+                            }
+                            System.gc() // Hint GC
+                        } else if (ratio < 0.70) { // 70% threshold (Safe, resume)
+                            if (converter.isMemoryPaused) {
+                                outBridge.println("\u001B[32m[System] Memory recovered (${usedMemory/1024/1024}MB). Resuming pipeline...\u001B[0m")
+                                converter.isMemoryPaused = false
+                            }
+                        }
+                        delay(250) // High frequency check
+                    }
+                }
+
                 var lastProgress = -1.0
                 while (!future.isDone) {
                     val progress = trackedTask.progress
@@ -172,6 +188,7 @@ class TerminalViewModel(
                 }
 
                 future.get()
+                memMonitorJob.cancel()
 
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Mineclonia conversion completed successfully!\u001B[0m")
                 isSuccess = true
@@ -186,18 +203,6 @@ class TerminalViewModel(
 
                 val inputPathFile = File(args.inputPath)
                 val outputPathFile = File(args.outputPath)
-
-                val converter = WorldConverter(UUID.randomUUID())
-                converter.setProcessItems(true)
-                converter.setProcessEntities(true)
-                converter.setProcessBlockEntities(true)
-                converter.setProcessBiomes(true)
-                converter.setProcessLighting(true)
-                converter.setProcessColumnPreTransform(false)
-                
-                // 应用用户自定义设置
-                converter.setThreadCount(userThreadCount)
-                converter.setProcessMaps(userProcessMaps)
 
                 outBridge.println("Detecting input world format...")
                 val readerOptional = EncodingType.findReader(inputPathFile, converter)
@@ -224,8 +229,32 @@ class TerminalViewModel(
 
                 outBridge.println("Initializing programmatic Chunker conversion pipeline...")
                 val trackedTask = converter.convert(reader, writer)
-
                 val future = trackedTask.future()
+
+                // Launch Memory Monitor Coroutine
+                val memMonitorJob = viewModelScope.launch(Dispatchers.IO) {
+                    val runtime = Runtime.getRuntime()
+                    while (isActive && !future.isDone) {
+                        val maxMemory = runtime.maxMemory()
+                        val usedMemory = runtime.totalMemory() - runtime.freeMemory()
+                        val ratio = usedMemory.toDouble() / maxMemory.toDouble()
+
+                        if (ratio > 0.80) { // 80% threshold
+                            if (!converter.isMemoryPaused) {
+                                outBridge.println("\u001B[31m[System] Heavy memory load (${usedMemory/1024/1024}MB / ${maxMemory/1024/1024}MB). Pausing pipeline to allow GC...\u001B[0m")
+                                converter.isMemoryPaused = true
+                            }
+                            System.gc() // Hint GC
+                        } else if (ratio < 0.70) { // 70% threshold
+                            if (converter.isMemoryPaused) {
+                                outBridge.println("\u001B[32m[System] Memory recovered (${usedMemory/1024/1024}MB). Resuming pipeline...\u001B[0m")
+                                converter.isMemoryPaused = false
+                            }
+                        }
+                        delay(250) // High frequency check
+                    }
+                }
+
                 var lastProgress = -1.0
                 while (!future.isDone) {
                     val progress = trackedTask.progress
@@ -238,6 +267,7 @@ class TerminalViewModel(
                 }
 
                 future.get()
+                memMonitorJob.cancel()
 
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Programmatic conversion completed successfully!\u001B[0m")
                 isSuccess = true

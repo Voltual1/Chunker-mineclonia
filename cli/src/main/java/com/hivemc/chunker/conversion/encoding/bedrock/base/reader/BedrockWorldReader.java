@@ -20,9 +20,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * A reader for Bedrock dimensions.
- */
 public class BedrockWorldReader implements WorldReader {
     protected final BedrockResolvers resolvers;
     protected final Converter converter;
@@ -30,8 +27,7 @@ public class BedrockWorldReader implements WorldReader {
     protected final Dimension dimension;
     protected final DB database;
 
-    // EXTREME MICRO-BATCHING: Process only 8 columns at a time to minimize memory footprint
-    private static final int MAX_CONCURRENT_COLUMNS = 8;
+    private static final int MAX_CONCURRENT_COLUMNS = 32;
 
     public BedrockWorldReader(BedrockResolvers resolvers, Converter converter, DB database, Map<RegionCoordPair, Set<ChunkCoordPair>> presentRegions, Dimension dimension) {
         this.database = database;
@@ -53,7 +49,6 @@ public class BedrockWorldReader implements WorldReader {
         Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
             if (columnConversionHandler == null) return Task.async("Skip", TaskWeight.LOW, () -> {});
 
-            // Kick off the fully asynchronous recursive promise chain
             List<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> regionList = new ArrayList<>(presentRegions.entrySet());
             return processRegionsAsync(regionList, 0, columnConversionHandler);
         });
@@ -61,9 +56,6 @@ public class BedrockWorldReader implements WorldReader {
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
-    /**
-     * Asynchronously process regions one by one using a promise chain.
-     */
     protected Task<Void> processRegionsAsync(List<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> regions, int index, ColumnConversionHandler handler) {
         if (index >= regions.size() || converter.isCancelled()) {
             handler.flushColumns();
@@ -78,26 +70,17 @@ public class BedrockWorldReader implements WorldReader {
         List<ChunkCoordPair> chunks = new ArrayList<>(region.getValue());
         return processBatchAsync(chunks, 0, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
             handler.flushRegion(region.getKey());
-            System.gc(); // Explicit hint to JVM for memory reclaim
-            
-            // Force sleep to give the Android GC thread breathing room
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
             return processRegionsAsync(regions, index + 1, handler);
         });
     }
 
-    /**
-     * Micro-batching using Promise chains. Processes limited columns, yields, and chains the next batch.
-     */
     protected Task<Void> processBatchAsync(List<ChunkCoordPair> chunks, int startIndex, ColumnConversionHandler handler) {
         if (startIndex >= chunks.size() || converter.isCancelled()) {
             return Task.async("Batch Done", TaskWeight.LOW, () -> {});
         }
+
+        // Before generating new tasks, wait if Android has signaled that memory is critically low
+        converter.awaitMemoryPause();
 
         int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, chunks.size());
         List<Task<Void>> activeBatches = new ArrayList<>(endIndex - startIndex);
@@ -115,17 +98,7 @@ public class BedrockWorldReader implements WorldReader {
             return processBatchAsync(chunks, endIndex, handler);
         }
 
-        // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
-            
-            // YIELD TO GC: Suspend the worker thread briefly to guarantee GC gets CPU time
-            System.gc();
-            try {
-                Thread.sleep(25); // 25ms rest period for GC thread
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
             return processBatchAsync(chunks, endIndex, handler);
         });
     }

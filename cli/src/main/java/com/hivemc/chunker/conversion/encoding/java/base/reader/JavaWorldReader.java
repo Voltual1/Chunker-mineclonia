@@ -27,17 +27,13 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
-/**
- * A reader for Java dimensions.
- */
 public class JavaWorldReader implements WorldReader {
     protected final Converter converter;
     protected final JavaResolvers resolvers;
     protected final File dimensionFolder;
     protected final Dimension dimension;
 
-    // EXTREME MICRO-BATCHING: Process only 8 columns at a time to minimize memory footprint
-    private static final int MAX_CONCURRENT_COLUMNS = 8;
+    private static final int MAX_CONCURRENT_COLUMNS = 32;
 
     public JavaWorldReader(Converter converter, JavaResolvers resolvers, File dimensionFolder, Dimension dimension) {
         this.converter = converter;
@@ -49,10 +45,7 @@ public class JavaWorldReader implements WorldReader {
     @Override
     public void readWorld(WorldConversionHandler worldConversionHandler) {
         Set<RegionCoordPair> regions = new ObjectOpenHashSet<>();
-        ChunkerWorld chunkerWorld = new ChunkerWorld(
-                dimension,
-                regions
-        );
+        ChunkerWorld chunkerWorld = new ChunkerWorld(dimension, regions);
 
         File[] folders = getMCAFolders();
         Set<String> knownRegionFiles = new ObjectOpenHashSet<>();
@@ -81,17 +74,12 @@ public class JavaWorldReader implements WorldReader {
 
         Task<Void> regionProcessing = convertWorld.thenUnwrap("Reading regions", TaskWeight.HIGHER, (columnConversionHandler) -> {
             if (columnConversionHandler == null) return Task.async("Skip", TaskWeight.LOW, () -> {});
-            
-            // Kick off the fully asynchronous recursive promise chain
             return processRegionsAsync(new ArrayList<>(regions), 0, knownRegionFiles, columnConversionHandler);
         });
 
         regionProcessing.then("Flushing world", TaskWeight.MEDIUM, () -> worldConversionHandler.flushWorld(chunkerWorld));
     }
 
-    /**
-     * Asynchronously process regions one by one using a promise chain.
-     */
     protected Task<Void> processRegionsAsync(List<RegionCoordPair> regions, int index, Set<String> knownFiles, ColumnConversionHandler handler) {
         if (index >= regions.size() || converter.isCancelled()) {
             handler.flushColumns();
@@ -104,23 +92,11 @@ public class JavaWorldReader implements WorldReader {
         }
 
         return readRegionAsync(region, knownFiles, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
-            handler.flushRegion(region); // Safe to flush, the previous region tasks are completely finished
-            System.gc(); // Explicit hint to JVM for memory reclaim
-            
-            // Force sleep to give the Android GC thread breathing room between heavy region allocations
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
+            handler.flushRegion(region); 
             return processRegionsAsync(regions, index + 1, knownFiles, handler);
         });
     }
 
-    /**
-     * Asynchronously read a region's columns via batching.
-     */
     protected Task<Void> readRegionAsync(RegionCoordPair region, Set<String> knownFiles, ColumnConversionHandler handler) {
         File[] regionFiles = getRegionFiles(region, knownFiles);
         int regionFilesCount = regionFiles.length;
@@ -159,8 +135,6 @@ public class JavaWorldReader implements WorldReader {
             }
 
             List<Int2ObjectMap.Entry<int[]>> entries = new ArrayList<>(positionsToOffsets.int2ObjectEntrySet());
-            
-            // Start processing batches asynchronously
             return processBatchAsync(entries, 0, region, mcaReaders, handler)
                     .thenConsume("Close Readers", TaskWeight.LOW, (ignore) -> closeReaders(mcaReaders));
 
@@ -171,13 +145,13 @@ public class JavaWorldReader implements WorldReader {
         }
     }
 
-    /**
-     * Micro-batching using Promise chains. Processes limited columns, yields, and chains the next batch.
-     */
     protected Task<Void> processBatchAsync(List<Int2ObjectMap.Entry<int[]>> entries, int startIndex, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler handler) {
         if (startIndex >= entries.size() || converter.isCancelled()) {
             return Task.async("Batch Done", TaskWeight.LOW, () -> {});
         }
+
+        // Before generating new tasks, wait if Android has signaled that memory is critically low
+        converter.awaitMemoryPause();
 
         int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, entries.size());
         List<Task<Void>> activeBatches = new ArrayList<>(endIndex - startIndex);
@@ -194,7 +168,6 @@ public class JavaWorldReader implements WorldReader {
             if (!converter.shouldProcessColumn(dimension, columnsCoords)) continue;
 
             try {
-                // Sync read bytes
                 CompoundTag[] compoundTags = new CompoundTag[mcaReaders.length];
                 for (int regionFileIndex = 0; regionFileIndex < mcaReaders.length; regionFileIndex++) {
                     MCAReader mcaReader = mcaReaders[regionFileIndex];
@@ -220,17 +193,7 @@ public class JavaWorldReader implements WorldReader {
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         }
 
-        // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
-            
-            // YIELD TO GC: Suspend the worker thread briefly to guarantee GC gets CPU time
-            System.gc();
-            try {
-                Thread.sleep(25); // 25ms rest period for GC thread
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         });
     }
@@ -244,11 +207,7 @@ public class JavaWorldReader implements WorldReader {
     protected void closeReaders(MCAReader[] mcaReaders) {
         for (MCAReader mcaReader : mcaReaders) {
             if (mcaReader == null) continue;
-            try {
-                mcaReader.close();
-            } catch (IOException e) {
-                converter.logNonFatalException(e);
-            }
+            try { mcaReader.close(); } catch (IOException e) { converter.logNonFatalException(e); }
         }
     }
 
@@ -259,17 +218,12 @@ public class JavaWorldReader implements WorldReader {
     protected @Nullable File[] getRegionFiles(RegionCoordPair region, Set<String> knownFiles) {
         File[] folders = getMCAFolders();
         File[] files = new File[folders.length];
-
         File[] mcaFolders = getMCAFolders();
         for (int i = 0; i < mcaFolders.length; i++) {
             File folder = mcaFolders[i];
             File temp = new File(folder, "r." + region.regionX() + "." + region.regionZ() + ".mca");
-
-            if (knownFiles.contains(temp.getAbsolutePath())) {
-                files[i] = temp;
-            }
+            if (knownFiles.contains(temp.getAbsolutePath())) { files[i] = temp; }
         }
-
         return files;
     }
 
