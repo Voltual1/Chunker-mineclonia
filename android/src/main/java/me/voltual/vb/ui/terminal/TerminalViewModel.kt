@@ -162,7 +162,11 @@ class TerminalViewModel(
 
         try {
             val isMineclonia = args.format == "MINECLONIA"
-            val targetEngine = if (isMineclonia) "Mineclonia" else "Chunker"
+            val targetEngine = if (isMineclonia) {
+                "Mineclonia"
+            } else {
+                "Chunker"
+            }
 
             outBridge.println("\u001B[1;36m[$targetEngine Engine] Starting World Conversion Task...\u001B[0m")
             outBridge.println("Source Path : \u001B[33m${args.inputPath}\u001B[0m")
@@ -175,7 +179,6 @@ class TerminalViewModel(
             val inputPathFile = File(args.inputPath)
             val outputPathFile = File(args.outputPath)
 
-            // 计算该世界存档的唯一识别 MD5 (通过 icon 或是 fallback)
             val worldId = calculateWorldIdentity(inputPathFile)
             val lastSavedProgressIndex = conversionProgressDataStore.getProgress(worldId)
 
@@ -196,7 +199,6 @@ class TerminalViewModel(
             val sliceInputDir = File(context.cacheDir, "slice_input")
             val sliceOutputDir = File(context.cacheDir, "slice_output")
             
-            // 如果不是断点续传（即初次运行），清空目标文件夹
             if (lastSavedProgressIndex == 0) {
                 deleteDirectory(outputPathFile)
             }
@@ -205,7 +207,7 @@ class TerminalViewModel(
             deleteDirectory(sliceOutputDir)
 
             val isTargetBedrock = targetTypeName.contains("BEDROCK", ignoreCase = true)
-            val factory = Iq80DBFactory() // 实例化
+            val factory = Iq80DBFactory.factory
 
             if (isTargetBedrock) {
                 val finalDbDir = File(outputPathFile, "db")
@@ -226,9 +228,8 @@ class TerminalViewModel(
 
                 for ((index, mcaFile) in mcaFiles.withIndex()) {
                     if (!isRunning) break
-                    // 断点续传过滤逻辑
                     if (index < lastSavedProgressIndex) {
-                        continue;
+                        continue
                     }
                     
                     val runtime = Runtime.getRuntime()
@@ -278,7 +279,6 @@ class TerminalViewModel(
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     
-                    // 保存成功完成的分片索引进度
                     conversionProgressDataStore.saveProgress(worldId, index + 1)
 
                     System.gc()
@@ -301,7 +301,7 @@ class TerminalViewModel(
                 iterator.seekToFirst()
                 while (iterator.hasNext()) {
                     val entry = iterator.next()
-                    val key = entry.key()
+                    val key = entry.key
                     if (isBedrockChunkKey(key)) {
                         val (cx, cz) = getBedrockChunkCoords(key)
                         val pair = Pair(cx shr 5, cz shr 5)
@@ -320,7 +320,7 @@ class TerminalViewModel(
                 for ((index, region) in regionCoords.withIndex()) {
                     if (!isRunning) break
                     if (index < lastSavedProgressIndex) {
-                        continue;
+                        continue
                     }
                     
                     val runtime = Runtime.getRuntime()
@@ -348,14 +348,14 @@ class TerminalViewModel(
                     readIterator.seekToFirst()
                     while (readIterator.hasNext()) {
                         val entry = readIterator.next()
-                        val key = entry.key()
+                        val key = entry.key
                         if (isBedrockChunkKey(key)) {
                             val (cx, cz) = getBedrockChunkCoords(key)
                             if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
-                                tempDb.put(key, entry.value())
+                                tempDb.put(key, entry.value)
                             }
                         } else {
-                            tempDb.put(key, entry.value())
+                            tempDb.put(key, entry.value)
                         }
                     }
                     readIterator.close()
@@ -397,7 +397,6 @@ class TerminalViewModel(
             deleteDirectory(sliceOutputDir)
 
             if (isSuccess) {
-                // 如果完全成功，清除该世界的进度档案，防止下次转换强制断点续传
                 conversionProgressDataStore.clearProgress(worldId)
                 outBridge.println("\n\u001B[1;32m[SUCCESS] Sliced conversion completed successfully!\u001B[0m")
             }
@@ -468,7 +467,7 @@ class TerminalViewModel(
                 iterator.seekToFirst()
                 while (iterator.hasNext()) {
                     val entry = iterator.next()
-                    destDb.put(entry.key(), entry.value())
+                    destDb.put(entry.key, entry.value)
                 }
                 iterator.close()
                 srcDb.close()
