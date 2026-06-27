@@ -58,8 +58,7 @@ public class BedrockWorldReader implements WorldReader {
 
     protected Task<Void> processRegionsAsync(List<Map.Entry<RegionCoordPair, Set<ChunkCoordPair>>> regions, int index, ColumnConversionHandler handler) {
         if (index >= regions.size() || converter.isCancelled()) {
-            handler.flushColumns();
-            return Task.async("Regions Done", TaskWeight.LOW, () -> {});
+            return handler.flushColumns(); // Awaits final flush!
         }
 
         Map.Entry<RegionCoordPair, Set<ChunkCoordPair>> region = regions.get(index);
@@ -69,8 +68,11 @@ public class BedrockWorldReader implements WorldReader {
 
         List<ChunkCoordPair> chunks = new ArrayList<>(region.getValue());
         return processBatchAsync(chunks, 0, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
-            handler.flushRegion(region.getKey());
-            return processRegionsAsync(regions, index + 1, handler);
+            // Await region flush!
+            return handler.flushRegion(region.getKey()).thenUnwrap("Flush Next", TaskWeight.LOW, (ignore2) -> {
+                System.gc(); // Explicit hint to JVM for memory reclaim
+                return processRegionsAsync(regions, index + 1, handler);
+            });
         });
     }
 
@@ -79,7 +81,6 @@ public class BedrockWorldReader implements WorldReader {
             return Task.async("Batch Done", TaskWeight.LOW, () -> {});
         }
 
-        // Before generating new tasks, wait if Android has signaled that memory is critically low
         converter.awaitMemoryPause();
 
         int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, chunks.size());
@@ -94,9 +95,7 @@ public class BedrockWorldReader implements WorldReader {
             activeBatches.add(columnTask);
         }
 
-        if (activeBatches.isEmpty()) {
-            return processBatchAsync(chunks, endIndex, handler);
-        }
+        if (activeBatches.isEmpty()) return processBatchAsync(chunks, endIndex, handler);
 
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
             return processBatchAsync(chunks, endIndex, handler);

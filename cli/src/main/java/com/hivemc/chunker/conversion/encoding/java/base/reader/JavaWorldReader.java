@@ -56,16 +56,12 @@ public class JavaWorldReader implements WorldReader {
                 for (File regionFile : regionFiles) {
                     String[] parts = regionFile.getName().split("\\.");
                     if (parts.length != 4 || regionFile.length() < 4096) continue;
-
                     knownRegionFiles.add(regionFile.getAbsolutePath());
-
                     try {
                         int x = Integer.parseInt(parts[1]);
                         int z = Integer.parseInt(parts[2]);
                         regions.add(new RegionCoordPair(x, z));
-                    } catch (NumberFormatException e) {
-                        // Ignore
-                    }
+                    } catch (NumberFormatException e) {}
                 }
             }
         }
@@ -82,8 +78,7 @@ public class JavaWorldReader implements WorldReader {
 
     protected Task<Void> processRegionsAsync(List<RegionCoordPair> regions, int index, Set<String> knownFiles, ColumnConversionHandler handler) {
         if (index >= regions.size() || converter.isCancelled()) {
-            handler.flushColumns();
-            return Task.async("Regions Done", TaskWeight.LOW, () -> {});
+            return handler.flushColumns(); // Awaits final flush!
         }
 
         RegionCoordPair region = regions.get(index);
@@ -92,8 +87,11 @@ public class JavaWorldReader implements WorldReader {
         }
 
         return readRegionAsync(region, knownFiles, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
-            handler.flushRegion(region); 
-            return processRegionsAsync(regions, index + 1, knownFiles, handler);
+            // Await region flush!
+            return handler.flushRegion(region).thenUnwrap("Flush Next", TaskWeight.LOW, (ignore2) -> {
+                System.gc(); // Explicit hint to JVM for memory reclaim
+                return processRegionsAsync(regions, index + 1, knownFiles, handler);
+            });
         });
     }
 
@@ -109,14 +107,10 @@ public class JavaWorldReader implements WorldReader {
             try {
                 mcaReaders[i] = new MCAReader(converter, file);
                 foundValidFile = true;
-            } catch (FileNotFoundException e) {
-                // Ignore
-            }
+            } catch (FileNotFoundException e) {}
         }
 
-        if (!foundValidFile) {
-            return Task.async("Skip Region", TaskWeight.LOW, () -> {});
-        }
+        if (!foundValidFile) return Task.async("Skip Region", TaskWeight.LOW, () -> {});
 
         try {
             Int2ObjectMap<int[]> positionsToOffsets = new Int2ObjectOpenHashMap<>();
@@ -146,11 +140,8 @@ public class JavaWorldReader implements WorldReader {
     }
 
     protected Task<Void> processBatchAsync(List<Int2ObjectMap.Entry<int[]>> entries, int startIndex, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler handler) {
-        if (startIndex >= entries.size() || converter.isCancelled()) {
-            return Task.async("Batch Done", TaskWeight.LOW, () -> {});
-        }
+        if (startIndex >= entries.size() || converter.isCancelled()) return Task.async("Batch Done", TaskWeight.LOW, () -> {});
 
-        // Before generating new tasks, wait if Android has signaled that memory is critically low
         converter.awaitMemoryPause();
 
         int endIndex = Math.min(startIndex + MAX_CONCURRENT_COLUMNS, entries.size());
@@ -158,10 +149,7 @@ public class JavaWorldReader implements WorldReader {
 
         for (int i = startIndex; i < endIndex; i++) {
             Int2ObjectMap.Entry<int[]> entry = entries.get(i);
-            ChunkCoordPair localCoords = new ChunkCoordPair(
-                    entry.getIntKey() & 31,
-                    entry.getIntKey() >> 5
-            );
+            ChunkCoordPair localCoords = new ChunkCoordPair(entry.getIntKey() & 31, entry.getIntKey() >> 5);
             ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
             int[] columnFileOffsets = entry.getValue();
 
@@ -172,16 +160,15 @@ public class JavaWorldReader implements WorldReader {
                 for (int regionFileIndex = 0; regionFileIndex < mcaReaders.length; regionFileIndex++) {
                     MCAReader mcaReader = mcaReaders[regionFileIndex];
                     if (mcaReader == null) continue;
-
                     int offset = columnFileOffsets[regionFileIndex];
                     if (offset <= 0) continue;
-
                     compoundTags[regionFileIndex] = mcaReader.readColumnSync(columnsCoords, offset);
                 }
 
                 CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
                 JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
 
+                // Ensure we capture the REAL write task!
                 Task<Void> columnTask = columnReader.readColumn(handler);
                 activeBatches.add(columnTask);
             } catch (Exception e) {
@@ -189,18 +176,16 @@ public class JavaWorldReader implements WorldReader {
             }
         }
 
-        if (activeBatches.isEmpty()) {
-            return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
-        }
+        if (activeBatches.isEmpty()) return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
 
+        // Task.join perfectly awaits everything to hit the disk!
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         });
     }
 
     protected CompoundTag combineColumnCompounds(CompoundTag[] compoundTags) {
-        if (compoundTags.length > 1)
-            throw new IllegalArgumentException("Combining compounds is unsupported at this version");
+        if (compoundTags.length > 1) throw new IllegalArgumentException("Combining compounds is unsupported at this version");
         return compoundTags[0];
     }
 
@@ -211,9 +196,7 @@ public class JavaWorldReader implements WorldReader {
         }
     }
 
-    protected File[] getMCAFolders() {
-        return new File[]{resolvers.javaLevelDirectoryResolver().getDimensionRegionDirectory(dimensionFolder)};
-    }
+    protected File[] getMCAFolders() { return new File[]{resolvers.javaLevelDirectoryResolver().getDimensionRegionDirectory(dimensionFolder)}; }
 
     protected @Nullable File[] getRegionFiles(RegionCoordPair region, Set<String> knownFiles) {
         File[] folders = getMCAFolders();
