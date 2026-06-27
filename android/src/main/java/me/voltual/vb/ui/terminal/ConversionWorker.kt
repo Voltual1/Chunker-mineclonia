@@ -55,6 +55,37 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
+        // 启动后台高频守护线程，每 100ms 实时监控内存，一旦过高直接执行自杀，预防任何中途 OOM
+        val memoryMonitorThread = Thread {
+            val runtime = Runtime.getRuntime()
+            while (!Thread.currentThread().isInterrupted) {
+                try {
+                    Thread.sleep(100)
+                    val usedMem = runtime.totalMemory() - runtime.freeMemory()
+                    val maxMem = runtime.maxMemory()
+                    val ratio = usedMem.toDouble() / maxMem.toDouble()
+
+                    if (ratio > 0.80) {
+                        System.out.println("\u001B[31m[Memory Monitor] JVM Heap critically high (${usedMem / 1024 / 1024}MB / ${maxMem / 1024 / 1024}MB). Killing process immediately to prevent JVM OOM...\u001B[0m")
+                        closeDatabases()
+                        slicePrintStream.close()
+                        System.setOut(oldOut)
+                        System.setErr(oldErr)
+
+                        // 实施进程物理自杀
+                        android.os.Process.killProcess(android.os.Process.myPid())
+                        break
+                    }
+                } catch (e: InterruptedException) {
+                    break
+                } catch (e: Exception) {
+                    // Ignore
+                }
+            }
+        }
+        memoryMonitorThread.isDaemon = true
+        memoryMonitorThread.start()
+
         val isMineclonia = format == "MINECLONIA"
         val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
         val targetVersionString = if (isMineclonia) "1.12.2" else format.substringAfter("_").replace("_", ".")
@@ -67,6 +98,7 @@ class ConversionWorker(
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
         if (!readerOptional.isPresent) {
+            memoryMonitorThread.interrupt()
             slicePrintStream.close()
             System.setOut(oldOut)
             System.setErr(oldErr)
@@ -95,20 +127,9 @@ class ConversionWorker(
 
                     val runtime = Runtime.getRuntime()
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
-                    if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        System.out.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        ConversionProgressDataStore.saveProgress(context, worldId, index)
-                        
-                        closeDatabases()
-                        slicePrintStream.close()
-                        System.setOut(oldOut)
-                        System.setErr(oldErr)
-                        
-                        android.os.Process.killProcess(android.os.Process.myPid())
-                        return Result.retry()
-                    }
+                    // 记录分片开始的当前进度（用于自杀后在此处断点续传）
+                    ConversionProgressDataStore.saveProgress(context, worldId, index)
 
                     System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
 
@@ -196,20 +217,8 @@ class ConversionWorker(
 
                     val runtime = Runtime.getRuntime()
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
-                    if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        System.out.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        ConversionProgressDataStore.saveProgress(context, worldId, index)
-                        
-                        closeDatabases()
-                        slicePrintStream.close()
-                        System.setOut(oldOut)
-                        System.setErr(oldErr)
-                        
-                        android.os.Process.killProcess(android.os.Process.myPid())
-                        return Result.retry()
-                    }
+                    ConversionProgressDataStore.saveProgress(context, worldId, index)
 
                     System.out.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
 
@@ -292,6 +301,7 @@ class ConversionWorker(
             e.printStackTrace()
             return Result.failure()
         } finally {
+            memoryMonitorThread.interrupt()
             closeDatabases()
             slicePrintStream.close()
             System.setOut(oldOut)
@@ -360,7 +370,6 @@ class ConversionWorker(
             val sliceDbDir = File(sliceOutputDir, "db")
             val finalDbDir = File(finalOutputDir, "db")
             if (sliceDbDir.exists()) {
-                // 打开前清理可能悬空的 LOCK 锁文件
                 File(finalDbDir, "LOCK").delete()
                 
                 val writeOptions = Options().createIfMissing(true)
@@ -371,7 +380,6 @@ class ConversionWorker(
                 var sliceDb: org.iq80.leveldb.DB? = null
                 
                 try {
-                    // 仅在此处打开目标数据库进行极速写入并立马关闭，杜绝长期占用
                     targetDb = factory.open(finalDbDir, writeOptions)
                     sliceDb = factory.open(sliceDbDir, writeOptions)
                     
