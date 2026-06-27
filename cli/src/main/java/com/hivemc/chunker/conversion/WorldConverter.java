@@ -89,9 +89,8 @@ public class WorldConverter implements Converter {
     private boolean exceptions = false;
     private boolean cancelled = false;
 
-    // Memory control flag managed by Android frontend
     private volatile boolean memoryPaused = false;
-    private int threadCount = 8; // Default
+    private int threadCount = 8; 
 
     public WorldConverter(UUID sessionID) {
         this.sessionID = sessionID;
@@ -111,7 +110,6 @@ public class WorldConverter implements Converter {
 
     @Override
     public void awaitMemoryPause() {
-        // Block the reader thread until Android UI signals memory has recovered
         while (memoryPaused && !cancelled) {
             try {
                 Thread.sleep(100);
@@ -121,15 +119,6 @@ public class WorldConverter implements Converter {
             }
         }
     }
-
-    @Override
-    public void incrementActiveColumns() {}
-
-    @Override
-    public void decrementActiveColumns() {}
-
-    @Override
-    public void awaitFreeColumnSlot() {}
 
     public void setCompactionSignal(@Nullable Consumer<Boolean> compactionSignalConsumer) { this.compactionSignalConsumer = compactionSignalConsumer; }
     public void setPruningConfigs(@Nullable Map<Dimension, PruningConfig> pruningConfigs) { this.pruningConfigs = pruningConfigs; }
@@ -270,13 +259,11 @@ public class WorldConverter implements Converter {
             pipeline.worldHandlers((delegate, level) -> new WorldHandler(this, delegate));
 
             if (shouldProcessColumnPreTransform()) {
-                // If pre-transform is enabled, keep the heavy pending/caching logic
                 pipeline.columnHandlers(
                         (delegate, world) -> new ColumnPreTransformWriterConversionHandler(writer::getPreTransformManager, delegate, true),
                         ColumnPreTransformConversionHandler::new
                 );
             } else {
-                // FIX MEMORY LEAK: Completely omit the memory-hogging ColumnPreTransformConversionHandler caching layer
                 pipeline.columnHandlers(
                         (delegate, world) -> new ColumnPreTransformWriterConversionHandler(writer::getPreTransformManager, delegate, false)
                 );
