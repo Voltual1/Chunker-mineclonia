@@ -36,8 +36,8 @@ public class JavaWorldReader implements WorldReader {
     protected final File dimensionFolder;
     protected final Dimension dimension;
 
-    // The maximum number of columns to process concurrently before chaining the next batch
-    private static final int MAX_CONCURRENT_COLUMNS = 32;
+    // EXTREME MICRO-BATCHING: Process only 8 columns at a time to minimize memory footprint
+    private static final int MAX_CONCURRENT_COLUMNS = 8;
 
     public JavaWorldReader(Converter converter, JavaResolvers resolvers, File dimensionFolder, Dimension dimension) {
         this.converter = converter;
@@ -106,6 +106,14 @@ public class JavaWorldReader implements WorldReader {
         return readRegionAsync(region, knownFiles, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
             handler.flushRegion(region); // Safe to flush, the previous region tasks are completely finished
             System.gc(); // Explicit hint to JVM for memory reclaim
+            
+            // Force sleep to give the Android GC thread breathing room between heavy region allocations
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             return processRegionsAsync(regions, index + 1, knownFiles, handler);
         });
     }
@@ -164,7 +172,7 @@ public class JavaWorldReader implements WorldReader {
     }
 
     /**
-     * Micro-batching using Promise chains. Processes 32 columns, then yields and chains the next 32.
+     * Micro-batching using Promise chains. Processes limited columns, yields, and chains the next batch.
      */
     protected Task<Void> processBatchAsync(List<Int2ObjectMap.Entry<int[]>> entries, int startIndex, RegionCoordPair region, MCAReader[] mcaReaders, ColumnConversionHandler handler) {
         if (startIndex >= entries.size() || converter.isCancelled()) {
@@ -201,8 +209,6 @@ public class JavaWorldReader implements WorldReader {
                 CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
                 JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
 
-                // FIX: Do NOT use Task.asyncConsume! Directly capture the returned task from readColumn
-                // This ensures the batch waits for the ENTIRE column processing logic to finish!
                 Task<Void> columnTask = columnReader.readColumn(handler);
                 activeBatches.add(columnTask);
             } catch (Exception e) {
@@ -216,6 +222,15 @@ public class JavaWorldReader implements WorldReader {
 
         // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
+            
+            // YIELD TO GC: Suspend the worker thread briefly to guarantee GC gets CPU time
+            System.gc();
+            try {
+                Thread.sleep(25); // 25ms rest period for GC thread
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             return processBatchAsync(entries, endIndex, region, mcaReaders, handler);
         });
     }

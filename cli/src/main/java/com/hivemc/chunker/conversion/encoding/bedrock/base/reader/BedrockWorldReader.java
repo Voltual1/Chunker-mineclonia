@@ -30,7 +30,8 @@ public class BedrockWorldReader implements WorldReader {
     protected final Dimension dimension;
     protected final DB database;
 
-    private static final int MAX_CONCURRENT_COLUMNS = 32;
+    // EXTREME MICRO-BATCHING: Process only 8 columns at a time to minimize memory footprint
+    private static final int MAX_CONCURRENT_COLUMNS = 8;
 
     public BedrockWorldReader(BedrockResolvers resolvers, Converter converter, DB database, Map<RegionCoordPair, Set<ChunkCoordPair>> presentRegions, Dimension dimension) {
         this.database = database;
@@ -78,12 +79,20 @@ public class BedrockWorldReader implements WorldReader {
         return processBatchAsync(chunks, 0, handler).thenUnwrap("Next Region", TaskWeight.HIGHER, (ignore) -> {
             handler.flushRegion(region.getKey());
             System.gc(); // Explicit hint to JVM for memory reclaim
+            
+            // Force sleep to give the Android GC thread breathing room
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             return processRegionsAsync(regions, index + 1, handler);
         });
     }
 
     /**
-     * Micro-batching using Promise chains. Processes 32 columns, then yields and chains the next 32.
+     * Micro-batching using Promise chains. Processes limited columns, yields, and chains the next batch.
      */
     protected Task<Void> processBatchAsync(List<ChunkCoordPair> chunks, int startIndex, ColumnConversionHandler handler) {
         if (startIndex >= chunks.size() || converter.isCancelled()) {
@@ -98,7 +107,6 @@ public class BedrockWorldReader implements WorldReader {
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
 
             BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
-            // FIX: Directly capture the returned task from readColumn instead of wrapping it!
             Task<Void> columnTask = columnReader.readColumn(handler);
             activeBatches.add(columnTask);
         }
@@ -109,6 +117,15 @@ public class BedrockWorldReader implements WorldReader {
 
         // Wait for all columns in this batch to fully complete processing
         return Task.join(activeBatches).thenUnwrap("Next Batch", TaskWeight.HIGHER, (ignore) -> {
+            
+            // YIELD TO GC: Suspend the worker thread briefly to guarantee GC gets CPU time
+            System.gc();
+            try {
+                Thread.sleep(25); // 25ms rest period for GC thread
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
             return processBatchAsync(chunks, endIndex, handler);
         });
     }
