@@ -16,6 +16,7 @@ import java.io.FileOutputStream
 import java.io.PrintStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
+import java.nio.charset.StandardCharsets // 引入标准字符集声明
 import java.security.MessageDigest
 import java.util.UUID
 import okio.FileSystem
@@ -47,7 +48,6 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
-        // 创建共享日志输出流并以 append (追加) 模式重定向 stdout/stderr
         val logFile = File(context.cacheDir, "slice_log.txt")
         logFile.parentFile?.mkdirs()
         val fileOutputStream = FileOutputStream(logFile, true)
