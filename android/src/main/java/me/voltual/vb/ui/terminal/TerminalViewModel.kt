@@ -22,6 +22,7 @@ import me.voltual.vb.ui.Export
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.PrintStream
+import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.Navigator
@@ -117,10 +118,35 @@ class TerminalViewModel(
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
-        // 启动转换任务前，物理清空以前遗留的共享日志文件
-        val sharedLogFile = File(context.filesDir, "conversion_stream.log")
-        if (sharedLogFile.exists()) {
-            sharedLogFile.delete()
+        val logFile = File(context.cacheDir, "slice_log.txt")
+        if (logFile.exists()) {
+            logFile.delete()
+        }
+
+        // 启动后台物理日志尾随轮询任务
+        val tailJob = viewModelScope.launch(Dispatchers.IO) {
+            val delayTime = 100L
+            var filePointer = 0L
+            while (isActive) {
+                if (logFile.exists()) {
+                    try {
+                        RandomAccessFile(logFile, "r").use { raf ->
+                            val length = raf.length()
+                            if (length > filePointer) {
+                                raf.seek(filePointer)
+                                val buffer = ByteArray((length - filePointer).toInt())
+                                raf.readFully(buffer)
+                                val text = String(buffer, StandardCharsets.UTF_8)
+                                outBridge.print(text)
+                                filePointer = length
+                            }
+                        }
+                    } catch (ignored: Exception) {
+                        // 防止文件读写竞态锁冲突异常
+                    }
+                }
+                delay(delayTime)
+            }
         }
 
         try {
@@ -150,49 +176,8 @@ class TerminalViewModel(
                 workRequest
             )
 
-            // 启动共享日志物理尾随协程：实时捕获子进程追加写入的转换输出
-            val tailJob = viewModelScope.launch(Dispatchers.IO) {
-                var lastPointer = 0L
-                while (isActive) {
-                    if (sharedLogFile.exists()) {
-                        val currentLength = sharedLogFile.length()
-                        if (currentLength > lastPointer) {
-                            try {
-                                sharedLogFile.inputStream().use { stream ->
-                                    stream.skip(lastPointer)
-                                    val bytes = stream.readBytes()
-                                    if (bytes.isNotEmpty()) {
-                                        outBridge.write(bytes)
-                                    }
-                                }
-                                lastPointer = currentLength
-                            } catch (e: Exception) {
-                                // 忽略读取冲突
-                            }
-                        }
-                    }
-                    delay(100)
-                }
-            }
-
             val finalWorkInfo = WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id)
                 .first { it?.state?.isFinished == true }
-
-            // 终止日志监听，做最后一次日志读取
-            tailJob.cancel()
-            if (sharedLogFile.exists()) {
-                val currentLength = sharedLogFile.length()
-                if (currentLength > 0) {
-                    try {
-                        sharedLogFile.inputStream().use { stream ->
-                            val bytes = stream.readBytes()
-                            if (bytes.isNotEmpty()) {
-                                outBridge.write(bytes)
-                            }
-                        }
-                    } catch (ignored: Exception) {}
-                }
-            }
 
             if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                 isSuccess = true
@@ -204,6 +189,7 @@ class TerminalViewModel(
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion dispatch failed!\u001B[0m")
             e.printStackTrace(outBridge)
         } finally {
+            tailJob.cancel() // 关闭日志尾随任务
             System.setOut(oldOut)
             System.setErr(oldErr)
             isRunning = false

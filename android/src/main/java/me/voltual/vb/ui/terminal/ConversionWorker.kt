@@ -47,13 +47,14 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
-        // 创建共享日志流文件，采用追加写入模式（Append = true）以兼容子进程自杀重建
-        val logFile = File(context.filesDir, "conversion_stream.log")
+        // 创建共享日志输出流并以 append (追加) 模式重定向 stdout/stderr
+        val logFile = File(context.cacheDir, "slice_log.txt")
+        logFile.parentFile?.mkdirs()
         val fileOutputStream = FileOutputStream(logFile, true)
-        val filePrintStream = PrintStream(fileOutputStream, true)
+        val slicePrintStream = PrintStream(fileOutputStream, true)
 
-        System.setOut(filePrintStream)
-        System.setErr(filePrintStream)
+        System.setOut(slicePrintStream)
+        System.setErr(slicePrintStream)
 
         val isMineclonia = format == "MINECLONIA"
         val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
@@ -67,9 +68,9 @@ class ConversionWorker(
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
         if (!readerOptional.isPresent) {
+            slicePrintStream.close()
             System.setOut(oldOut)
             System.setErr(oldErr)
-            filePrintStream.close()
             return Result.failure()
         }
         val reader = readerOptional.get()
@@ -112,19 +113,19 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        conversionProgressDataStore.saveProgress(context, worldId, index)
+                        System.out.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
+                        ConversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
+                        slicePrintStream.close()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
-                        filePrintStream.close()
                         
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 
-                    println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
+                    System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
 
                     deleteDirectory(sliceInputDir)
                     deleteDirectory(sliceOutputDir)
@@ -173,7 +174,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    conversionProgressDataStore.saveProgress(context, worldId, index + 1)
+                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -213,19 +214,19 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        conversionProgressDataStore.saveProgress(context, worldId, index)
+                        System.out.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
+                        ConversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
+                        slicePrintStream.close()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
-                        filePrintStream.close()
                         
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
 
-                    println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
+                    System.out.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
 
                     deleteDirectory(sliceInputDir)
                     deleteDirectory(sliceOutputDir)
@@ -289,7 +290,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    conversionProgressDataStore.saveProgress(context, worldId, index + 1)
+                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -299,7 +300,7 @@ class ConversionWorker(
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
 
-            conversionProgressDataStore.clearProgress(context, worldId)
+            ConversionProgressDataStore.clearProgress(context, worldId)
             return Result.success()
 
         } catch (e: Exception) {
@@ -307,9 +308,9 @@ class ConversionWorker(
             return Result.failure()
         } finally {
             closeDatabases()
+            slicePrintStream.close()
             System.setOut(oldOut)
             System.setErr(oldErr)
-            filePrintStream.close()
         }
     }
 
