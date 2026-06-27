@@ -23,6 +23,7 @@ import java.security.MessageDigest
 import java.util.UUID
 import okio.FileSystem
 import okio.Path.Companion.toPath
+import kotlinx.coroutines.delay // 引入挂起延迟函数
 
 class ConversionWorker(
     val context: Context,
@@ -165,11 +166,9 @@ class ConversionWorker(
 
                     sliceConverter.convert(sliceReader, sliceWriter).future().get()
 
-                    // IMPORTANT: Force free the writer and reader to close slice DB locks and finish compaction thread
                     try { sliceReader.free() } catch (ignored: Exception) {}
                     try { sliceWriter.free() } catch (ignored: Exception) {}
                     
-                    // Give LevelDB's background compaction thread 50ms to shut down cleanly
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
