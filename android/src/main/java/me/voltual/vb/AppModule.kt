@@ -27,12 +27,10 @@ val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
 val DRAWER_MENU_STORE_QUALIFIER = named("drawer_menu_store")
 val THEME_SETTINGS_STORE_QUALIFIER = named("theme_settings_store")
 val CONVERSION_SETTINGS_STORE_QUALIFIER = named("conversion_settings_store")
-val CONVERSION_PROGRESS_STORE_QUALIFIER = named("conversion_progress_store")
 
 val appModule = module {
     viewModel { UpdateSettingsViewModel(get()) }
     viewModel { HomeViewModel() }
-    // FIX: Pass only two arguments matching the TerminalViewModel constructor
     viewModel { TerminalViewModel(androidContext(), get()) }
     viewModel { LogViewModel(get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
@@ -50,15 +48,13 @@ val appModule = module {
     single { FtpSettingsDataStore(androidContext()) }
     single { FtpServerManager(androidContext(), get()) }
     single { ConversionSettingsDataStore(get(CONVERSION_SETTINGS_STORE_QUALIFIER)) }
-    single { ConversionProgressDataStore(get(CONVERSION_PROGRESS_STORE_QUALIFIER)) }
     
     val storeFiles = mapOf(
         USER_AGREEMENT_STORE_QUALIFIER to "user_agreement_prefs.preferences_pb",
         UPDATE_SETTINGS_STORE_QUALIFIER to "update_settings.preferences_pb",
         DRAWER_MENU_STORE_QUALIFIER to "settings.preferences_pb",
         THEME_SETTINGS_STORE_QUALIFIER to "theme_settings.preferences_pb",
-        CONVERSION_SETTINGS_STORE_QUALIFIER to "conversion_settings_prefs.preferences_pb",
-        CONVERSION_PROGRESS_STORE_QUALIFIER to "conversion_progress_prefs.preferences_pb"
+        CONVERSION_SETTINGS_STORE_QUALIFIER to "conversion_settings_prefs.preferences_pb"
     )
 
     storeFiles.forEach { (qualifier, fileName) ->

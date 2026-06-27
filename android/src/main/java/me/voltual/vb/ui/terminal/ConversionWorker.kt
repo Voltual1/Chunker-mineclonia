@@ -9,8 +9,6 @@ import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
 import me.voltual.mcl.MclLevelWriter
 import me.voltual.vb.data.ConversionProgressDataStore
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.ByteArrayOutputStream
@@ -28,9 +26,8 @@ import kotlinx.coroutines.delay
 class ConversionWorker(
     val context: Context,
     val params: WorkerParameters
-) : RemoteCoroutineWorker(context, params), KoinComponent {
+) : RemoteCoroutineWorker(context, params) { // Removed KoinComponent implementation
 
-    private val conversionProgressDataStore: ConversionProgressDataStore by inject()
     private val fs = FileSystem.SYSTEM
     private val factory = Iq80DBFactory.factory
 
@@ -38,7 +35,6 @@ class ConversionWorker(
     private var srcDb: org.iq80.leveldb.DB? = null
     private var destDb: org.iq80.leveldb.DB? = null
 
-    // 必须重写 doRemoteWork 而不是 doWork
     override suspend fun doRemoteWork(): Result {
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
@@ -68,7 +64,8 @@ class ConversionWorker(
         val outputVersion = Version.fromString(targetVersionString)
 
         val worldId = calculateWorldIdentity(inputPathFile)
-        val lastSavedProgressIndex = conversionProgressDataStore.getProgress(worldId)
+        // Access statically without Koin injection
+        val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
 
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
@@ -118,14 +115,12 @@ class ConversionWorker(
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
                         ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        conversionProgressDataStore.saveProgress(worldId, index)
+                        ConversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
                         
-                        // 由于我们继承了 RemoteCoroutineWorker，这个进程确定无疑是 :conversion 沙盒。
-                        // 杀死它绝对不会影响到展示终端的主应用程序！
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
@@ -179,7 +174,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    conversionProgressDataStore.saveProgress(worldId, index + 1)
+                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -220,7 +215,7 @@ class ConversionWorker(
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
                         ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
-                        conversionProgressDataStore.saveProgress(worldId, index)
+                        ConversionProgressDataStore.saveProgress(context, worldId, index)
                         
                         closeDatabases()
                         System.setOut(oldOut)
@@ -294,7 +289,7 @@ class ConversionWorker(
                     delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
-                    conversionProgressDataStore.saveProgress(worldId, index + 1)
+                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
 
                     System.gc()
                     System.runFinalization()
@@ -304,7 +299,7 @@ class ConversionWorker(
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
 
-            conversionProgressDataStore.clearProgress(worldId)
+            ConversionProgressDataStore.clearProgress(context, worldId)
             return Result.success()
 
         } catch (e: Exception) {
