@@ -6,6 +6,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
+import androidx.work.multiprocess.RemoteWorkManager
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
 import kotlinx.coroutines.Dispatchers
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import me.voltual.vb.ui.TerminalExec
 import me.voltual.vb.ui.Export
@@ -43,7 +45,6 @@ class TerminalViewModel(
         if (isRunning) return
         isRunning = true
 
-        // 彻底禁用 Iq80 LevelDB 的 MMAP 内存映射，防止底层引发 SIGBUS (Signal 7)
         System.setProperty("leveldb.mmap", "false")
 
         viewModelScope.launch {
@@ -120,12 +121,15 @@ class TerminalViewModel(
                 outBridge.print(text)
             }
 
+            // RemoteWorkerService requires ARGUMENT_PACKAGE_NAME and ARGUMENT_CLASS_NAME parameters
             val workData = workDataOf(
                 "inputPath" to args.inputPath,
                 "outputPath" to args.outputPath,
                 "format" to args.format,
                 "threadCount" to userThreadCount,
-                "processMaps" to userProcessMaps
+                "processMaps" to userProcessMaps,
+                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
+                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to ConversionWorker::class.java.name
             )
 
             val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
@@ -137,14 +141,15 @@ class TerminalViewModel(
                 )
                 .build()
 
-            val workManager = WorkManager.getInstance(context)
+            // To support multiple processes correctly we need RemoteWorkManager
+            val workManager = RemoteWorkManager.getInstance(context)
             workManager.enqueueUniqueWork(
                 "world_conversion_work",
                 ExistingWorkPolicy.REPLACE,
                 workRequest
             )
 
-            val finalWorkInfo = workManager.getWorkInfoByIdFlow(workRequest.id)
+            val finalWorkInfo = WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id)
                 .first { it?.state?.isFinished == true }
 
             if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {

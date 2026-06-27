@@ -2,8 +2,8 @@
 package me.voltual.vb.ui.terminal
 
 import android.content.Context
-import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
@@ -28,7 +28,7 @@ import kotlinx.coroutines.delay
 class ConversionWorker(
     val context: Context,
     val params: WorkerParameters
-) : CoroutineWorker(context, params), KoinComponent {
+) : RemoteCoroutineWorker(context, params), KoinComponent {
 
     private val conversionProgressDataStore: ConversionProgressDataStore by inject()
     private val fs = FileSystem.SYSTEM
@@ -38,7 +38,8 @@ class ConversionWorker(
     private var srcDb: org.iq80.leveldb.DB? = null
     private var destDb: org.iq80.leveldb.DB? = null
 
-    override suspend fun doWork(): Result {
+    // 必须重写 doRemoteWork 而不是 doWork
+    override suspend fun doRemoteWork(): Result {
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
         val format = inputData.getString("format") ?: return Result.failure()
@@ -115,16 +116,16 @@ class ConversionWorker(
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
-                    // 当内存达到 82% 时，直接自杀（System process death）以彻底净化内存
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Killing process to force complete memory reclaim...\u001B[0m")
+                        ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
                         
                         closeDatabases()
                         System.setOut(oldOut)
                         System.setErr(oldErr)
                         
-                        // 强制自杀，WorkManager 会因为子进程突然死亡而触发重新拉起（基于 retry 策略）
+                        // 由于我们继承了 RemoteCoroutineWorker，这个进程确定无疑是 :conversion 沙盒。
+                        // 杀死它绝对不会影响到展示终端的主应用程序！
                         android.os.Process.killProcess(android.os.Process.myPid())
                         return Result.retry()
                     }
@@ -218,7 +219,7 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
-                        ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Killing process to force complete memory reclaim...\u001B[0m")
+                        ConversionLogBridge.println("\u001B[31m[Worker] Sub-process Heap limit reached (${usedMem}MB/${maxMem}MB). Committing suicide to cleanse memory and trigger Auto-Resume...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
                         
                         closeDatabases()
