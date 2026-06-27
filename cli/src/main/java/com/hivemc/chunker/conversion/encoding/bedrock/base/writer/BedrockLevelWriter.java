@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.conversion.encoding.bedrock.base.writer.BedrockLevelWriter.java
 package com.hivemc.chunker.conversion.encoding.bedrock.base.writer;
 
 import com.hivemc.chunker.conversion.WorldConverter;
@@ -44,9 +45,6 @@ import java.util.*;
  * A writer for Bedrock levels.
  */
 public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
-    /**
-     * Custom World string used for void worlds.
-     */
     public static final String VOID_WORD_STRING = "{ " +
             "\"biome_id\" : 1, " +
             "\"block_layers\" : [{" +
@@ -64,13 +62,6 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
     protected final BedrockResolvers resolvers;
     protected DB database;
 
-    /**
-     * Create a new level writer.
-     *
-     * @param outputFolder the output folder for the world.
-     * @param version      the version being written.
-     * @param converter    the converter instance.
-     */
     public BedrockLevelWriter(File outputFolder, Version version, Converter converter) {
         this.outputFolder = outputFolder;
         this.version = version;
@@ -83,27 +74,20 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         return resolvers.biomeIdResolver().getSupportedBiomes();
     }
 
-    /**
-     * Open the LevelDB database for writing.
-     *
-     * @throws IOException if it failed to create a new database.
-     */
     protected void openDatabase() throws IOException {
         File databaseDirectory = new File(outputFolder, "db");
         databaseDirectory.mkdirs();
 
-        // Delete LOCK file (as it may have been left behind by a bad abort / corrupted DB)
         new File(databaseDirectory, "LOCK").delete();
 
-        // LevelDB Options
         Options options = new Options();
         options.compressionType(CompressionType.ZLIB_RAW);
-        options.blockSize(160 * 1024); // 160KB
+        // FIX MEMORY BOMB: Lower LevelDB memory usage for mobile environments
+        options.blockSize(4 * 1024); // 4KB block size (Standard)
         options.filterPolicy(new BloomFilterPolicy(10));
-        options.writeBufferSize(400 * 1024 * 1024); // 400MB write buffer
+        options.writeBufferSize(8 * 1024 * 1024); // 8MB write buffer (down from 400MB)
         options.createIfMissing(true);
 
-        // Create the factory and open the database
         DBFactory factory = new Iq80DBFactory();
         database = factory.open(databaseDirectory, options);
 
@@ -112,11 +96,6 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         }
     }
 
-    /**
-     * Remap any existing LevelDB fields to retain the information.
-     *
-     * @throws IOException if it failed to remap the database.
-     */
     protected void remapExistingDB() throws IOException {
         List<byte[]> removals = new ArrayList<>();
         try (DBIterator iterator = database.iterator()) {
@@ -126,33 +105,25 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
                 byte[] key = entry.getKey();
                 int keyLength = key.length;
 
-                // The keys we're looking for are (9, 10, 13, 14) depending on if they have sub chunk / dimension
                 boolean containsSubChunk = keyLength == 14 || keyLength == 10;
                 boolean containsDimension = keyLength == 14 || keyLength == 13;
 
-                // If not 9 (both false) or any of the others then skip this entry
                 if (keyLength != 9 && !containsSubChunk && !containsDimension) continue;
 
-                // Skip local player
                 if (Arrays.equals(key, LevelDBKey.LOCAL_PLAYER)) {
                     continue;
                 }
 
-                // Mark dimension & chunk present
-                // Use a buffer to parse the key
                 ByteBuffer buffer = ByteBuffer.wrap(key).order(ByteOrder.LITTLE_ENDIAN);
 
-                // Read co-ordinates
                 int x = buffer.getInt();
                 int z = buffer.getInt();
 
-                // Read dimension
                 Dimension dimension = Dimension.OVERWORLD;
                 if (containsDimension) {
                     int dimensionID = buffer.getInt();
                     dimension = dimensionRegistry.fromBedrock(dimensionID, null);
 
-                    // If unknown report an issue
                     if (dimension == null) {
                         converter.logNonFatalException(new Exception("Unknown dimension key " + dimensionID));
                         removals.add(key);
@@ -160,23 +131,18 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
                     }
                 }
                 byte subChunkY = 0;
-                // Read subChunk Y
                 if (containsSubChunk) {
                     subChunkY = buffer.get();
                 }
                 byte type = buffer.get();
 
-                // Check if it needs a dimension remap / pruning
                 Optional<Dimension> newDimension = converter.getNewDimension(dimension);
                 ChunkCoordPair chunkCoordPair = new ChunkCoordPair(x, z);
                 if (newDimension.isPresent() && converter.shouldProcessColumn(dimension, chunkCoordPair)) {
                     if (newDimension.get() != dimension) {
                         byte[] value = entry.getValue();
-
-                        // Delete old key
                         removals.add(key);
 
-                        // Write new key (with dimension changed)
                         if (containsSubChunk) {
                             database.put(LevelDBKey.key(newDimension.get(), chunkCoordPair, subChunkY, type), value);
                         } else {
@@ -184,13 +150,11 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
                         }
                     }
                 } else {
-                    // Remove as the dimension/column has been pruned
                     removals.add(key);
                 }
             }
         }
 
-        // Remove any keys marked for removal
         try (WriteBatch writeBatch = database.createWriteBatch()) {
             for (byte[] key : removals) {
                 writeBatch.delete(key);
@@ -219,25 +183,17 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
             converter.logNonFatalException(e);
         }
 
-        // Compact database
         if (converter.shouldLevelDBCompaction()) {
-            // Signal the converter to indicate compaction has started
             Task.signal(WorldConverter.SIGNAL_COMPACTION, true);
-
-            // Call compaction
             database.compactRange(null, null);
-
-            // Signal the converter to indicate compaction has ended
             Task.signal(WorldConverter.SIGNAL_COMPACTION, false);
         }
     }
 
     @Override
     public WorldWriter writeLevel(ChunkerLevel chunkerLevel) throws Exception {
-        // Create the database
         openDatabase();
 
-        // Save level data
         Task.asyncConsume("Writing Level Data", TaskWeight.NORMAL, this::writeLevelData, chunkerLevel);
 
         if (version.isGreaterThan(1, 26, 10)) {
@@ -252,20 +208,13 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
             if (entries.size() > 0) {
                 dimensionTable.put("entries", entries);
                 byte[] value = Tag.writeBedrockNBT(dimensionTable);
-
                 database.put(LevelDBKey.DIMENSION_NAME_ID_TABLE, value);
             }
         }
 
-        // Create a new world writer with the created worldData
         return createWorldWriter();
     }
 
-    /**
-     * Schedule writing all the level data.
-     *
-     * @param chunkerLevel the level being written.
-     */
     protected void writeLevelData(ChunkerLevel chunkerLevel) {
         Task.asyncConsume("Writing Level Settings", TaskWeight.NORMAL, this::writeLevelSettings, chunkerLevel);
         Task.asyncConsume("Writing Local Player", TaskWeight.NORMAL, this::writeLocalPlayer, chunkerLevel);
@@ -273,47 +222,28 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         Task.asyncConsume("Writing Portals", TaskWeight.NORMAL, this::writePortals, chunkerLevel);
     }
 
-    /**
-     * Schedule writing all the maps for the level.
-     *
-     * @param chunkerLevel the level to use.
-     */
     protected void writeMaps(ChunkerLevel chunkerLevel) {
         if (chunkerLevel.getMaps().isEmpty()) {
             return;
         }
-
-        // Write maps
         Task.asyncConsumeForEach("Writing Saved Map", TaskWeight.NORMAL, this::writeMap, chunkerLevel.getMaps());
     }
 
-    /**
-     * Turn a map into NBT.
-     *
-     * @param chunkerMap the map being encoded.
-     * @return an NBT compound of the map.
-     * @throws Exception if it failed to write the map.
-     */
     protected CompoundTag prepareMap(ChunkerMap chunkerMap) throws Exception {
-        // Use the original map NBT as a base if it's present
         CompoundTag mapData = chunkerMap.getOriginalNBT() != null ? chunkerMap.getOriginalNBT() : new CompoundTag(12);
         mapData.put("mapId", chunkerMap.getId());
 
-        // Set the parentMapId to -1 if it's not present
         if (!mapData.contains("parentMapId")) {
             mapData.put("parentMapId", -1L);
         }
 
-        // Add the decorations if they're not present
         if (!mapData.contains("decorations")) {
             mapData.put("decorations", new ListTag<>(TagType.COMPOUND));
         }
 
-        // Scale requires 4 when it's not the parent map
         mapData.put("scale", mapData.getLong("parentMapId", -1L) == -1L ? (byte) 4 : chunkerMap.getScale());
 
         boolean dimensionShouldUseByte = getVersion().isLessThanOrEqual(1, 26, 10);
-        // Copy over the other settings
         if (dimensionShouldUseByte) {
             mapData.put("dimension", (byte) chunkerMap.getDimension().getBedrockID());
         }
@@ -332,32 +262,17 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         return mapData;
     }
 
-    /**
-     * Write a map to the database.
-     *
-     * @param chunkerMap the map to write.
-     * @throws Exception if it failed to write the map.
-     */
     protected void writeMap(ChunkerMap chunkerMap) throws Exception {
         CompoundTag mapData = prepareMap(chunkerMap);
-
-        // Write to DB
         byte[] value = Tag.writeBedrockNBT(mapData);
         database.put(("map_" + chunkerMap.getId()).getBytes(StandardCharsets.UTF_8), value);
     }
 
-    /**
-     * Write the portal data for the level.
-     *
-     * @param chunkerLevel the level to get the portal data from.
-     * @throws Exception if it failed to write the portal data.
-     */
     protected void writePortals(ChunkerLevel chunkerLevel) throws Exception {
         if (chunkerLevel.getPortals().isEmpty()) {
             return;
         }
 
-        // Write portals
         CompoundTag entry = new CompoundTag(1);
         ListTag<CompoundTag, Map<String, Tag<?>>> portalRecords = new ListTag<>(TagType.COMPOUND, chunkerLevel.getPortals().size());
         for (ChunkerPortal portal : chunkerLevel.getPortals()) {
@@ -373,86 +288,51 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         }
         entry.put("PortalRecords", portalRecords);
 
-        // Wrap in a data tag
         CompoundTag data = new CompoundTag(1);
         data.put("data", entry);
 
-        // Write to field
         byte[] value = Tag.writeBedrockNBT(data);
         database.put(LevelDBKey.PORTALS, value);
     }
 
     @Override
     public void writeCustomLevelSetting(ChunkerLevelSettings chunkerLevelSettings, CompoundTag output, String targetName, Object value) {
-        // Check for next update
-        if (targetName.equals("SummerDrop2026")) {
-            // Not supported
-            return;
-        }
+        if (targetName.equals("SummerDrop2026")) return;
+        if (targetName.equals("AutumnDrop2025")) return;
+        if (targetName.equals("SummerDrop2025")) return;
+        if (targetName.equals("WinterDrop2024")) return;
+        if (targetName.equals("R21Support")) return;
+        if (targetName.equals("R20Support")) return;
+        if (targetName.equals("CavesAndCliffs")) return;
 
-        if (targetName.equals("AutumnDrop2025")) {
-            // Not supported
-            return;
-        }
-
-        if (targetName.equals("SummerDrop2025")) {
-            // Not supported
-            return;
-        }
-
-        if (targetName.equals("WinterDrop2024")) {
-            // Not supported
-            return;
-        }
-
-        if (targetName.equals("R21Support")) {
-            // Not supported
-            return;
-        }
-
-        if (targetName.equals("R20Support")) {
-            // Not supported
-            return;
-        }
-
-        if (targetName.equals("CavesAndCliffs")) {
-            // Not supported
-            return;
-        }
-
-        // Write flat world version
         if (targetName.equals("FlatWorldVersion")) {
             output.put("WorldVersion", (int) value);
             return;
         }
 
-        // Default implementation for seed
         if (targetName.equals("RandomSeed")) {
-            // Ensure we retain the entire long when writing, as we strip it to an int on read.
             if (!output.contains("RandomSeed") || (int) output.getLong("RandomSeed") != (int) Long.parseLong((String) value)) {
                 output.put("RandomSeed", Long.parseLong((String) value));
             }
-
             return;
         }
 
         if (value instanceof ChunkerGeneratorType type) {
-            if (!converter.shouldAllowNBTCopying() && type == ChunkerGeneratorType.CUSTOM) // Force void if no custom data
+            if (!converter.shouldAllowNBTCopying() && type == ChunkerGeneratorType.CUSTOM)
                 type = ChunkerGeneratorType.VOID;
 
             switch (type) {
                 case NORMAL:
-                    output.put("Generator", 1); // Normal map
+                    output.put("Generator", 1);
                     return;
                 case FLAT:
-                    output.put("Generator", 2); // Flat map
+                    output.put("Generator", 2);
                     return;
                 case VOID:
-                    output.put("Generator", 2); // Flat map
+                    output.put("Generator", 2);
                     output.put("FlatWorldLayers", VOID_WORD_STRING);
                     return;
                 case CUSTOM:
-                    // Don't write anything
                     return;
             }
         }
@@ -460,38 +340,22 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         throw new IllegalArgumentException("Writing of " + targetName + " is not implemented.");
     }
 
-    /**
-     * Enable experiments for a level.dat.
-     *
-     * @param output      the root compound tag.
-     * @param experiments the experiments which should be enabled.
-     */
     protected void enableExperiments(CompoundTag output, String... experiments) {
         CompoundTag experimentsTag = output.getOrCreateCompound("experiments");
         for (String experiment : experiments) {
             experimentsTag.put(experiment, (byte) 1);
         }
-
-        // Since experiments is present we should mark them as possibly previously used
         experimentsTag.put("experiments_ever_used", (byte) 1);
         experimentsTag.put("saved_with_toggled_experiments", (byte) 1);
     }
 
-    /**
-     * Write the level.dat.
-     *
-     * @param chunkerLevel the level to write settings from.
-     * @throws Exception if it fails to write the level settings.
-     */
     protected void writeLevelSettings(ChunkerLevel chunkerLevel) throws Exception {
-        // Generate NBT from settings
         CompoundTag data = chunkerLevel.getOriginalLevelData() == null || !converter.shouldAllowNBTCopying() ? new CompoundTag(100) : chunkerLevel.getOriginalLevelData();
-        chunkerLevel.getSettings().worldStartCount = 0xFFFFFFFFL - 1L; // Use 1 as start count (this is used to seed entity IDs)
+        chunkerLevel.getSettings().worldStartCount = 0xFFFFFFFFL - 1L;
         chunkerLevel.getSettings().toNBT(data, this, converter);
 
-
         if (!data.contains("Generator")) {
-            data.put("Generator", 2); // Flat map
+            data.put("Generator", 2);
         }
 
         if (!data.contains("StorageVersion")) {
@@ -502,7 +366,6 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
             data.put("NetworkVersion", resolvers.dataVersion().getProtocolVersion());
         }
 
-        // Fix SpawnY
         if (data.contains("SpawnY")) {
             int y = data.getInt("SpawnY");
             if (y == -1) {
@@ -510,19 +373,15 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
             }
         }
 
-        // Fix GameModes
         if (data.contains("GameType")) {
             int type = data.getInt("GameType");
             if (type == 3 || type == 4 || type == 6) {
-                // Use spectator (or fall back to adventure) (disabled in 1.19U5 due to issues initializing)
                 data.put("GameType", getVersion().isGreaterThanOrEqual(1, 18, 30) && getVersion().isLessThan(1, 19, 50) ? 6 : 2);
             }
         }
 
-        // Add LastPlayed
         data.put("LastPlayed", Instant.now().getEpochSecond());
 
-        // Mark minimum compatible version
         Version version = resolvers.dataVersion().getVersion();
         ListTag<IntTag, Integer> minimumVersion = new ListTag<>(TagType.INT, 5);
         minimumVersion.add(new IntTag(version.getMajor()));
@@ -535,29 +394,19 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
             data.put("MinimumCompatibleClientVersion", minimumVersion);
         }
 
-        // Mark last opened with version
         if (!data.contains("lastOpenedWithVersion")) {
             data.put("lastOpenedWithVersion", minimumVersion);
         }
 
-        // Write the level.dat
         Tag.writeBedrockNBT(new File(outputFolder, "level.dat"), resolvers.dataVersion().getStorageVersion(), data);
     }
 
-    /**
-     * Write the local player data.
-     *
-     * @param output the level to get the local player from.
-     * @throws Exception if it fails to write the local player.
-     */
     protected void writeLocalPlayer(ChunkerLevel output) throws Exception {
-        if (output.getPlayer() == null || converter.shouldAllowNBTCopying()) return; // Don't write local player
+        if (output.getPlayer() == null || converter.shouldAllowNBTCopying()) return;
         ChunkerLevelPlayer player = output.getPlayer();
 
-        // Create the NBT
         CompoundTag playerTag = new CompoundTag(9);
 
-        // Write position data
         playerTag.put("Pos", ListTag.fromValues(TagType.FLOAT, List.of(
                 (float) player.getPositionX(),
                 (float) player.getPositionY() + BedrockLevelReader.PLAYER_HEIGHT,
@@ -573,77 +422,51 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
                 player.getPitch()
         )));
 
-        // Write main inventory
         ListTag<CompoundTag, Map<String, Tag<?>>> items = new ListTag<>(TagType.COMPOUND, player.getInventory().size());
         for (Byte2ObjectMap.Entry<ChunkerItemStack> tag : player.getInventory().byte2ObjectEntrySet()) {
-            // Don't include slots not in the main inventory
             if ((tag.getByteKey() & 0xFF) >= 100) continue;
-
-            // Don't write air to inventories
             if (tag.getValue().getIdentifier().isAir()) continue;
 
-            // Write the item with slot
             Optional<CompoundTag> item = resolvers.writeItem(tag.getValue());
             if (item.isEmpty()) continue;
 
-            // Write the slot
             item.get().put("Slot", tag.getByteKey());
-
-            // Add to items
             items.add(item.get());
         }
         playerTag.put("Inventory", items);
 
-        // Write armor (reversed)
         ListTag<CompoundTag, Map<String, Tag<?>>> armor = new ListTag<>(TagType.COMPOUND, 4);
         for (int i = 3; i >= 0; i--) {
             ChunkerItemStack chunkerItemStack = player.getInventory().get((byte) (100 + i));
-
-            // Use air if the item isn't present
             if (chunkerItemStack == null) {
                 chunkerItemStack = new ChunkerItemStack(ChunkerBlockIdentifier.AIR);
             }
-
-            // Write the item
             Optional<CompoundTag> item = resolvers.writeItem(chunkerItemStack);
             if (item.isEmpty()) continue;
-
-            // Add to armor
             armor.add(item.get());
         }
         playerTag.put("Armor", armor);
 
-        // Write offhand
         ListTag<CompoundTag, Map<String, Tag<?>>> offhand = new ListTag<>(TagType.COMPOUND, 1);
         for (int i = 0; i < 1; i++) {
             ChunkerItemStack chunkerItemStack = player.getInventory().get((byte) (150 + i));
-
-            // Use air if the item isn't present
             if (chunkerItemStack == null) {
                 chunkerItemStack = new ChunkerItemStack(ChunkerBlockIdentifier.AIR);
             }
-
-            // Write the item
             Optional<CompoundTag> item = resolvers.writeItem(chunkerItemStack);
             if (item.isEmpty()) continue;
-
-            // Add to armor
             offhand.add(item.get());
         }
         playerTag.put("Offhand", offhand);
 
-        // Write dimension / gamemode
         playerTag.put("DimensionId", player.getDimension().getBedrockID());
 
-        // Handle specific game types
         if (player.getGameType() == 3 || player.getGameType() == 4 || player.getGameType() == 6) {
-            // Use spectator (or fall back to adventure) (disabled in 1.19U5 due to issues initializing)
             playerTag.put("PlayerGameMode", getVersion().isGreaterThanOrEqual(1, 18, 30) && getVersion().isLessThan(1, 19, 50) ? 6 : 2);
         } else {
             playerTag.put("PlayerGameMode", player.getGameType());
         }
 
-        // Add default movement attribute (Bedrock doesn't use the player default so you ends up using 0.7)
         CompoundTag movementAttribute = new CompoundTag(7);
         movementAttribute.put("Base", 0.1F);
         movementAttribute.put("Current", 0.1F);
@@ -654,19 +477,11 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         movementAttribute.put("Name", "minecraft:movement");
         playerTag.put("Attributes", new ListTag<>(TagType.COMPOUND, List.of(movementAttribute)));
 
-        // Write to field
         byte[] value = Tag.writeBedrockNBT(playerTag);
         database.put(LevelDBKey.LOCAL_PLAYER, value);
     }
 
-    /**
-     * Write the custom biome table
-     *
-     * @throws Exception if it fails to write the table
-     */
-    protected void writeBiomeList() throws Exception {
-        // Support for custom biomes was added in 1.21.110
-    }
+    protected void writeBiomeList() throws Exception {}
 
     @Override
     public Version getVersion() {
@@ -680,19 +495,14 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
 
     @Override
     public int getOrCreateLodestoneData(ChunkerLodestoneData lodestoneData) {
-        return -1; // By default, return -1 as it's not supported on old versions
+        return -1;
     }
 
     @Override
     public @Nullable ChunkerLodestoneData getLodestoneData(int index) {
-        return null; // Return null as it's not supported on old versions
+        return null;
     }
 
-    /**
-     * Create a new world writer.
-     *
-     * @return a new world writer.
-     */
     public BedrockWorldWriter createWorldWriter() {
         return new BedrockWorldWriter(outputFolder, converter, resolvers, database);
     }
