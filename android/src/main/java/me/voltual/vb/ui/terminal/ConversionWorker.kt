@@ -94,7 +94,6 @@ class ConversionWorker(
                 val finalDbDir = File(outputPathFile, "db")
                 finalDbDir.mkdirs()
                 
-                // 彻底删除残留的 LOCK 文件，确保打开前干净
                 File(finalDbDir, "LOCK").delete()
 
                 val writeOptions = Options().createIfMissing(true)
@@ -119,7 +118,6 @@ class ConversionWorker(
                         ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
                         
-                        // 重要：返回 retry 前必须关闭所有持有 LOCK 的数据库连接句柄并置空
                         closeDatabases()
                         return Result.retry()
                     }
@@ -166,6 +164,13 @@ class ConversionWorker(
                     }
 
                     sliceConverter.convert(sliceReader, sliceWriter).future().get()
+
+                    // IMPORTANT: Force free the writer and reader to close slice DB locks and finish compaction thread
+                    try { sliceReader.free() } catch (ignored: Exception) {}
+                    try { sliceWriter.free() } catch (ignored: Exception) {}
+                    
+                    // Give LevelDB's background compaction thread 50ms to shut down cleanly
+                    delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     conversionProgressDataStore.saveProgress(worldId, index + 1)
@@ -272,6 +277,11 @@ class ConversionWorker(
                     }
 
                     sliceConverter.convert(sliceReader, sliceWriter).future().get()
+
+                    try { sliceReader.free() } catch (ignored: Exception) {}
+                    try { sliceWriter.free() } catch (ignored: Exception) {}
+                    
+                    delay(50)
 
                     mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     conversionProgressDataStore.saveProgress(worldId, index + 1)
