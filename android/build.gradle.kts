@@ -156,6 +156,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     
     implementation("ro.andob.androidawt:androidawt:1.0.4")
+    
+    implementation("androidx.work:work-multiprocess:2.11.0")
 
     implementation(libs.kotlinx.datetime)
     
