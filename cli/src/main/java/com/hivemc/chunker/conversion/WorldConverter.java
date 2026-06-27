@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.conversion.WorldConverter.java
 package com.hivemc.chunker.conversion;
 
 import com.google.common.collect.Multimap;
@@ -30,6 +31,7 @@ import com.hivemc.chunker.scheduling.task.Environment;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import com.hivemc.chunker.scheduling.task.TrackedTask;
+import com.hivemc.chunker.scheduling.task.executor.TaskExecutor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -97,8 +99,6 @@ public class WorldConverter implements Converter {
     private boolean exceptions = false;
     private boolean cancelled = false;
 
-    private final java.util.concurrent.atomic.AtomicInteger activeColumns = new java.util.concurrent.atomic.AtomicInteger(0);
-
     /**
      * Create a new WorldConverter with a sessionID.
      *
@@ -110,28 +110,27 @@ public class WorldConverter implements Converter {
 
     @Override
     public void incrementActiveColumns() {
-        activeColumns.incrementAndGet();
+        // Deprecated: Handled dynamically by TaskExecutor queue size monitoring
     }
 
     @Override
     public void decrementActiveColumns() {
-        synchronized (activeColumns) {
-            activeColumns.decrementAndGet();
-            activeColumns.notifyAll();
-        }
+        // Deprecated: Handled dynamically by TaskExecutor queue size monitoring
     }
 
     @Override
     public void awaitFreeColumnSlot() {
-        synchronized (activeColumns) {
-            while (activeColumns.get() >= 8) { // Throttle: Max 8 active columns in progress at any time
-                try {
-                    activeColumns.wait(100);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                }
+        try {
+            TaskExecutor executor = TaskExecutor.currentExecutor();
+            // 1024 tasks effectively limits in-flight columns to around ~50 columns
+            // This prevents OOM by pausing the generation of new read tasks
+            while (executor.getQueueSize() > 1024) { 
+                Thread.sleep(10);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        } catch (Exception e) {
+            // Ignore if executed outside a TaskExecutor context
         }
     }
 

@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.conversion.encoding.java.base.reader.JavaWorldReader.java
 package com.hivemc.chunker.conversion.encoding.java.base.reader;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
@@ -11,6 +12,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
+import com.hivemc.chunker.scheduling.task.FutureTask;
 import com.hivemc.chunker.scheduling.task.ProgressiveTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
@@ -22,12 +24,9 @@ import org.jetbrains.annotations.Nullable;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.RandomAccessFile;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -174,35 +173,48 @@ public class JavaWorldReader implements WorldReader {
 
                 ChunkCoordPair localCoords = new ChunkCoordPair(
                         entry.getIntKey() & 31,
-                        entry.getKey() >> 5
+                        entry.getIntKey() >> 5
                 );
                 ChunkCoordPair columnsCoords = region.getChunk(localCoords.chunkX(), localCoords.chunkZ());
                 int[] columnFileOffsets = entry.getValue();
 
                 if (!converter.shouldProcessColumn(dimension, columnsCoords)) continue;
 
-                // Read column NBT from all region files synchronously
-                CompoundTag[] compoundTags = new CompoundTag[regionFilesCount];
+                // Throttle: Limit TaskExecutor Queue Size to prevent memory bloat
+                converter.awaitFreeColumnSlot();
+
+                // Read column compressed bytes synchronously, but push NBT decompression to TaskExecutor
+                List<Task<CompoundTag>> compoundTagTasks = new ArrayList<>(regionFilesCount);
                 for (int regionFileIndex = 0; regionFileIndex < regionFilesCount; regionFileIndex++) {
                     MCAReader mcaReader = mcaReaders[regionFileIndex];
-                    if (mcaReader == null) continue;
+                    if (mcaReader == null) {
+                        compoundTagTasks.add(new FutureTask<>(java.util.concurrent.CompletableFuture.completedFuture(null)));
+                        continue;
+                    }
 
                     int offset = columnFileOffsets[regionFileIndex];
-                    if (offset <= 0) continue;
+                    if (offset <= 0) {
+                        compoundTagTasks.add(new FutureTask<>(java.util.concurrent.CompletableFuture.completedFuture(null)));
+                        continue;
+                    }
 
-                    compoundTags[regionFileIndex] = mcaReader.readColumnSync(columnsCoords, offset);
+                    // `readColumn` synchronously reads bytes from disk but returns an async task for CPU decompression
+                    compoundTagTasks.add(mcaReader.readColumn(columnsCoords, offset));
                 }
 
-                CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
-                JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
-
-                // Throttle: wait if there are too many active writes to avoid memory bloat
-                converter.awaitFreeColumnSlot();
-                converter.incrementActiveColumns();
-
-                // Process the column asynchronously via TaskExecutor
-                Task.asyncConsume("Reading Column " + columnsCoords, TaskWeight.HIGHER,
-                        columnReader::readColumn, columnConversionHandler);
+                // Wait for decompression asynchronously, then submit to the pipeline
+                Task.join(compoundTagTasks).thenConsume("Combine and Read Column", TaskWeight.HIGHER, (tags) -> {
+                    try {
+                        CompoundTag[] compoundTags = tags.toArray(new CompoundTag[0]);
+                        CompoundTag combinedNBT = combineColumnCompounds(compoundTags);
+                        JavaColumnReader columnReader = createColumnReader(columnsCoords, combinedNBT);
+                        
+                        // Execute internal processing of the column which will automatically push smaller sub-tasks
+                        columnReader.readColumn(columnConversionHandler);
+                    } catch (Exception e) {
+                        converter.logNonFatalException(e);
+                    }
+                });
             }
         } catch (Exception e) {
             converter.logNonFatalException(e);

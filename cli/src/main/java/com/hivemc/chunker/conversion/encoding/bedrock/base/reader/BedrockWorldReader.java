@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.conversion.encoding.bedrock.base.reader.BedrockWorldReader.java
 package com.hivemc.chunker.conversion.encoding.bedrock.base.reader;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
@@ -97,14 +98,12 @@ public class BedrockWorldReader implements WorldReader {
             if (converter.isCancelled()) break;
             if (!converter.shouldProcessColumn(dimension, chunkCoordPair)) continue;
 
-            // Throttle: wait if there are too many active writes to avoid memory bloat
+            // Throttle: wait if there are too many active tasks to avoid memory bloat
             converter.awaitFreeColumnSlot();
-            converter.incrementActiveColumns();
 
-            // Process column asynchronously
+            // Process column asynchronously (automatically adds downstream inner tasks)
             BedrockColumnReader columnReader = createColumnReader(chunkCoordPair);
-            Task.asyncConsume("Reading Column " + chunkCoordPair, TaskWeight.HIGHER,
-                    columnReader::readColumn, columnConversionHandler);
+            columnReader.readColumn(columnConversionHandler);
         }
     }
 

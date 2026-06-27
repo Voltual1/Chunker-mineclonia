@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.scheduling.task.executor.TaskExecutor.java
 package com.hivemc.chunker.scheduling.task.executor;
 
 import com.google.common.base.Preconditions;
@@ -41,6 +42,16 @@ public class TaskExecutor {
         }
         this.exceptionHandler = exceptionHandler;
         this.signalConsumer = signalConsumer;
+    }
+
+    /**
+     * Get the current queue size of the task executor.
+     * This is useful for backpressure and throttling task submissions.
+     *
+     * @return the number of pending tasks.
+     */
+    public int getQueueSize() {
+        return tasks.size();
     }
 
     /**
