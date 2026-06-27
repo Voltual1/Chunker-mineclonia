@@ -50,7 +50,6 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
-        // Redirect stdout/stderr from core converter engine to the bridge
         val bridgePrintStream = PrintStream(object : ByteArrayOutputStream() {
             override fun write(b: ByteArray, off: Int, len: Int) {
                 ConversionLogBridge.print(String(b, off, len, StandardCharsets.UTF_8))
@@ -111,7 +110,6 @@ class ConversionWorker(
                     val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
                     val maxMem = runtime.maxMemory() / (1024 * 1024)
                     
-                    // MEMORY CHECK: If heap exceeds 82%, stop worker to reclaim classloaders and JNI resources
                     if (usedMem.toDouble() / maxMem.toDouble() > 0.82) {
                         ConversionLogBridge.println("\u001B[31m[Worker] JVM Heap high load (${usedMem}MB/${maxMem}MB). Triggering system-level retry to clean up memory...\u001B[0m")
                         conversionProgressDataStore.saveProgress(worldId, index)
@@ -161,7 +159,7 @@ class ConversionWorker(
 
                     sliceConverter.convert(sliceReader, sliceWriter).future().get()
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     conversionProgressDataStore.saveProgress(worldId, index + 1)
 
                     System.gc()
@@ -261,7 +259,7 @@ class ConversionWorker(
 
                     sliceConverter.convert(sliceReader, sliceWriter).future().get()
 
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb)
+                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, destDb, factory)
                     conversionProgressDataStore.saveProgress(worldId, index + 1)
 
                     System.gc()
@@ -279,19 +277,13 @@ class ConversionWorker(
             e.printStackTrace()
             return Result.failure()
         } finally {
+            // FIX: Resource cleanup handled strictly here as onStopped is final in CoroutineWorker
+            currentConverter?.cancel(null)
             try { srcDb?.close() } catch (ignored: Exception) {}
             try { destDb?.close() } catch (ignored: Exception) {}
             System.setOut(oldOut)
             System.setErr(oldErr)
         }
-    }
-
-    override fun onStopped() {
-        super.onStopped()
-        // Force cancel Chunker to prevent background threads hanging
-        currentConverter?.cancel(null)
-        try { srcDb?.close() } catch (ignored: Exception) {}
-        try { destDb?.close() } catch (ignored: Exception) {}
     }
 
     private fun calculateWorldIdentity(inputDir: File): String {
@@ -324,7 +316,7 @@ class ConversionWorker(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?) {
+    private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, destDb: org.iq80.leveldb.DB?, factory: Iq80DBFactory) {
         if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {

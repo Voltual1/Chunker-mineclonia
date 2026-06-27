@@ -113,12 +113,10 @@ class TerminalViewModel(
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
         try {
-            // Register bridge output listener
             ConversionLogBridge.setListener { text ->
                 outBridge.print(text)
             }
 
-            // Create inputs for WorkManager
             val workData = workDataOf(
                 "inputPath" to args.inputPath,
                 "outputPath" to args.outputPath,
@@ -143,12 +141,11 @@ class TerminalViewModel(
                 workRequest
             )
 
-            // Block and wait until WorkManager reaches a terminal state (Success/Failure/Cancel)
-            // Intermediate retries (caused by memory pressure) will cycle states internally without completing this flow
+            // FIX: Null-safety check for WorkInfo
             val finalWorkInfo = workManager.getWorkInfoByIdFlow(workRequest.id)
-                .first { it.state.isFinished }
+                .first { it?.state?.isFinished == true }
 
-            if (finalWorkInfo.state == WorkInfo.State.SUCCEEDED) {
+            if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                 isSuccess = true
             }
 

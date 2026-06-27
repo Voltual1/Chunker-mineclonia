@@ -32,7 +32,8 @@ val CONVERSION_PROGRESS_STORE_QUALIFIER = named("conversion_progress_store")
 val appModule = module {
     viewModel { UpdateSettingsViewModel(get()) }
     viewModel { HomeViewModel() }
-    viewModel { TerminalViewModel(androidContext(), get(), get()) }
+    // FIX: Pass only two arguments matching the TerminalViewModel constructor
+    viewModel { TerminalViewModel(androidContext(), get()) }
     viewModel { LogViewModel(get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
     viewModel { ExportViewModel(androidContext()) }
