@@ -60,3 +60,42 @@
     protected <methods>;
     public <methods>;
 }
+
+
+# 1. 顶层特殊或基础平台包
+-keepnames class _COROUTINE.** { *; }
+-keepnames class android.** { *; }
+-keepnames class androidx.** { *; }
+-keepnames class j$.** { *; }
+-keepnames class java.** { *; }
+-keepnames class javax.** { *; }
+
+# 2. Kotlin 核心及扩展
+-keepnames class kotlin.** { *; }
+-keepnames class kotlinx.** { *; }
+
+# 3. com.* 依赖细分
+-keepnames class com.anggrayudi.** { *; }
+-keepnames class com.google.** { *; }
+-keepnames class com.hivemc.** { *; }
+-keepnames class com.termux.** { *; }
+
+# 4. io.* 依赖细分
+-keepnames class io.github.** { *; }
+-keepnames class io.ktor.** { *; }
+
+# 5. org.* 依赖细分
+-keepnames class org.apache.** { *; }
+-keepnames class org.intellij.** { *; }
+-keepnames class org.iq80.** { *; }
+-keepnames class org.koin.** { *; }
+-keepnames class org.slf4j.** { *; }
+
+# 6. 其他独立三方库及业务包
+-keepnames class it.unimi.** { *; }
+-keepnames class me.voltual.** { *; }
+-keepnames class net.jpountz.** { *; }
+-keepnames class okhttp3.** { *; }
+-keepnames class okio.** { *; }
+-keepnames class picocli.** { *; }
+-keepnames class ro.andob.** { *; }
