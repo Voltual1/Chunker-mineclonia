@@ -61,4 +61,4 @@
     public <methods>;
 }
 
--keepnames class com.google.** { *; }
+-keepnames class com.google.typography.font.sfntly.** { *; }
