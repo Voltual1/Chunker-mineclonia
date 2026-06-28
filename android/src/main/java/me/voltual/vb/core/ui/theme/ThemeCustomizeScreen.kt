@@ -21,9 +21,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import io.github.vinceglb.filekit.dialogs.FileKitType
-import io.github.vinceglb.filekit.dialogs.compose.rememberFilePickerLauncher
-import io.github.vinceglb.filekit.path
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
@@ -66,21 +63,6 @@ fun ThemeCustomizeScreen(
     var showSavedMessage by remember { mutableStateOf(false) }
     var showResetDialog by remember { mutableStateOf(false) }
     var translate by remember { mutableStateOf(false) }
-
-    val globalBackgroundPickerLauncher = rememberFilePickerLauncher(
-        type = FileKitType.Image,
-        onResult = { file -> file?.let { scope.launch { themeStore.saveGlobalBackgroundUri(it.path) } } }
-    )
-
-    val lightDrawerBgPickerLauncher = rememberFilePickerLauncher(
-        type = FileKitType.Image,
-        onResult = { file -> file?.let { scope.launch { themeStore.saveDrawerHeaderLightBackgroundUri(it.path) } } }
-    )
-
-    val darkDrawerBgPickerLauncher = rememberFilePickerLauncher(
-        type = FileKitType.Image,
-        onResult = { file -> file?.let { scope.launch { themeStore.saveDrawerHeaderDarkBackgroundUri(it.path) } } }
-    )
 
     val globalBackgroundUri by themeStore.globalBackgroundUriFlow.collectAsState(initial = null)
     val lightDrawerBgUri by themeStore.drawerHeaderLightBackgroundUriFlow.collectAsState(initial = null)

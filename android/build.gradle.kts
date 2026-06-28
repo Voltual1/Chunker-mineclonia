@@ -101,6 +101,10 @@ android {
 //            excludes.add("/java/**") 
 //这个"/java/"其实是Chunker需要的资源
         }
+        jniLibs {
+            excludes.add("**/libawtcompat-native-components.so")
+        }
+        //我估计不会用这个so
     }
 
     kotlin {
@@ -132,9 +136,9 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     
-    implementation(libs.filekit.core)
-    implementation(libs.filekit.dialogs)
-    implementation(libs.filekit.dialogs.compose)    
+//    implementation(libs.filekit.core)
+//    implementation(libs.filekit.dialogs)
+//    implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
     implementation(libs.simple.storage.compose)
     implementation(libs.kotlinx.io)    
