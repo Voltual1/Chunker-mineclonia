@@ -53,37 +53,34 @@ jobs:
       #     python3 patch_chunker.py
       #     echo "所有补丁应用完成！"
 
-      - name: Comment out System.exit in Java files
+      - name: Patch Java Source Code
         run: |
-          echo "开始检索并注释 System.exit..."
+          # 1. 检索并注释掉 System.exit
+          echo "正在注释 System.exit..."
           find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
-          echo "替换完成！"
 
-      - name: Fix StringBuilder.isEmpty in Specific Files
-        run: |
-          echo "开始精准修复指定文件的 StringBuilder.isEmpty()..."
-          
-          # 定义需要修复的文件名列表
-          TARGET_FILES=("ChunkerBlockIdentifier.java" "FontUtil.java")
-          
-          for FILE_NAME in "${TARGET_FILES[@]}"; do
-              echo "正在查找文件: $FILE_NAME ..."
-              FILE_PATH=$(find . -name "$FILE_NAME" | head -n 1)
-              
-              if [ -n "$FILE_PATH" ]; then
-                  echo "找到目标文件: $FILE_PATH，开始替换..."
-                  # 匹配 !变量名.isEmpty() 并替换为 变量名.length() > 0
-                  sed -i -E 's/!([a-zA-Z0-9_]+)\.isEmpty\(\)/\1.length() > 0/g' "$FILE_PATH"
-                  # 匹配 变量名.isEmpty() 并替换为 变量名.length() == 0
-                  sed -i -E 's/([a-zA-Z0-9_]+)\.isEmpty\(\)/\1.length() == 0/g' "$FILE_PATH"
-                  echo "$FILE_NAME 修改完毕！"
-              else
-                  echo "错误: 未找到文件 $FILE_NAME，请检查项目结构！"
-                  exit 1
-              fi
-          done
-          echo "所有指定文件修复完成！"
-          
+          FILE_1=$(find . -name "ChunkerBlockIdentifier.java" | head -n 1)
+          if [ -n "$FILE_1" ]; then
+              echo "正在修复: $FILE_1"
+              sed -i -E 's/!builder\.isEmpty\(\)/builder.length() > 0/g' "$FILE_1"
+              sed -i -E 's/builder\.isEmpty\(\)/builder.length() == 0/g' "$FILE_1"
+          else
+              echo "错误: 未找到 ChunkerBlockIdentifier.java" && exit 1
+          fi
+
+          FILE_2=$(find . -name "FontUtil.java" | head -n 1)
+          if [ -n "$FILE_2" ]; then
+              echo "正在修复: $FILE_2"
+              sed -i -E 's/!currentLine\.isEmpty\(\)/currentLine.length() > 0/g' "$FILE_2"
+              sed -i -E 's/currentLine\.isEmpty\(\)/currentLine.length() == 0/g' "$FILE_2"
+              sed -i -E 's/!currentWord\.isEmpty\(\)/currentWord.length() > 0/g' "$FILE_2"
+              sed -i -E 's/currentWord\.isEmpty\(\)/currentWord.length() == 0/g' "$FILE_2"
+          else
+              echo "错误: 未找到 FontUtil.java" && exit 1
+          fi
+
+          echo "===  修复完成！ ==="
+
       - name: Build with Gradle
         run: ./gradlew assembleDebug
         env:
