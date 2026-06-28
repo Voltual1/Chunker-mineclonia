@@ -62,4 +62,3 @@
 }
 
 -keepnames class com.google.common.base.** { *; }
--keepnames class com.google.common.cache.** { *; }
