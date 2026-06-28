@@ -104,6 +104,25 @@ class TerminalViewModel(
         }
     }
 
+    // 强行停止 Worker 接口
+    fun stopExecution(navigator: Navigator) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val workManager = RemoteWorkManager.getInstance(context)
+                workManager.cancelUniqueWork("world_conversion_work")
+            } catch (ignored: Exception) {}
+
+            // 主动退出转换，擦除活跃转换任务标志，避免重复拉起
+            ConversionProgressDataStore.clearActiveConversion(context)
+
+            withContext(Dispatchers.Main) {
+                isRunning = false
+                _session.value?.finishIfRunning()
+                navigator.goBack()
+            }
+        }
+    }
+
     private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
         val outBridge = TerminalPrintStream(session, crashLogFile)
@@ -184,8 +203,11 @@ class TerminalViewModel(
 
                 if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                     isSuccess = true
+                } else if (finalWorkInfo?.state == WorkInfo.State.CANCELLED) {
+                    // 如果状态是 CANCELLED，表明是用户主动点击顶部 Stop 动作停止，在此直接打破重试循环
+                    outBridge.println("\n\u001B[1;31m[System] Sliced conversion stopped by user request.\u001B[0m")
+                    break
                 } else {
-                    // 自杀后由于协程中断会被捕捉，无论进度为几，都应继续尝试接龙重新连接 RemoteWorker
                     outBridge.println("\n\u001B[1;33m[System] Process died due to memory optimization. Restarting worker...\u001B[0m")
                 }
             } catch (e: Exception) {
@@ -193,7 +215,7 @@ class TerminalViewModel(
             }
         }
 
-        if (!isSuccess) {
+        if (!isSuccess && attempt >= maxAttempts) {
             outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed after maximum retries.\u001B[0m")
         }
 

@@ -1,3 +1,4 @@
+// [file name]: me.voltual.vb.MainScreenContent.kt
 // Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 
@@ -118,8 +119,6 @@ fun MainScreenContent(
     val darkBgUri by themeStore.drawerHeaderDarkBackgroundUriFlow.collectAsState(initial = null)
     val drawerHeaderBackgroundUri = if (useDarkTheme) darkBgUri else lightBgUri
 
-    val isLoggedIn = remember { mutableStateOf(false) }
-
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
@@ -178,7 +177,12 @@ fun MainScreenContent(
                         }
                     },
                     actions = {
-                        // Actions can be added here
+                        // 循环渲染动态注入的 TopAppBarAction
+                        topAppBarController.actions.forEach { action ->
+                            IconButton(onClick = action.onClick) {
+                                action.icon(action.tint?.invoke() ?: MaterialTheme.colorScheme.onSurface)
+                            }
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.surface,
@@ -189,7 +193,6 @@ fun MainScreenContent(
             snackbarHost = { BBQSnackbarHost(hostState = snackbarHostState) },
             content = { innerPadding ->
                 val contentPadding = innerPadding
-                
 
                 val currentBackStack = navigationState.backStacks[currentTopLevelRoute]
                     ?: navigationState.backStacks[navigationState.startRoute]!!
@@ -229,7 +232,7 @@ fun getTitleForDestination(route: NavKey?): String {
         Home -> "主页"
         ThemeCustomize -> "主题定制"
         UpdateSettings -> "更新设置"
-        is TerminalExec -> "终端"    //  使用 is 匹配所有 TerminalExec 实例
+        is TerminalExec -> "终端"
         FtpSettings -> "世界中转 (FTP)"
         LogViewer -> "日志" 
         CacheSettings -> "缓存设置" 
@@ -239,6 +242,7 @@ fun getTitleForDestination(route: NavKey?): String {
         else -> "在~ $route ~里~哦"
     }
 }
+
 @Composable
 fun CheckForUpdates(snackbarHostState: SnackbarHostState) {
     val coroutineScope = rememberCoroutineScope()
