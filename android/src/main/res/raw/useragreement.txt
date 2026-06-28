@@ -39,8 +39,4 @@ If people would rather pay for GNU plus service than get GNU free without servic
 所以如果你有良心的话倒卖完还可以捐助一些给项目贡献者
 
 ## 鸣谢
-本项目基于上游[A321](https://gitee.com/Voltula/A321)
-本项目基于上游[Pyrolysis](https://gitee.com/Voltula/bbq)
- 的架构魔改过来。
- 存档转换核心实现基于上游[Chunker](https://github.com/HiveGamesOSS/Chunker)进行安卓适配
- 终端实现基于https://github.com/termux/termux-app/
+（由于在此处鸣谢会受限于用户协议的时效性，故不在此鸣谢而在项目README）
