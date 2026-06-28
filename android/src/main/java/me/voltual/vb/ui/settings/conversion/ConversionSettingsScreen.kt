@@ -75,7 +75,7 @@ fun ConversionSettingsScreen(
                 )
                 
                 Text(
-                    text = "最大可用 CPU 核心数: ${viewModel.maxCores}。如果要转换超大型存档你反而需要调低线程的比如调成1，小存档就拉满",
+                    text = "最大可用 CPU 核心数: ${viewModel.maxCores}。你自己调的掂量着点",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -103,7 +103,7 @@ fun ConversionSettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "转换地图画作文件。由于地图资源解析极为消耗虚拟机内存，建议默认保持关闭，避免特定存档加载地图 OOM。",
+                        text = "转换地图画作文件。由于地图资源解析极为消耗运行内存，建议默认保持关闭，避免特定存档加载地图，运行内存不够用转换失败。",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -46,7 +46,7 @@ fun ClearProgressScreen(
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "清除后，下次进行相同世界的转换时将从头开始，无法再使用之前的自动恢复进度续传。",
+                text = "清除后，下次进行相同世界的转换时将从头开始，无法再使用之前的自动恢复进度续传（因为断点续转可能会有一些问题）",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
