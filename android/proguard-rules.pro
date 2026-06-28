@@ -1,8 +1,6 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
--assumenosideeffects class javax.imageio.** { *; }
--assumenosideeffects class org.apache.harmony.** { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
