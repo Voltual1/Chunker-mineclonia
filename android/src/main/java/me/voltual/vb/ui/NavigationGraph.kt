@@ -83,15 +83,6 @@ fun BBQNavDisplay(
                 } else {
                     when (key) {
                         is Home -> {
-                            val context = LocalContext.current
-                            val navigator = LocalNavigator.current
-                            
-                            LaunchedEffect(Unit) {
-                                val active = ConversionProgressDataStore.getActiveConversion(context)
-                                if (active != null) {
-                                    navigator.navigate(TerminalExec(active.first, active.second, active.third))
-                                }
-                            }
                             HomeScreen(modifier = Modifier.fillMaxSize())
                         }
                         

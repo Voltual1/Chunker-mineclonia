@@ -229,16 +229,16 @@ fun getTitleForDestination(route: NavKey?): String {
         Home -> "主页"
         ThemeCustomize -> "主题定制"
         UpdateSettings -> "更新设置"
-        TerminalExec -> "终端" 
+        is TerminalExec -> "终端"    //  使用 is 匹配所有 TerminalExec 实例
         FtpSettings -> "世界中转 (FTP)"
         LogViewer -> "日志" 
         CacheSettings -> "缓存设置" 
         Export -> "导出" 
         ConversionSettings -> "转换性能设置"
+        ClearProgress -> "清除进度"
         else -> "在~ $route ~里~哦"
     }
 }
-
 @Composable
 fun CheckForUpdates(snackbarHostState: SnackbarHostState) {
     val coroutineScope = rememberCoroutineScope()

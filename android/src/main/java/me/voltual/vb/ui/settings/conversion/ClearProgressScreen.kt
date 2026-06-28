@@ -27,17 +27,6 @@ fun ClearProgressScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("清除断点进度") },
-                navigationIcon = {
-                    IconButton(onClick = { navigator.goBack() }) {
-                        Icon(
-                            imageVector = Icons.Default.ArrowBack,
-                            contentDescription = "返回"
-                        )
-                    }
-                }
-            )
         },
         modifier = modifier
     ) { paddingValues ->
