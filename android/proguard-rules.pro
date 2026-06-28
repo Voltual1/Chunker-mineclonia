@@ -61,4 +61,4 @@
     public <methods>;
 }
 
--keepnames class com.google.common.cache.CacheLoader { *; }
+-keepnames class com.google.common.cache.** { *; }
