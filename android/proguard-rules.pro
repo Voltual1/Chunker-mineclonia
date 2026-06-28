@@ -63,16 +63,6 @@
 
 
 
--keepnames class android.** { *; }
--keepnames class java.** { *; }
--keepnames class javax.** { *; }
--keepnames class kotlin.** { *; }
--keepnames class kotlinx.** { *; }
--keepnames class com.anggrayudi.** { *; }
--keepnames class com.google.** { *; }
--keepnames class com.hivemc.** { *; }
--keepnames class com.termux.** { *; }
--keepnames class io.github.** { *; }
 -keepnames class io.ktor.** { *; }
 -keepnames class org.apache.** { *; }
 -keepnames class org.intellij.** { *; }
