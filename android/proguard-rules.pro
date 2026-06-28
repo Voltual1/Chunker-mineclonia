@@ -1,7 +1,7 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
--keepnames class com.hivemc.chunker.** { *; }
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
+-assumenosideeffects class com.google.android.material.** { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
