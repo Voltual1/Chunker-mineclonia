@@ -13,7 +13,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -118,13 +118,13 @@ fun TerminalViewAndroidView(
                     }
 
                     override fun onSingleTapUp(e: MotionEvent) {
-                        if (isSelectingText) {
-                            stopTextSelectionMode()
-                            return
-                        }
-                        val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-                        imm?.showSoftInput(this@apply, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
-                    }
+    if (isSelectingText) {
+        stopTextSelectionMode()
+        return
+    }
+    val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+    imm?.showSoftInput(this@apply, 0)
+}
 
                     override fun shouldBackButtonBeMappedToEscape(): Boolean = false
                     override fun shouldEnforceCharBasedInput(): Boolean = false

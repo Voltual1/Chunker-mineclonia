@@ -31,6 +31,7 @@ import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@Suppress("DEPRECATION")
 @Composable
 fun HomeScreen(
     modifier: Modifier = Modifier,

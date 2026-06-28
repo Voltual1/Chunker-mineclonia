@@ -97,6 +97,7 @@ android {
             excludes.add("/sqlite-jdbc.properties")
             excludes.add("/org/iq80/leveldb/impl/version.txt")
             excludes.add("/kotlin/**")
+            excludes.add("/org/apache/ftpserver/**")            
 //            excludes.add("/java/**") 
 //这个"/java/"其实是Chunker需要的资源
         }
@@ -169,13 +170,6 @@ dependencies {
     implementation(project(":mcl"))
     implementation(project(":terminal-emulator"))
     implementation(project(":terminal-view"))
-}
-
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions {
-        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        freeCompilerArgs.add("-XXLanguage:+ExplicitBackingFields")
-    }
 }
 
 room3 {

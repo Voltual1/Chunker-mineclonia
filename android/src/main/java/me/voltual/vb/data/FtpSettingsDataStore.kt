@@ -9,6 +9,7 @@ import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplate
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.aead.PredefinedAeadParameters
+import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.integration.android.AndroidKeysetManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -63,7 +64,7 @@ class FtpSettingsDataStore(private val context: Context) {
             .build()
             .keysetHandle
 
-        val aead = keysetHandle.getPrimitive(Aead::class.java)
+        val aead = keysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
 
         val aeadSerializer = AeadSerializer(
             aead = aead,
