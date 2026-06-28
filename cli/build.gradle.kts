@@ -23,7 +23,7 @@ dependencies {
     api(libs.picocli)
     api(libs.jetbrains.annotations)
     api(libs.fastutil)
-    api(libs.caffeine)
+//    api(libs.caffeine)
     api(libs.guava)
     api(libs.gson)
     api(libs.lz4)
