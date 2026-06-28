@@ -97,7 +97,8 @@ android {
             excludes.add("/sqlite-jdbc.properties")
             excludes.add("/org/iq80/leveldb/impl/version.txt")
             excludes.add("/kotlin/**")
-            excludes.add("/java/**") 
+//            excludes.add("/java/**") 
+//这个"/java/"其实是Chunker需要的资源
         }
     }
 
