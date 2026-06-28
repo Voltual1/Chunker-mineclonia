@@ -62,4 +62,3 @@
 }
 
 -keepnames class com.google.** { *; }
--keepnames class io.github.** { *; }
