@@ -34,6 +34,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.conversion.ConversionSettingsScreen
+import me.voltual.vb.ui.settings.conversion.ClearProgressScreen
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -85,7 +86,6 @@ fun BBQNavDisplay(
                             val context = LocalContext.current
                             val navigator = LocalNavigator.current
                             
-                            // 监听应用打开：若存在未完结转换，立刻引导用户跳回终端页实现 Swipe 断点无感恢复
                             LaunchedEffect(Unit) {
                                 val active = ConversionProgressDataStore.getActiveConversion(context)
                                 if (active != null) {
@@ -122,6 +122,13 @@ fun BBQNavDisplay(
 
                         is ConversionSettings -> {
                             ConversionSettingsScreen(modifier = Modifier.fillMaxSize())
+                        }
+
+                        is ClearProgress -> {
+                            ClearProgressScreen(
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
                         
                         is FtpSettings -> {

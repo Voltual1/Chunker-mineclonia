@@ -53,6 +53,15 @@ object ConversionProgressDataStore {
         }
     }
 
+    suspend fun clearAllProgress(context: Context) {
+        getDataStore(context).edit { preferences ->
+            val keysToRemove = preferences.asMap().keys.filter { it.name.startsWith("progress_") }
+            keysToRemove.forEach { key ->
+                preferences.remove(key)
+            }
+        }
+    }
+
     suspend fun saveActiveConversion(context: Context, inputPath: String, outputPath: String, format: String) {
         getDataStore(context).edit { preferences ->
             preferences[stringPreferencesKey("active_input_path")] = inputPath

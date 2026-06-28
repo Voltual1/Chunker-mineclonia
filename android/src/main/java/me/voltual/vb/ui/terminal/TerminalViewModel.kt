@@ -148,14 +148,13 @@ class TerminalViewModel(
         var attempt = 0
         val maxAttempts = 15
 
-        // 在任务开始时记录当前的转换配置，以便意外被强杀后能自动恢复
         ConversionProgressDataStore.saveActiveConversion(context, args.inputPath, args.outputPath, args.format)
 
         while (attempt < maxAttempts && !isSuccess) {
             attempt++
             if (attempt > 1) {
                 outBridge.println("\n\u001B[1;33m[System] Connection lost. Resuming conversion (Attempt $attempt/$maxAttempts)...\u001B[0m")
-                delay(1500) // 等待 1.5 秒以便操作系统彻底清理并释放文件锁
+                delay(1500)
             }
 
             try {
@@ -186,7 +185,6 @@ class TerminalViewModel(
                 if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                     isSuccess = true
                 } else {
-                    // 确认有无产生切片保存进度。如有，我们将进入下一轮循环重新拉起 WorkRequest 自动续传
                     val worldId = calculateWorldIdentity(File(args.inputPath))
                     val progress = ConversionProgressDataStore.getProgress(context, worldId)
                     if (progress == 0) {
@@ -219,7 +217,8 @@ class TerminalViewModel(
                 if (crashLogFile.exists()) {
                     val logContent = crashLogFile.readText()
                     logRepository.insertLog(
-                        type = "MINECLONIA_CONVERSION",
+                        // 动态根据 format 分辨是否为 MINECLONIA，规避无论为何种格式都会生成 MINECLONIA 标头的 Bug
+                        type = if (args.format == "MINECLONIA") "MINECLONIA_CONVERSION" else "${args.format}_CONVERSION",
                         requestBody = "Input: ${args.inputPath}\nOutput: ${args.outputPath}\nFormat: ${args.format}",
                         responseBody = logContent,
                         status = if (isSuccess) "SUCCESS" else "FAILURE"
@@ -231,13 +230,11 @@ class TerminalViewModel(
             }
 
             if (isSuccess) {
-                // 转换圆满完成，清空活跃转换缓存
                 ConversionProgressDataStore.clearActiveConversion(context)
                 withContext(Dispatchers.Main) {
                     navigator.navigate(Export)
                 }
             } else {
-                // 如果用户手动中途退出或者重试次数完全耗尽，也要清空状态避免下次打开自动跳转
                 ConversionProgressDataStore.clearActiveConversion(context)
             }
         }
@@ -322,7 +319,6 @@ class TerminalViewModel(
 
     companion object {
         init {
-            // 最优先级静态初始化：强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
             System.setProperty("leveldb.mmap", "false")
         }
     }

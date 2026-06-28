@@ -1,3 +1,4 @@
+// [file name]: me.voltual.vb.ui.Drawer.kt
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 //（或任意更新的版本）的条款重新分发和/或修改它。
@@ -70,6 +71,7 @@ fun NavigationDrawerItems(
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理（FTP）", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("conversion_settings", "转换性能设置", IconSource.Vector(Icons.Default.Settings), ConversionSettings),
+            DrawerItem("clear_progress", "清除断点进度", IconSource.Vector(Icons.Default.History), ClearProgress),
             DrawerItem("cache_settings", "缓存设置", IconSource.Vector(Icons.Default.DeleteSweep), CacheSettings),
             DrawerItem("update_settings", "更新设置", IconSource.Vector(Asusupdate), UpdateSettings),
             DrawerItem("settings", "主题设置", IconSource.Vector(IcMenuSettings), ThemeCustomize),
