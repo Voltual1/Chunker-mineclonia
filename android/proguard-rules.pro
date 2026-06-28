@@ -61,15 +61,5 @@
     public <methods>;
 }
 
-
-
--keepnames class android.** { *; }
--keepnames class java.** { *; }
--keepnames class javax.** { *; }
--keepnames class kotlin.** { *; }
--keepnames class kotlinx.** { *; }
--keepnames class com.anggrayudi.** { *; }
 -keepnames class com.google.** { *; }
--keepnames class com.hivemc.** { *; }
--keepnames class com.termux.** { *; }
 -keepnames class io.github.** { *; }
