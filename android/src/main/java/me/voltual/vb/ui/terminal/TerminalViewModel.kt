@@ -31,7 +31,7 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import me.voltual.vb.data.ConversionSettingsDataStore
 import me.voltual.vb.data.ConversionProgressDataStore
-import java.util.concurrent.TimeUnit
+import java.util.UUID
 
 class TerminalViewModel(
     private val context: Context,
@@ -104,7 +104,6 @@ class TerminalViewModel(
         }
     }
 
-    // 强行停止 Worker 接口
     fun stopExecution(navigator: Navigator) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -112,7 +111,6 @@ class TerminalViewModel(
                 workManager.cancelUniqueWork("world_conversion_work")
             } catch (ignored: Exception) {}
 
-            // 主动退出转换，擦除活跃转换任务标志，避免重复拉起
             ConversionProgressDataStore.clearActiveConversion(context)
 
             withContext(Dispatchers.Main) {
@@ -177,38 +175,52 @@ class TerminalViewModel(
             }
 
             try {
-                val workData = workDataOf(
-                    "inputPath" to args.inputPath,
-                    "outputPath" to args.outputPath,
-                    "format" to args.format,
-                    "threadCount" to userThreadCount,
-                    "processMaps" to userProcessMaps,
-                    "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
-                    "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
-                )
+                val workManager = WorkManager.getInstance(context)
+                val remoteWorkManager = RemoteWorkManager.getInstance(context)
+                
+                // 检索是否已经有一个旧的、未完成的任务在跑（发生在用户直接退出界面返回时）
+                val existingInfos = workManager.getWorkInfosForUniqueWork("world_conversion_work").get()
+                val activeWork = existingInfos.firstOrNull { !it.state.isFinished }
+                
+                val targetWorkId: UUID
+                
+                if (activeWork != null) {
+                    targetWorkId = activeWork.id
+                    outBridge.println("\u001B[1;32m[System] Successfully reattached to active background conversion instance.\u001B[0m")
+                } else {
+                    val workData = workDataOf(
+                        "inputPath" to args.inputPath,
+                        "outputPath" to args.outputPath,
+                        "format" to args.format,
+                        "threadCount" to userThreadCount,
+                        "processMaps" to userProcessMaps,
+                        "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
+                        "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
+                    )
 
-                val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
-                    .setInputData(workData)
-                    .build()
+                    val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
+                        .setInputData(workData)
+                        .build()
 
-                val workManager = RemoteWorkManager.getInstance(context)
-                workManager.enqueueUniqueWork(
-                    "world_conversion_work",
-                    ExistingWorkPolicy.REPLACE,
-                    workRequest
-                )
+                    remoteWorkManager.enqueueUniqueWork(
+                        "world_conversion_work",
+                        ExistingWorkPolicy.REPLACE,
+                        workRequest
+                    )
+                    targetWorkId = workRequest.id
+                }
 
-                val finalWorkInfo = WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id)
+                // 只监听我们选定的任务执行状态
+                val finalWorkInfo = workManager.getWorkInfoByIdFlow(targetWorkId)
                     .first { it?.state?.isFinished == true }
 
                 if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                     isSuccess = true
                 } else if (finalWorkInfo?.state == WorkInfo.State.CANCELLED) {
-                    // 如果状态是 CANCELLED，表明是用户主动点击顶部 Stop 动作停止，在此直接打破重试循环
                     outBridge.println("\n\u001B[1;31m[System] Sliced conversion stopped by user request.\u001B[0m")
                     break
                 } else {
-                    outBridge.println("\n\u001B[1;33m[System] Process died due to memory optimization. Restarting worker...\u001B[0m")
+                    outBridge.println("\n\u001B[1;33m[System] Process died or encountered lock error. Restarting worker...\u001B[0m")
                 }
             } catch (e: Exception) {
                 outBridge.println("\n\u001B[1;33m[System] Process bridge exception: ${e.message}. Retrying...\u001B[0m")

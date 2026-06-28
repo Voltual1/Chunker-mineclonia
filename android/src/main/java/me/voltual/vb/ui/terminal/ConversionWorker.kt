@@ -187,7 +187,6 @@ class ConversionWorker(
         }
     }
 
-    // 剥离 Java 格式处理函数以减少编译指令大小
     private suspend fun processJavaWorld(
         inputPathFile: File,
         outputPathFile: File,
@@ -247,12 +246,19 @@ class ConversionWorker(
             sliceConverter.setThreadCount(threadCount)
             sliceConverter.setProcessMaps(processMaps)
 
-            val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-            val sliceWriter = if (isMineclonia) {
-                MclLevelWriter(sliceOutputDir)
+            val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
+            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice. Slice input directory might be invalid.")
+            val sliceReader = sliceReaderOpt.get()
+            
+            val sliceWriterOpt = if (isMineclonia) {
+                java.util.Optional.of(MclLevelWriter(sliceOutputDir))
             } else {
-                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
+                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
+            if (!sliceWriterOpt.isPresent) {
+                throw IllegalStateException("Failed to create writer. Target db may still be locked by a prior process instance.")
+            }
+            val sliceWriter = sliceWriterOpt.get()
 
             sliceConverter.convert(sliceReader, sliceWriter).future().get()
 
@@ -269,7 +275,6 @@ class ConversionWorker(
         }
     }
 
-    // 剥离 Bedrock 格式处理函数以减少编译指令大小，完美避免 18512 指令溢出问题
     private suspend fun processBedrockWorld(
         inputPathFile: File,
         outputPathFile: File,
@@ -366,12 +371,19 @@ class ConversionWorker(
             sliceConverter.setThreadCount(threadCount)
             sliceConverter.setProcessMaps(processMaps)
 
-            val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-            val sliceWriter = if (isMineclonia) {
-                MclLevelWriter(sliceOutputDir)
+            val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
+            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice. Slice db may be corrupted.")
+            val sliceReader = sliceReaderOpt.get()
+
+            val sliceWriterOpt = if (isMineclonia) {
+                java.util.Optional.of(MclLevelWriter(sliceOutputDir))
             } else {
-                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
+                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
+            if (!sliceWriterOpt.isPresent) {
+                throw IllegalStateException("Failed to create writer. Target LevelDB might still be locked by a prior process instance.")
+            }
+            val sliceWriter = sliceWriterOpt.get()
 
             sliceConverter.convert(sliceReader, sliceWriter).future().get()
 
