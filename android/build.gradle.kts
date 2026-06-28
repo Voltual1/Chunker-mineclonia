@@ -110,7 +110,7 @@ android {
 
 dependencies {
     coreLibraryDesugaring(libs.android.desugar)
-    implementation(libs.google.material)
+//    implementation(libs.google.material)
     implementation(libs.okhttp)
     
     implementation(libs.room3.runtime)
