@@ -3,12 +3,11 @@ package me.voltual.vb.ui.terminal
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import me.voltual.vb.core.ui.icons.drawable.CubeOff
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.TopAppBarAction
@@ -26,14 +25,13 @@ fun TerminalScreen(
     val topAppBarController = LocalTopAppBarController.current
     val session by viewModel.session.collectAsState()
 
-    // 进入终端时注入强行停止（Stop）动作，离开页面时清空
     DisposableEffect(Unit) {
         viewModel.startExecution(args, navigator)
 
         val stopAction = TopAppBarAction(
             icon = { tint ->
                 Icon(
-                    imageVector = Icons.Default.Stop,
+                    imageVector = CubeOff,
                     contentDescription = "强行停止",
                     tint = tint
                 )
@@ -54,7 +52,7 @@ fun TerminalScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF121212)) // 与 TerminalView 暗色背景融为一体
+            .background(Color(0xFF121212))
     ) {
         session?.let { termSession ->
             TerminalViewAndroidView(
