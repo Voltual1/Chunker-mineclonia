@@ -61,4 +61,6 @@
     public <methods>;
 }
 
--keepnames class com.google.common.cache.** { *; }
+-keepnames class com.google.common.cache.LocalCache { *; }
+-keepnames class com.google.common.cache.CacheBuilder { *; }
+-keepnames class com.google.common.cache.CacheLoader { *; }
