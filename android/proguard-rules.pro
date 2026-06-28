@@ -61,4 +61,17 @@
     public <methods>;
 }
 
--keepnames class com.google.common.** { *; }
+
+
+
+-keepnames class com.google.common.base.** { *; }
+-keepnames class com.google.common.cache.** { *; }
+-keepnames class com.google.common.collect.** { *; }
+-keepnames class com.google.common.graph.** { *; }
+-keepnames class com.google.common.io.** { *; }
+-keepnames class com.google.common.math.** { *; }
+-keepnames class com.google.common.primitives.** { *; }
+-keepnames class com.google.common.reflect.** { *; }
+-keepnames class com.google.common.escape.** { *; }
+-keepnames class com.google.common.util.concurrent.** { *; }
+-keepnames class com.google.common.util.concurrent.internal.** { *; }
