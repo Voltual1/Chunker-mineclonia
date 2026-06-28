@@ -133,14 +133,24 @@ class TerminalViewModel(
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
 
+        val workManager = WorkManager.getInstance(context)
+        val remoteWorkManager = RemoteWorkManager.getInstance(context)
+
+        // 将检测后台是否存活的逻辑前置
+        val existingInfos = try {
+            workManager.getWorkInfosForUniqueWork("world_conversion_work").get()
+        } catch (e: Exception) { emptyList() }
+        var activeWork = existingInfos.firstOrNull { !it.state.isFinished }
+
         val logFile = File(context.cacheDir, "slice_log.txt")
-        if (logFile.exists()) {
+        // 关键修复：只有在全新启动（非接管后台）且日志文件存在时，才允许删除重置！
+        if (activeWork == null && logFile.exists()) {
             logFile.delete()
         }
 
         val tailJob = viewModelScope.launch(Dispatchers.IO) {
             val delayTime = 100L
-            var filePointer = 0L
+            var filePointer = 0L // 如果是无缝接管，由于未删除文件，这里的 0L 会将老日志一次性输出并回放！
             while (isActive) {
                 if (logFile.exists()) {
                     try {
@@ -170,18 +180,13 @@ class TerminalViewModel(
         while (attempt < maxAttempts && !isSuccess) {
             attempt++
             if (attempt > 1) {
+                // 如果经历重试，则证明先前的 Worker 已死，需要清空存活标记拉起新的
+                activeWork = null
                 outBridge.println("\n\u001B[1;33m[System] Connection lost. Resuming conversion (Attempt $attempt/$maxAttempts)...\u001B[0m")
                 delay(1500)
             }
 
             try {
-                val workManager = WorkManager.getInstance(context)
-                val remoteWorkManager = RemoteWorkManager.getInstance(context)
-                
-                // 检索是否已经有一个旧的、未完成的任务在跑（发生在用户直接退出界面返回时）
-                val existingInfos = workManager.getWorkInfosForUniqueWork("world_conversion_work").get()
-                val activeWork = existingInfos.firstOrNull { !it.state.isFinished }
-                
                 val targetWorkId: UUID
                 
                 if (activeWork != null) {
@@ -210,7 +215,6 @@ class TerminalViewModel(
                     targetWorkId = workRequest.id
                 }
 
-                // 只监听我们选定的任务执行状态
                 val finalWorkInfo = workManager.getWorkInfoByIdFlow(targetWorkId)
                     .first { it?.state?.isFinished == true }
 
