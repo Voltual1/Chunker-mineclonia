@@ -22,6 +22,7 @@ import java.util.UUID
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.CancellationException
 
 class ConversionWorker(
     val context: Context,
@@ -123,8 +124,19 @@ class ConversionWorker(
         val reader = readerOptional.get()
         val srcFormat = reader.encodingType.name
 
-        val sliceInputDir = File(context.cacheDir, "slice_input")
-        val sliceOutputDir = File(context.cacheDir, "slice_output")
+        // 为每一个 Worker 实例分配唯一的隔离文件夹，防范互相串扰
+        val workerId = id.toString()
+        val sliceInputDir = File(context.cacheDir, "slice_input_$workerId")
+        val sliceOutputDir = File(context.cacheDir, "slice_output_$workerId")
+
+        // 清理此前因断电或意外退出残留下来的无用临时文件夹
+        context.cacheDir.listFiles()?.forEach { file ->
+            if (file.isDirectory && (file.name.startsWith("slice_input_") || file.name.startsWith("slice_output_"))) {
+                if (file.name != "slice_input_$workerId" && file.name != "slice_output_$workerId") {
+                    deleteDirectory(file)
+                }
+            }
+        }
 
         if (lastSavedProgressIndex == 0) {
             deleteDirectory(outputPathFile)
@@ -172,6 +184,10 @@ class ConversionWorker(
             memoryMonitorThread.interrupt()
             return Result.success()
 
+        } catch (e: CancellationException) {
+            // 捕获取消异常，立即中止，并将其向上抛出以向 WorkManager 宣告 CANCELLED
+            memoryMonitorThread.interrupt()
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             memoryMonitorThread.interrupt()
@@ -181,6 +197,8 @@ class ConversionWorker(
             return Result.failure()
         } finally {
             closeDatabases()
+            deleteDirectory(sliceInputDir)
+            deleteDirectory(sliceOutputDir)
             slicePrintStream.close()
             System.setOut(oldOut)
             System.setErr(oldErr)
@@ -260,7 +278,12 @@ class ConversionWorker(
             }
             val sliceWriter = sliceWriterOpt.get()
 
-            sliceConverter.convert(sliceReader, sliceWriter).future().get()
+            val future = sliceConverter.convert(sliceReader, sliceWriter).future()
+            // 响应式协程等待：让 Coroutine 在等待期间能够瞬间响应外界的 Cancellation 信号
+            while (!future.isDone) {
+                delay(250)
+            }
+            future.get()
 
             try { sliceReader.free() } catch (ignored: Exception) {}
             try { sliceWriter.free() } catch (ignored: Exception) {}
@@ -385,7 +408,12 @@ class ConversionWorker(
             }
             val sliceWriter = sliceWriterOpt.get()
 
-            sliceConverter.convert(sliceReader, sliceWriter).future().get()
+            val future = sliceConverter.convert(sliceReader, sliceWriter).future()
+            // 响应式协程等待：让 Coroutine 在等待期间能够瞬间响应外界的 Cancellation 信号
+            while (!future.isDone) {
+                delay(250)
+            }
+            future.get()
 
             try { sliceReader.free() } catch (ignored: Exception) {}
             try { sliceWriter.free() } catch (ignored: Exception) {}
