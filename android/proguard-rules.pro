@@ -1,5 +1,5 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
--keepnames class me.voltual.vb.** { *; }
+-keepnames class com.hivemc.chunker.** { *; }
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
