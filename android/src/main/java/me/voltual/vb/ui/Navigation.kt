@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.Navigation.kt
 // Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 // （或任意更新的版本）的条款重新分发和/或修改它。
@@ -12,7 +11,6 @@ package me.voltual.vb.ui
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
 
-/** Navigation 3 的类型安全目的地契约。 */
 sealed interface AppDestination : NavKey
 
 @Serializable data object Home : AppDestination

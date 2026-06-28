@@ -34,7 +34,7 @@ class HomeViewModel : ViewModel() {
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
-    // 新增中转站文件状态
+    // 中转站文件状态
     var hasExistingInput by mutableStateOf(false)
         private set
     var useExistingInput by mutableStateOf(false)

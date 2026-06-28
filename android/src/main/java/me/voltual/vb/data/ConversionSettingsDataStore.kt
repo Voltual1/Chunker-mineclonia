@@ -1,4 +1,3 @@
-// Copyright (C) 2025 Voltual
 package me.voltual.vb.data
 
 import androidx.datastore.core.DataStore
@@ -19,12 +18,12 @@ class ConversionSettingsDataStore(private val dataStore: DataStore<Preferences>)
             get() = Math.max(1, Runtime.getRuntime().availableProcessors())
     }
 
-    // 线程并发数流动，默认保守设置为 1（最防OOM），允许用户滑块调节
+    // 线程并发数流动，默认保守设置为1
     val threadCount: Flow<Int> = dataStore.data.map { preferences ->
         preferences[KEY_THREAD_COUNT] ?: 1
     }
 
-    // 地图转换开关流动，默认关闭（地图最容易导致 JVM 分配内存失败）
+    // 地图转换开关流动，默认关闭
     val processMaps: Flow<Boolean> = dataStore.data.map { preferences ->
         preferences[KEY_PROCESS_MAPS] ?: false
     }

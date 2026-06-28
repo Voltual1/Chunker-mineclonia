@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.terminal.ConversionLogBridge.kt
 package me.voltual.vb.ui.terminal
 
 import java.util.concurrent.atomic.AtomicReference

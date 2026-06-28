@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.Drawer.kt
 //Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
 //（或任意更新的版本）的条款重新分发和/或修改它。

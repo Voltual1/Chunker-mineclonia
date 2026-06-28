@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.data.ConversionProgressDataStore.kt
 package me.voltual.vb.data
 
 import android.content.Context

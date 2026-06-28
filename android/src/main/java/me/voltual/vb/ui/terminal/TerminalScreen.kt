@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.terminal.TerminalScreen.kt
 package me.voltual.vb.ui.terminal
 
 import androidx.compose.foundation.background

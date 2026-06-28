@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.AppModule.kt
 package me.voltual.vb
 
 import me.voltual.vb.core.database.*

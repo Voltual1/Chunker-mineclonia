@@ -30,7 +30,7 @@ import org.koin.compose.viewmodel.koinViewModel
 
 
 class UpdateSettingsViewModel(
-    private val updateSettingsDataStore: UpdateSettingsDataStore // 注入
+    private val updateSettingsDataStore: UpdateSettingsDataStore 
 ) : ViewModel() {
 
     val autoCheckUpdates: Flow<Boolean> = updateSettingsDataStore.autoCheckUpdates

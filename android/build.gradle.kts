@@ -1,4 +1,3 @@
-// [file name]: build.gradle.kts
 import java.util.Properties
 
 plugins {
@@ -96,6 +95,7 @@ android {
             excludes.add("/org/sqlite/native/Windows/**")
             excludes.add("/sqlite-jdbc.properties")
             excludes.add("/org/iq80/leveldb/impl/version.txt")
+            excludes.add("/assets/PublicSuffixDatabase.list")
             excludes.add("/kotlin/**")
             excludes.add("/org/apache/ftpserver/**")            
 //            excludes.add("/java/**") 

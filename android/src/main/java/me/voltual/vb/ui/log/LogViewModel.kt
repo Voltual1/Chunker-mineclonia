@@ -90,7 +90,6 @@ class LogViewModel(private val logRepository : LogRepository) : ViewModel() {
     fun deleteSelected() {
         viewModelScope.launch {
             val idsToDelete = _selectedItems.value.toList()
-            // 核心修正：调用 Repository 的公共方法，而不是直接访问 DAO
             logRepository.deleteLogsByIds(idsToDelete)
             clearSelection()
         }

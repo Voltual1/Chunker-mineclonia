@@ -6,9 +6,10 @@
 - 改进程序并向公众发布改进版的自由
 
 完整的AGPLv3协议文本可访问：http://www.gnu.org/licenses/agpl-3.0.html
-存档转换核心实现基于https://github.com/HiveGamesOSS/Chunker/
 
 鸣谢:
+https://github.com/HiveGamesOSS/Chunker/
+
 https://github.com/termux/termux-app/
 
 https://github.com/wolpi/prim-ftpd

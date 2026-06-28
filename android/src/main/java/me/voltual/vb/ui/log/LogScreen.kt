@@ -27,8 +27,8 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalClipboardManager // 引入 Compose 剪贴板管理器
-import androidx.compose.ui.text.AnnotatedString // 引入富文本类型
+import androidx.compose.ui.platform.LocalClipboardManager 
+import androidx.compose.ui.text.AnnotatedString 
 import androidx.compose.ui.unit.dp
 import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.core.ui.components.ListItem
@@ -43,8 +43,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun LogScreen(
     viewModel: LogViewModel,
-//    onBackClick: () -> Unit,
-    snackbarHostState: SnackbarHostState, // 添加 SnackbarHostState 参数
+    snackbarHostState: SnackbarHostState, 
     modifier: Modifier = Modifier
 ) {
     val logs by viewModel.logs.collectAsState()

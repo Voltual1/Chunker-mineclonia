@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.settings.conversion.ClearProgressScreen.kt
 package me.voltual.vb.ui.settings.conversion
 
 import androidx.compose.foundation.layout.*

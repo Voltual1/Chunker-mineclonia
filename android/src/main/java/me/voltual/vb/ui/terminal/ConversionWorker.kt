@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.terminal.ConversionWorker.kt
 package me.voltual.vb.ui.terminal
 
 import android.content.Context

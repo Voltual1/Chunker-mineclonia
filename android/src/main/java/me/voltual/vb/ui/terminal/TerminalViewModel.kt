@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.ui.terminal.TerminalViewModel.kt
 package me.voltual.vb.ui.terminal
 
 import android.content.ClipboardManager
@@ -143,7 +142,7 @@ class TerminalViewModel(
         var activeWork = existingInfos.firstOrNull { !it.state.isFinished }
 
         val logFile = File(context.cacheDir, "slice_log.txt")
-        // 关键修复：只有在全新启动（非接管后台）且日志文件存在时，才允许删除重置！
+        // 只有在全新启动（非接管后台）且日志文件存在时，才允许删除重置！
         if (activeWork == null && logFile.exists()) {
             logFile.delete()
         }
