@@ -185,12 +185,8 @@ class TerminalViewModel(
                 if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                     isSuccess = true
                 } else {
-                    val worldId = calculateWorldIdentity(File(args.inputPath))
-                    val progress = ConversionProgressDataStore.getProgress(context, worldId)
-                    if (progress == 0) {
-                        outBridge.println("\n\u001B[1;31m[FATAL ERROR] Background worker failed at startup without progress.\u001B[0m")
-                        break
-                    }
+                    // 自杀后由于协程中断会被捕捉，无论进度为几，都应继续尝试接龙重新连接 RemoteWorker
+                    outBridge.println("\n\u001B[1;33m[System] Process died due to memory optimization. Restarting worker...\u001B[0m")
                 }
             } catch (e: Exception) {
                 outBridge.println("\n\u001B[1;33m[System] Process bridge exception: ${e.message}. Retrying...\u001B[0m")
@@ -217,7 +213,6 @@ class TerminalViewModel(
                 if (crashLogFile.exists()) {
                     val logContent = crashLogFile.readText()
                     logRepository.insertLog(
-                        // 动态根据 format 分辨是否为 MINECLONIA，规避无论为何种格式都会生成 MINECLONIA 标头的 Bug
                         type = if (args.format == "MINECLONIA") "MINECLONIA_CONVERSION" else "${args.format}_CONVERSION",
                         requestBody = "Input: ${args.inputPath}\nOutput: ${args.outputPath}\nFormat: ${args.format}",
                         responseBody = logContent,

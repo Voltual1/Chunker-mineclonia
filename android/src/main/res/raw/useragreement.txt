@@ -1,4 +1,4 @@
-项目目前尚不完善，如有功能缺失请理解。
+小孩子不懂事瞎做的
 #### 1. 开源协议声明
 **本应用是自由软件**，遵循 **GNU Affero General Public License v3.0 (AGPLv3) ** 协议发布。这意味着您拥有以下自由：
 - 运行程序的自由，无论出于何种目的
@@ -40,3 +40,4 @@ If people would rather pay for GNU plus service than get GNU free without servic
 
 ## 鸣谢
 （由于在此处鸣谢会受限于用户协议的时效性，故不在此鸣谢而在项目README）
+[README](https://gitee.com/Voltula/vb/blob/master/README.md)

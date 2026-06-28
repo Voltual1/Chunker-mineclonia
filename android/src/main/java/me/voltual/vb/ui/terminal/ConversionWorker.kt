@@ -39,6 +39,9 @@ class ConversionWorker(
     @Volatile
     private var isMerging = false
 
+    @Volatile
+    private var isSelfKilling = false
+
     override suspend fun doRemoteWork(): Result {
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
@@ -60,7 +63,6 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
-        // 启动后台高频守护线程，每 100ms 实时监控内存，一旦过高直接执行自杀，预防任何中途 OOM
         val memoryMonitorThread = Thread {
             val runtime = Runtime.getRuntime()
             while (!Thread.currentThread().isInterrupted) {
@@ -71,7 +73,6 @@ class ConversionWorker(
                     val ratio = usedMem.toDouble() / maxMem.toDouble()
 
                     if (ratio > 0.80) {
-                        // 如果正在进行合并落盘写库，延迟等其完成后再自杀
                         if (isMerging) {
                             var waitCount = 0
                             while (isMerging && waitCount < 15) {
@@ -81,6 +82,8 @@ class ConversionWorker(
                         }
 
                         System.out.println("\u001B[31m[Memory Monitor] JVM Heap critically high (${usedMem / 1024 / 1024}MB / ${maxMem / 1024 / 1024}MB). Killing process immediately to prevent JVM OOM...\u001B[0m")
+                        
+                        isSelfKilling = true
                         closeDatabases()
                         slicePrintStream.close()
                         System.setOut(oldOut)
@@ -131,193 +134,257 @@ class ConversionWorker(
 
         try {
             if (srcFormat.contains("JAVA", ignoreCase = true)) {
-                val regionDir = File(inputPathFile, "region")
-                val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
-
-                for ((index, mcaFile) in mcaFiles.withIndex()) {
-                    if (isStopped) break
-                    if (index < lastSavedProgressIndex) continue
-
-                    val runtime = Runtime.getRuntime()
-                    val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    
-                    ConversionProgressDataStore.saveProgress(context, worldId, index)
-
-                    System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
-
-                    deleteDirectory(sliceInputDir)
-                    deleteDirectory(sliceOutputDir)
-                    sliceInputDir.mkdirs()
-                    sliceOutputDir.mkdirs()
-
-                    val levelDat = File(inputPathFile, "level.dat")
-                    if (levelDat.exists()) {
-                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
-                    }
-
-                    copyFile(mcaFile, File(sliceInputDir, "region/${mcaFile.name}"))
-                    
-                    val entitiesFile = File(inputPathFile, "entities/${mcaFile.name}")
-                    if (entitiesFile.exists()) {
-                        copyFile(entitiesFile, File(sliceInputDir, "entities/${mcaFile.name}"))
-                    }
-                    val poiFile = File(inputPathFile, "poi/${mcaFile.name}")
-                    if (poiFile.exists()) {
-                        copyFile(poiFile, File(sliceInputDir, "poi/${mcaFile.name}"))
-                    }
-
-                    val sliceConverter = WorldConverter(UUID.randomUUID())
-                    currentConverter = sliceConverter
-                    sliceConverter.setProcessItems(true)
-                    sliceConverter.setProcessEntities(true)
-                    sliceConverter.setProcessBlockEntities(true)
-                    sliceConverter.setProcessBiomes(true)
-                    sliceConverter.setProcessLighting(true)
-                    sliceConverter.setProcessColumnPreTransform(false)
-                    sliceConverter.setThreadCount(threadCount)
-                    sliceConverter.setProcessMaps(processMaps)
-
-                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-                    val sliceWriter = if (isMineclonia) {
-                        MclLevelWriter(sliceOutputDir)
-                    } else {
-                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
-                    }
-
-                    sliceConverter.convert(sliceReader, sliceWriter).future().get()
-
-                    try { sliceReader.free() } catch (ignored: Exception) {}
-                    try { sliceWriter.free() } catch (ignored: Exception) {}
-                    
-                    delay(50)
-
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
-                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
-
-                    System.gc()
-                    System.runFinalization()
-                }
+                processJavaWorld(
+                    inputPathFile = inputPathFile,
+                    outputPathFile = outputPathFile,
+                    sliceInputDir = sliceInputDir,
+                    sliceOutputDir = sliceOutputDir,
+                    lastSavedProgressIndex = lastSavedProgressIndex,
+                    threadCount = threadCount,
+                    processMaps = processMaps,
+                    isMineclonia = isMineclonia,
+                    encodingType = encodingType,
+                    outputVersion = outputVersion,
+                    targetTypeName = targetTypeName,
+                    worldId = worldId
+                )
             } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
-                val srcDbDir = File(inputPathFile, "db")
-                File(srcDbDir, "LOCK").delete()
-
-                val dbOptions = Options().createIfMissing(false)
-                dbOptions.writeBufferSize(8 * 1024 * 1024)
-                dbOptions.blockSize(4 * 1024)
-
-                srcDb = factory.open(srcDbDir, dbOptions)
-                
-                val regionCoords = mutableListOf<Pair<Int, Int>>()
-                val iterator = srcDb!!.iterator()
-                iterator.seekToFirst()
-                while (iterator.hasNext()) {
-                    val entry = iterator.next()
-                    val key = entry.key
-                    if (isBedrockChunkKey(key)) {
-                        val (cx, cz) = getBedrockChunkCoords(key)
-                        val pair = Pair(cx shr 5, cz shr 5)
-                        if (!regionCoords.contains(pair)) {
-                            regionCoords.add(pair)
-                        }
-                    }
-                }
-                iterator.close()
-
-                for ((index, region) in regionCoords.withIndex()) {
-                    if (isStopped) break
-                    if (index < lastSavedProgressIndex) continue
-
-                    val runtime = Runtime.getRuntime()
-                    val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-                    
-                    ConversionProgressDataStore.saveProgress(context, worldId, index)
-
-                    System.out.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
-
-                    deleteDirectory(sliceInputDir)
-                    deleteDirectory(sliceOutputDir)
-                    sliceInputDir.mkdirs()
-                    sliceOutputDir.mkdirs()
-
-                    val levelDat = File(inputPathFile, "level.dat")
-                    if (levelDat.exists()) {
-                        copyFile(levelDat, File(sliceInputDir, "level.dat"))
-                    }
-
-                    val sliceDbDir = File(sliceInputDir, "db")
-                    sliceDbDir.mkdirs()
-                    File(sliceDbDir, "LOCK").delete()
-
-                    val tempDbOptions = Options().createIfMissing(true)
-                    tempDbOptions.writeBufferSize(2 * 1024 * 1024)
-                    tempDbOptions.blockSize(4 * 1024)
-                    val tempDb = factory.open(sliceDbDir, tempDbOptions)
-                    
-                    val readIterator = srcDb!!.iterator()
-                    readIterator.seekToFirst()
-                    while (readIterator.hasNext()) {
-                        val entry = readIterator.next()
-                        val key = entry.key
-                        if (isBedrockChunkKey(key)) {
-                            val (cx, cz) = getBedrockChunkCoords(key)
-                            if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
-                                tempDb.put(key, entry.value)
-                            }
-                        } else {
-                            tempDb.put(key, entry.value)
-                        }
-                    }
-                    readIterator.close()
-                    tempDb.close()
-
-                    val sliceConverter = WorldConverter(UUID.randomUUID())
-                    currentConverter = sliceConverter
-                    sliceConverter.setProcessItems(true)
-                    sliceConverter.setProcessEntities(true)
-                    sliceConverter.setProcessBlockEntities(true)
-                    sliceConverter.setProcessBiomes(true)
-                    sliceConverter.setProcessLighting(true)
-                    sliceConverter.setProcessColumnPreTransform(false)
-                    sliceConverter.setThreadCount(threadCount)
-                    sliceConverter.setProcessMaps(processMaps)
-
-                    val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
-                    val sliceWriter = if (isMineclonia) {
-                        MclLevelWriter(sliceOutputDir)
-                    } else {
-                        encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
-                    }
-
-                    sliceConverter.convert(sliceReader, sliceWriter).future().get()
-
-                    try { sliceReader.free() } catch (ignored: Exception) {}
-                    try { sliceWriter.free() } catch (ignored: Exception) {}
-                    
-                    delay(50)
-
-                    mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
-                    ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
-
-                    System.gc()
-                    System.runFinalization()
-                }
+                processBedrockWorld(
+                    inputPathFile = inputPathFile,
+                    outputPathFile = outputPathFile,
+                    sliceInputDir = sliceInputDir,
+                    sliceOutputDir = sliceOutputDir,
+                    lastSavedProgressIndex = lastSavedProgressIndex,
+                    threadCount = threadCount,
+                    processMaps = processMaps,
+                    isMineclonia = isMineclonia,
+                    encodingType = encodingType,
+                    outputVersion = outputVersion,
+                    targetTypeName = targetTypeName,
+                    worldId = worldId
+                )
             }
 
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
-
             ConversionProgressDataStore.clearProgress(context, worldId)
+            
+            memoryMonitorThread.interrupt()
             return Result.success()
 
         } catch (e: Exception) {
             e.printStackTrace()
+            memoryMonitorThread.interrupt()
+            if (isSelfKilling) {
+                return Result.retry()
+            }
             return Result.failure()
         } finally {
-            memoryMonitorThread.interrupt()
             closeDatabases()
             slicePrintStream.close()
             System.setOut(oldOut)
             System.setErr(oldErr)
+        }
+    }
+
+    // 剥离 Java 格式处理函数以减少编译指令大小
+    private suspend fun processJavaWorld(
+        inputPathFile: File,
+        outputPathFile: File,
+        sliceInputDir: File,
+        sliceOutputDir: File,
+        lastSavedProgressIndex: Int,
+        threadCount: Int,
+        processMaps: Boolean,
+        isMineclonia: Boolean,
+        encodingType: EncodingType?,
+        outputVersion: Version,
+        targetTypeName: String,
+        worldId: String
+    ) {
+        val regionDir = File(inputPathFile, "region")
+        val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
+
+        for ((index, mcaFile) in mcaFiles.withIndex()) {
+            if (isStopped) break
+            if (index < lastSavedProgressIndex) continue
+
+            val runtime = Runtime.getRuntime()
+            val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            
+            ConversionProgressDataStore.saveProgress(context, worldId, index)
+            System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
+
+            deleteDirectory(sliceInputDir)
+            deleteDirectory(sliceOutputDir)
+            sliceInputDir.mkdirs()
+            sliceOutputDir.mkdirs()
+
+            val levelDat = File(inputPathFile, "level.dat")
+            if (levelDat.exists()) {
+                copyFile(levelDat, File(sliceInputDir, "level.dat"))
+            }
+
+            copyFile(mcaFile, File(sliceInputDir, "region/${mcaFile.name}"))
+            
+            val entitiesFile = File(inputPathFile, "entities/${mcaFile.name}")
+            if (entitiesFile.exists()) {
+                copyFile(entitiesFile, File(sliceInputDir, "entities/${mcaFile.name}"))
+            }
+            val poiFile = File(inputPathFile, "poi/${mcaFile.name}")
+            if (poiFile.exists()) {
+                copyFile(poiFile, File(sliceInputDir, "poi/${mcaFile.name}"))
+            }
+
+            val sliceConverter = WorldConverter(UUID.randomUUID())
+            currentConverter = sliceConverter
+            sliceConverter.setProcessItems(true)
+            sliceConverter.setProcessEntities(true)
+            sliceConverter.setProcessBlockEntities(true)
+            sliceConverter.setProcessBiomes(true)
+            sliceConverter.setProcessLighting(true)
+            sliceConverter.setProcessColumnPreTransform(false)
+            sliceConverter.setThreadCount(threadCount)
+            sliceConverter.setProcessMaps(processMaps)
+
+            val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
+            val sliceWriter = if (isMineclonia) {
+                MclLevelWriter(sliceOutputDir)
+            } else {
+                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
+            }
+
+            sliceConverter.convert(sliceReader, sliceWriter).future().get()
+
+            try { sliceReader.free() } catch (ignored: Exception) {}
+            try { sliceWriter.free() } catch (ignored: Exception) {}
+            
+            delay(50)
+
+            mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
+            ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
+
+            System.gc()
+            System.runFinalization()
+        }
+    }
+
+    // 剥离 Bedrock 格式处理函数以减少编译指令大小，完美避免 18512 指令溢出问题
+    private suspend fun processBedrockWorld(
+        inputPathFile: File,
+        outputPathFile: File,
+        sliceInputDir: File,
+        sliceOutputDir: File,
+        lastSavedProgressIndex: Int,
+        threadCount: Int,
+        processMaps: Boolean,
+        isMineclonia: Boolean,
+        encodingType: EncodingType?,
+        outputVersion: Version,
+        targetTypeName: String,
+        worldId: String
+    ) {
+        val srcDbDir = File(inputPathFile, "db")
+        File(srcDbDir, "LOCK").delete()
+
+        val dbOptions = Options().createIfMissing(false)
+        dbOptions.writeBufferSize(8 * 1024 * 1024)
+        dbOptions.blockSize(4 * 1024)
+
+        srcDb = factory.open(srcDbDir, dbOptions)
+        
+        val regionCoords = mutableListOf<Pair<Int, Int>>()
+        val iterator = srcDb!!.iterator()
+        iterator.seekToFirst()
+        while (iterator.hasNext()) {
+            val entry = iterator.next()
+            val key = entry.key
+            if (isBedrockChunkKey(key)) {
+                val (cx, cz) = getBedrockChunkCoords(key)
+                val pair = Pair(cx shr 5, cz shr 5)
+                if (!regionCoords.contains(pair)) {
+                    regionCoords.add(pair)
+                }
+            }
+        }
+        iterator.close()
+
+        for ((index, region) in regionCoords.withIndex()) {
+            if (isStopped) break
+            if (index < lastSavedProgressIndex) continue
+
+            val runtime = Runtime.getRuntime()
+            val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            
+            ConversionProgressDataStore.saveProgress(context, worldId, index)
+            System.out.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionCoords.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
+
+            deleteDirectory(sliceInputDir)
+            deleteDirectory(sliceOutputDir)
+            sliceInputDir.mkdirs()
+            sliceOutputDir.mkdirs()
+
+            val levelDat = File(inputPathFile, "level.dat")
+            if (levelDat.exists()) {
+                copyFile(levelDat, File(sliceInputDir, "level.dat"))
+            }
+
+            val sliceDbDir = File(sliceInputDir, "db")
+            sliceDbDir.mkdirs()
+            File(sliceDbDir, "LOCK").delete()
+
+            val tempDbOptions = Options().createIfMissing(true)
+            tempDbOptions.writeBufferSize(2 * 1024 * 1024)
+            tempDbOptions.blockSize(4 * 1024)
+            val tempDb = factory.open(sliceDbDir, tempDbOptions)
+            
+            val readIterator = srcDb!!.iterator()
+            readIterator.seekToFirst()
+            while (readIterator.hasNext()) {
+                val entry = readIterator.next()
+                val key = entry.key
+                if (isBedrockChunkKey(key)) {
+                    val (cx, cz) = getBedrockChunkCoords(key)
+                    if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
+                        tempDb.put(key, entry.value)
+                    }
+                } else {
+                    tempDb.put(key, entry.value)
+                }
+            }
+            readIterator.close()
+            tempDb.close()
+
+            val sliceConverter = WorldConverter(UUID.randomUUID())
+            currentConverter = sliceConverter
+            sliceConverter.setProcessItems(true)
+            sliceConverter.setProcessEntities(true)
+            sliceConverter.setProcessBlockEntities(true)
+            sliceConverter.setProcessBiomes(true)
+            sliceConverter.setProcessLighting(true)
+            sliceConverter.setProcessColumnPreTransform(false)
+            sliceConverter.setThreadCount(threadCount)
+            sliceConverter.setProcessMaps(processMaps)
+
+            val sliceReader = EncodingType.findReader(sliceInputDir, sliceConverter).get()
+            val sliceWriter = if (isMineclonia) {
+                MclLevelWriter(sliceOutputDir)
+            } else {
+                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter).get()
+            }
+
+            sliceConverter.convert(sliceReader, sliceWriter).future().get()
+
+            try { sliceReader.free() } catch (ignored: Exception) {}
+            try { sliceWriter.free() } catch (ignored: Exception) {}
+            
+            delay(50)
+
+            mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
+            ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
+
+            System.gc()
+            System.runFinalization()
         }
     }
 
@@ -460,7 +527,6 @@ class ConversionWorker(
 
     companion object {
         init {
-            // 最优先级静态初始化：强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
             System.setProperty("leveldb.mmap", "false")
         }
     }
