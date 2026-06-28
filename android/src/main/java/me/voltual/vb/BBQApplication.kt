@@ -1,4 +1,3 @@
-// [file name]: me.voltual.vb.BBQApplication.kt
 @file:OptIn(org.koin.core.annotation.KoinExperimentalAPI::class)
 
 package me.voltual.vb
@@ -6,6 +5,7 @@ package me.voltual.vb
 import android.app.Application
 import android.app.ActivityManager
 import android.content.Context
+import androidx.work.WorkManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -23,6 +23,8 @@ import java.io.File
 
 class BBQApplication : Application(), KoinStartup {
     val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    
+    // Lazy delegate is only evaluated when accessed, which will never happen in the sub-process
     val themeStore: ThemeColorDataStore by inject()
 
     lateinit var database: AppDatabase
@@ -34,15 +36,19 @@ class BBQApplication : Application(), KoinStartup {
 
         val processName = getProcessName(this)
         
-        // 遇到远程多进程服务时，直接退避，防止数据库争锁以及 Koin 载入异常
+        // 如果是 :conversion 子进程直接返回，完全跳过 Koin 懒加载评估和主库初始化
         if (processName != null && processName.endsWith(":conversion")) {
             return
         }
 
+        // 仅在主进程中执行数据库和主题配置
         database = AppDatabase.getDatabase(this)
         runBlocking {
             ThemeManager.updateCustomColors(themeStore.colorsFlow.first())
         }
+
+        // 清理 WorkManager 中已结束（成功、失败、取消）的历史记录，防止数据库冗余膨胀
+        WorkManager.getInstance(this).pruneWork()
 
         val crashLogFile = File(filesDir, "terminal_crash.log")
 
@@ -91,7 +97,7 @@ class BBQApplication : Application(), KoinStartup {
 
     companion object {
         init {
-            // 最优先级静态初始化：强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
+            // 强行关闭 mmap 以保证多进程自杀时 LevelDB 事务绝对落盘与安全性
             System.setProperty("leveldb.mmap", "false")
         }
 
