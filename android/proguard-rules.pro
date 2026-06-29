@@ -6,8 +6,6 @@
     public static *** toString(...);
 }
 
--assumenosideeffects class picocli.** { *; }
-
 # -keep class picocli.** { *; }
 # -keepclasseswithmembers class * {
 #     @picocli.CommandLine$Option <fields>;
