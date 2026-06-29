@@ -5,40 +5,46 @@
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
--keep class picocli.** { *; }
--keepclasseswithmembers class * {
-    @picocli.CommandLine$Option <fields>;
-}
--keepclasseswithmembers class * {
-    @picocli.CommandLine$Parameters <fields>;
-}
--keepclasseswithmembers class * {
-    @picocli.CommandLine$Mixin <fields>;
-}
--keepclasseswithmembers class * {
-    @picocli.CommandLine$Unmatched <fields>;
-}
--keepclasseswithmembers class * {
-    @picocli.CommandLine$Spec <fields>;
-}
 
--keep class com.hivemc.chunker.cli.** {
-    @picocli.CommandLine$Command *;
-    @picocli.CommandLine$Option *;
-    @picocli.CommandLine$Parameters *;
-    @picocli.CommandLine$ParentCommand *;
-    public <init>(...);
-    public *;
-}
+-assumenosideeffects class class picocli.** { *; }
 
--keep class * implements picocli.CommandLine$ITypeConverter {
-    public <init>();
-}
+-assumenosideeffects  class com.hivemc.chunker.cli.** { *; }
 
--keep class * implements picocli.CommandLine$IVersionProvider {
-    public <init>();
-    public java.lang.String[] getVersion();
-}
+# -keep class picocli.** { *; }
+# -keepclasseswithmembers class * {
+#     @picocli.CommandLine$Option <fields>;
+# }
+# -keepclasseswithmembers class * {
+#     @picocli.CommandLine$Parameters <fields>;
+# }
+# -keepclasseswithmembers class * {
+#     @picocli.CommandLine$Mixin <fields>;
+# }
+# -keepclasseswithmembers class * {
+#     @picocli.CommandLine$Unmatched <fields>;
+# }
+# -keepclasseswithmembers class * {
+#     @picocli.CommandLine$Spec <fields>;
+# }
+
+# -keep class com.hivemc.chunker.cli.** {
+#     @picocli.CommandLine$Command *;
+#     @picocli.CommandLine$Option *;
+#     @picocli.CommandLine$Parameters *;
+#     @picocli.CommandLine$ParentCommand *;
+#     public <init>(...);
+#     public *;
+# }
+
+# -keep class * implements picocli.CommandLine$ITypeConverter {
+#     public <init>();
+# }
+
+# -keep class * implements picocli.CommandLine$IVersionProvider {
+#     public <init>();
+#     public java.lang.String[] getVersion();
+# }
+# --------------------------------------------
 
 -keepclassmembers class org.iq80.leveldb.table.TableBuilder {
     static <clinit>();
