@@ -8,8 +8,6 @@
 
 -assumenosideeffects class picocli.** { *; }
 
--assumenosideeffects class com.hivemc.chunker.cli.** { *; }
-
 # -keep class picocli.** { *; }
 # -keepclasseswithmembers class * {
 #     @picocli.CommandLine$Option <fields>;
