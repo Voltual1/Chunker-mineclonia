@@ -87,7 +87,6 @@ if (showExitDialog) {
         text = { Text("检测到转换任务正在进行。您可以选择将转换留在后台继续运行（直接退出），强行中止当前任务，或者直接退出并彻底杀死整个应用进程。") },
         confirmButton = {
             // 使用 FlowRow 避免小屏幕手机上 4 个按钮水平排列导致文字超出边界截断
-            OptIn(experimentalLayoutApi = androidx.compose.layout.ExperimentalLayoutApi::class)
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
