@@ -119,6 +119,29 @@ class TerminalViewModel(
             }
         }
     }
+    
+    fun killApplicationProcess() {
+    viewModelScope.launch(Dispatchers.IO) {
+        try {
+            // 1. 尝试取消独占的后台任务
+            val workManager = androidx.work.multiprocess.RemoteWorkManager.getInstance(context)
+            workManager.cancelUniqueWork("world_conversion_work")
+        } catch (ignored: Exception) {}
+
+        // 2. 清理相关的活动状态标记
+        ConversionProgressDataStore.clearActiveConversion(context)
+
+        // 3. 释放终端 Session
+        withContext(Dispatchers.Main) {
+            isRunning = false
+            _session.value?.finishIfRunning()
+        }
+
+        // 4. 彻底杀死应用进程（包含其所有的Activity和后台服务线程）
+        android.os.Process.killProcess(android.os.Process.myPid())
+        java.lang.System.exit(10)
+    }
+}
 
     private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
