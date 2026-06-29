@@ -1,7 +1,6 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
--assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
@@ -56,6 +55,9 @@
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
 
--keep class org.apache.mina.transport.socket.nio.NioProcessor { *; }
+-keepclassmembers class org.apache.mina.transport.socket.nio.NioProcessor {
+    protected <methods>;
+    public <methods>;
+}
 
 -keepnames class com.google.common.cache.** { *; }
