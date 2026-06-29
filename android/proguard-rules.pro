@@ -6,9 +6,9 @@
     public static *** toString(...);
 }
 
--assumenosideeffects class class picocli.** { *; }
+-assumenosideeffects class picocli.** { *; }
 
--assumenosideeffects  class com.hivemc.chunker.cli.** { *; }
+-assumenosideeffects class com.hivemc.chunker.cli.** { *; }
 
 # -keep class picocli.** { *; }
 # -keepclasseswithmembers class * {
