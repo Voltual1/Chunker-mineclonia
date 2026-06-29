@@ -55,6 +55,9 @@
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
 -keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
 
--keepnames class org.apache.mina.transport.socket.nio.** { *; }
+-keepclassmembers class org.apache.mina.transport.socket.nio.NioProcessor {
+    protected <methods>;
+    public <methods>;
+}
 
 -keepnames class com.google.common.cache.** { *; }
