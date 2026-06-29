@@ -71,6 +71,10 @@ fun LogScreen(
             }
         }
     }
+    
+    LaunchedEffect(Unit) {
+    viewModel.refreshFileLogs() // 每次进入界面重新读取磁盘上的 txt 文件
+}
 
     Box(
         modifier = modifier.fillMaxSize()

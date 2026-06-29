@@ -31,7 +31,7 @@ val appModule = module {
     viewModel { UpdateSettingsViewModel(get()) }
     viewModel { HomeViewModel() }
     viewModel { TerminalViewModel(androidContext(), get()) }
-    viewModel { LogViewModel(get()) }
+    viewModel { LogViewModel(androidContext(), get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
     viewModel { ExportViewModel(androidContext()) }
     viewModel { ConversionSettingsViewModel(get()) }
