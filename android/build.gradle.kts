@@ -97,7 +97,6 @@ android {
             excludes.add("/org/iq80/leveldb/impl/version.txt")
             excludes.add("/assets/PublicSuffixDatabase.list")
             excludes.add("/kotlin/**")
-            excludes.add("/org/apache/ftpserver/**")            
 //            excludes.add("/java/**") 
 //这个"/java/"其实是Chunker需要的资源
         }
