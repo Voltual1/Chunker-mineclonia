@@ -176,69 +176,60 @@ room3 {
 project(":converter") {
     afterEvaluate {
         val compileJava = tasks.findByName("compileJava") as? org.gradle.api.tasks.compile.JavaCompile
-        if (compileJava != null) {
-            val desugarStringFormatted = tasks.register("desugarStringFormatted") {
-                val classesDir = compileJava.destinationDirectory
-                inputs.dir(classesDir)
-                outputs.dir(classesDir)
-
-                doLast {
-                    val dir = classesDir.get().asFile
-                    if (dir.exists()) {
-                        dir.walkTopDown().forEach { file ->
-                            if (file.isFile && file.extension == "class") {
-                                val bytes = file.readBytes()
-                                val reader = org.objectweb.asm.ClassReader(bytes)
-                                val writer = org.objectweb.asm.ClassWriter(reader, org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
-                                var modified = false
-                                val visitor = object : org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9, writer) {
-                                    override fun visitMethod(
-                                        access: Int,
-                                        name: String?,
-                                        descriptor: String?,
-                                        signature: String?,
-                                        exceptions: Array<out String>?
-                                    ): org.objectweb.asm.MethodVisitor {
-                                        val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
-                                        return object : org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9, mv) {
-                                            override fun visitMethodInsn(
-                                                opcode: Int,
-                                                owner: String?,
-                                                methodName: String?,
-                                                methodDesc: String?,
-                                                isInterface: Boolean
-                                            ) {
-                                                if (opcode == org.objectweb.asm.Opcodes.INVOKEVIRTUAL &&
-                                                    owner == "java/lang/String" &&
-                                                    methodName == "formatted" &&
-                                                    methodDesc == "([Ljava/lang/Object;)Ljava/lang/String;"
-                                                ) {
-                                                    modified = true
-                                                    super.visitMethodInsn(
-                                                        org.objectweb.asm.Opcodes.INVOKESTATIC,
-                                                        "org/geysermc/pack/converter/util/StringDesugar",
-                                                        "formatted",
-                                                        "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
-                                                        false
-                                                    )
-                                                } else {
-                                                    super.visitMethodInsn(opcode, owner, methodName, methodDesc, isInterface)
-                                                }
-                                            }
+        compileJava?.doLast {
+            val dir = destinationDirectory.get().asFile
+            if (dir.exists()) {
+                dir.walkTopDown().forEach { file ->
+                    if (file.isFile && file.extension == "class") {
+                        val bytes = file.readBytes()
+                        val reader = org.objectweb.asm.ClassReader(bytes)
+                        val writer = org.objectweb.asm.ClassWriter(reader, org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
+                        var modified = false
+                        val visitor = object : org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9, writer) {
+                            override fun visitMethod(
+                                access: Int,
+                                name: String?,
+                                descriptor: String?,
+                                signature: String?,
+                                exceptions: Array<out String>?
+                            ): org.objectweb.asm.MethodVisitor {
+                                val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+                                return object : org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9, mv) {
+                                    override fun visitMethodInsn(
+                                        opcode: Int,
+                                        owner: String?,
+                                        methodName: String?,
+                                        methodDesc: String?,
+                                        isInterface: Boolean
+                                    ) {
+                                        if (opcode == org.objectweb.asm.Opcodes.INVOKEVIRTUAL &&
+                                            owner == "java/lang/String" &&
+                                            methodName == "formatted" &&
+                                            methodDesc == "([Ljava/lang/Object;)Ljava/lang/String;"
+                                        ) {
+                                            modified = true
+                                            super.visitMethodInsn(
+                                                org.objectweb.asm.Opcodes.INVOKESTATIC,
+                                                "org/geysermc/pack/converter/util/StringDesugar",
+                                                "formatted",
+                                                "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+                                                false
+                                            )
+                                        } else {
+                                            super.visitMethodInsn(opcode, owner, methodName, methodDesc, isInterface)
                                         }
                                     }
                                 }
-                                reader.accept(visitor, 0)
-                                if (modified) {
-                                    file.writeBytes(writer.toByteArray())
-                                    logger.lifecycle("Desugared String.formatted in class: ${file.name}")
-                                }
                             }
+                        }
+                        reader.accept(visitor, 0)
+                        if (modified) {
+                            file.writeBytes(writer.toByteArray())
+                            logger.lifecycle("Desugared String.formatted in class: ${file.name}")
                         }
                     }
                 }
             }
-            compileJava.finalizedBy(desugarStringFormatted)
         }
     }
 }
