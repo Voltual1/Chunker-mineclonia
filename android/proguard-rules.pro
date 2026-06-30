@@ -65,3 +65,8 @@
 }
 
 -keepnames class com.google.common.cache.** { *; }
+
+-keepclassmembers class org.apache.harmony.awt.gl.color.NativeImageFormat {
+    private <fields>;
+    public <methods>;
+}
