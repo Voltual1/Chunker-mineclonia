@@ -66,7 +66,21 @@
 
 -keepnames class com.google.common.cache.** { *; }
 
--keepclassmembers class org.apache.harmony.awt.gl.color.NativeImageFormat {
-    private <fields>;
+# 保护 NativeImageFormat 及其全部实例字段（C 语言 JNI 依赖名称和签名直接映射）
+-keep class org.apache.harmony.awt.gl.color.NativeImageFormat {
+    private int cmmFormat;
+    private int rows;
+    private int cols;
+    private int scanlineStride;
+    private java.lang.Object imageData;
+    private int dataOffset;
+    private int alphaOffset;
+    public <init>(...);
     public <methods>;
 }
+
+# 保护 JNI 绑定类极其子成员
+-keep class org.apache.harmony.awt.gl.color.NativeCMM { *; }
+-keep class ro.andob.awtcompat.nativec.AwtCompatNativeComponents { *; }
+-keep class ro.andob.awtcompat.nativec.AwtCompatNativeComponents$NativePointerContainer { *; }
+-keep class org.apache.harmony.awt.gl.image.GifDecoder** { *; }
