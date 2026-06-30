@@ -79,7 +79,7 @@ junit = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junit-platform-launcher" }
 
 # --- Android  ---
-android-desugar = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
+android-desugar = { module = "com.android.tools:desugar_jdk_libs_nio", version.ref = "desugar" }
 google-material = { module = "com.google.android.material:material", version.ref = "material" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
 work-runtime = { module = "androidx.work:work-runtime", version.ref = "work" }
