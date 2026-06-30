@@ -32,6 +32,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Path;
@@ -47,7 +48,7 @@ import java.util.zip.ZipOutputStream;
  */
 public class ZipUtils {
 
-    private final List <String> fileList = new ArrayList<>();
+    private final List<String> fileList = new ArrayList<>();
     private final PackConverter packConverter;
     private final File sourceFolder;
 
@@ -75,7 +76,7 @@ public class ZipUtils {
                 try {
                     in = new FileInputStream(sourceFolder + File.separator + file);
                     int len;
-                    while ((len = in .read(buffer)) > 0) {
+                    while ((len = in.read(buffer)) > 0) {
                         zos.write(buffer, 0, len);
                     }
                 } finally {
@@ -90,7 +91,9 @@ public class ZipUtils {
             ex.printStackTrace();
         } finally {
             try {
-                zos.close();
+                if (zos != null) {
+                    zos.close();
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -109,8 +112,10 @@ public class ZipUtils {
 
         if (node.isDirectory()) {
             String[] subNote = node.list();
-            for (String filename : subNote) {
-                generateFileList(new File(node, filename));
+            if (subNote != null) {
+                for (String filename : subNote) {
+                    generateFileList(new File(node, filename));
+                }
             }
         }
     }
@@ -121,7 +126,8 @@ public class ZipUtils {
 
     public static void openFileSystem(Path input, boolean compressed, PathConsumer inputConsumer) throws IOException {
         if (compressed) {
-            try (FileSystem compressedFileSystem = FileSystems.newFileSystem(input, Collections.emptyMap())) {
+            URI uri = URI.create("jar:" + input.toUri().toString());
+            try (FileSystem compressedFileSystem = FileSystems.newFileSystem(uri, Collections.emptyMap())) {
                 inputConsumer.accept(compressedFileSystem.getPath("/"));
             }
         } else {
