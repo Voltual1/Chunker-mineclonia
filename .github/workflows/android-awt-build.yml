@@ -1,0 +1,73 @@
+name: Android Awt
+
+on:
+  workflow_dispatch: 
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest   
+    defaults:
+      run:
+        working-directory: android-awt
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Install Android NDK
+        run: |
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --install "ndk;22.0.7026061"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+        with:
+          gradle-version: 7.3.3
+
+      - name: Set Version Output
+        id: version
+        run: |
+          VERSION=$(grep -oP "version\s+'\K[^']+" awtcompat/build.gradle || echo "1.0.4")
+          echo "BUILD_VERSION=${VERSION}-${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Build & Publish to Maven Local
+        run: |
+          gradle publishToMavenLocal
+        env:
+          MAVEN_PUBLISH_USERNAME: "mock_user"
+          MAVEN_PUBLISH_PASSWORD: "mock_password"
+
+      - name: Prepare Release Artifacts
+        run: |
+          mkdir -p output
+          AAR_FILE=$(find ~/.m2/repository/ro/andob/androidawt/androidawt -name "*.aar" | head -n 1)
+          if [ -f "$AAR_FILE" ]; then
+            cp "$AAR_FILE" output/android-awt.aar
+            echo "Successfully copied $AAR_FILE to output/android-awt.aar"
+          else
+            echo "Error: Generated AAR file not found in local Maven repository!"
+            exit 1
+          fi
+
+      - name: Create Draft Release
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/master') || github.event_name == 'workflow_dispatch'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.BUILD_VERSION }}
+          name: "Android Build ${{ steps.version.outputs.BUILD_VERSION }}"
+          draft: true
+          body: |
+            ### Automated Build Artifacts
+            This release contains the compiled AAR library supporting all major Android ABIs (armeabi-v7a, arm64-v8a, x86, x86_64).
+          files: |
+            output/android-awt.aar
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

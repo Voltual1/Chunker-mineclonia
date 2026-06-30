@@ -1,0 +1,54 @@
+apply plugin: 'com.android.library'
+apply plugin: 'maven-publish'
+
+android {
+    compileSdkVersion 30
+    defaultConfig {
+        minSdkVersion 14
+        targetSdkVersion 30
+        versionCode 1
+        versionName "1.0.0"
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+    }
+    publishing {
+        singleVariant("release") {}
+    }
+    ndkVersion "22.0.7026061"
+    externalNativeBuild {
+        cmake {
+            path "src/main/cpp/CMakeLists.txt"
+        }
+    }
+}
+
+dependencies {
+    api 'com.jaredrummler:sfntly:1.0.1'
+
+    implementation 'com.google.code.findbugs:jsr305:3.0.2'
+}
+
+project.afterEvaluate {
+    publishing {
+        publications {
+            repositories.maven {
+                url 'https://andob.io/repository/open_source/'
+                credentials {
+                    username "$System.env.MAVEN_PUBLISH_USERNAME"
+                    password "$System.env.MAVEN_PUBLISH_PASSWORD"
+                }
+            }
+
+            release(MavenPublication) {
+                from components.release
+                groupId 'ro.andob.androidawt'
+                artifactId 'androidawt'
+                version '1.0.4'
+            }
+        }
+    }
+}
