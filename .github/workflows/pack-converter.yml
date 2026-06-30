@@ -1,4 +1,4 @@
-name: Build
+name: Pack-Converter-Build
 
 on:
   workflow_dispatch:

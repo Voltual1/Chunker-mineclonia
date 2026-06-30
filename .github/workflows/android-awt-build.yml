@@ -68,6 +68,6 @@ jobs:
             ### Automated Build Artifacts
             This release contains the compiled AAR library supporting all major Android ABIs (armeabi-v7a, arm64-v8a, x86, x86_64).
           files: |
-            output/android-awt.aar
+            android-awt/output/android-awt.aar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
