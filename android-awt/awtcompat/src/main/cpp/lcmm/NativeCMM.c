@@ -356,7 +356,7 @@ static void copyAlphaChannel(
   (JNIEnv *env, jclass cls, jlong transformHandle, jobject src, jobject dst)
 {
   int srcPixels, dstPixels;
-  ImageFormat *srcFormat, *dstFormat;
+  ImageFormat *srcFormat = NULL, *dstFormat = NULL;
   int srcSampleSize, dstSampleSize;
   int srcPixelStride, dstPixelStride;
   BYTE *srcPtr, *dstPtr;
@@ -364,11 +364,22 @@ static void copyAlphaChannel(
   LCMSBOOL copyAlpha = FALSE;
   LCMSBOOL fillAlpha = FALSE;
 
-    cmsHTRANSFORM xform = (cmsHTRANSFORM) (transformHandle);
+  cmsHTRANSFORM xform = (cmsHTRANSFORM) (transformHandle);
 
+  if (xform == NULL) {
+      throwNPException(env, "Error: transformHandle is NULL");
+      return;
+  }
 
-    srcFormat = getImageFormat(env, src);
-    dstFormat = getImageFormat(env, dst);
+  srcFormat = getImageFormat(env, src);
+  dstFormat = getImageFormat(env, dst);
+
+  // 安全检查：如果任何一个图像格式读取失败，立即清理并退出，防止后续空指针访问
+  if (srcFormat == NULL || dstFormat == NULL) {
+      if (srcFormat != NULL) releaseImageFormat(env, srcFormat);
+      if (dstFormat != NULL) releaseImageFormat(env, dstFormat);
+      return;
+  }
 
   // Do we have to copy alpha?
   copyAlpha = srcFormat->alphaOffset >= 0 && dstFormat->alphaOffset >= 0;
@@ -432,87 +443,6 @@ static void copyAlphaChannel(
     }
   }
 
-    releaseImageFormat(env, srcFormat);
-    releaseImageFormat(env, dstFormat);
+  releaseImageFormat(env, srcFormat);
+  releaseImageFormat(env, dstFormat);
 }
-
-/*
-void main() {
-  DWORD size;
-  size_t tagSz;
-  LPLCMSICCPROFILE hPf, hPfGrey;
-  LPVOID pyccBuff, greyBuff;
-  DWORD sig;
-  unsigned char* data = NULL;
-  cmsHTRANSFORM xform, xform1;
-
-  FILE *f = fopen("C:\\jrockit-j2sdk1.4.2_04\\jre\\lib\\cmm\\srgb.pf", "rb");
-  fseek(f, 0L, SEEK_END);
-  size = ftell(f);
-  pyccBuff = malloc(size);
-  fseek(f, 0L, SEEK_SET);
-  fread(pyccBuff, 1, size, f);
-  fclose(f);
-
-  hPf = cmmOpenProfile(pyccBuff, size);
-  
-  sig = TAG_SIGNATURE('w','t','p','t');
-  tagSz = cmmGetProfileElementSize(hPf, sig);
-  data = malloc(tagSz);
-  cmmGetProfileElement(hPf, sig, data, &tagSz);
-  memset(data, 0, tagSz);
-  data[0] = 0x58;
-  data[1] = 0x59;
-  data[2] = 0x5A;
-  data[3] = 0x20;
-  cmmSetProfileElement(hPf, sig, data, tagSz);
-  free(data);
-
-  // Save the profile
-  size = (DWORD) cmmGetProfileSize(hPf);
-  pyccBuff = realloc(pyccBuff, size);
-  cmmGetProfile(hPf, pyccBuff, size);
-  f = fopen("C:\\jrockit-j2sdk1.4.2_04\\jre\\lib\\cmm\\qq.icc", "wb");
-  fwrite(pyccBuff, 1, size, f);
-  fclose(f);
-///
-  cmmCloseProfile(hPf);
-  hPf = cmmOpenProfile(pyccBuff, size);
-///
-// Open Grey profile
-  f = fopen("C:\\jrockit-j2sdk1.4.2_04\\jre\\lib\\cmm\\gray.pf", "rb");
-  fseek(f, 0L, SEEK_END);
-  size = ftell(f);
-  greyBuff = malloc(size);
-  fseek(f, 0L, SEEK_SET);
-  fread(greyBuff, 1, size, f);
-  fclose(f);
-
-  hPfGrey = cmmOpenProfile(greyBuff, size);
-/////////////////////
-// Transforms
-  {
-    unsigned char in[4] = {0, 0, 0, 0};
-    unsigned char gray[2] = {0,0};
-    unsigned char out[4];
-
-    xform = cmmCreateTransform(hPf, TYPE_RGBA_8, hPfGrey, TYPE_GRAYA_8, INTENT_PERCEPTUAL, 0);
-    xform1 = cmmCreateTransform(hPfGrey, TYPE_GRAYA_8, hPf, TYPE_RGBA_8, INTENT_PERCEPTUAL, 0);
-    cmsDoTransform(xform, in, gray, 1);
-    cmsDoTransform(xform1, gray, out, 1);
-    cmsDeleteTransform(xform);
-    cmsDeleteTransform(xform1);
-
-//    LPLCMSICCPROFILE profiles[3] = {hPf, hPfGrey, hPf};
-//    xform = cmmCreateMultiprofileTransform(profiles, 3, INTENT_PERCEPTUAL);
-//    cmsChangeBuffersFormat(xform, TYPE_RGBA_8, TYPE_RGBA_8);
-//    cmsDoTransform(xform, in, out, 1);
-//    cmsDeleteTransform(xform);
-    
-  }
-/////////////////////
-  cmmCloseProfile(hPf);
-  cmmCloseProfile(hPfGrey);
-  free(pyccBuff);
-}
-*/

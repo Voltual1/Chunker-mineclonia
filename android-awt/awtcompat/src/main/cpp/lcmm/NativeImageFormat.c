@@ -28,14 +28,21 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
         return NULL;
     }
 
-    // 获取当前实例对应的 Class (可对抗多 ClassLoader 的情况)
+    // 防御性校验：检查传入的 jobject 是否是有效的 JNI 引用
+    jobjectRefType refType = (*env)->GetObjectRefType(env, jimft);
+    if (refType == JNIInvalidRefType) {
+        throwNPException(env, "Error: NativeImageFormat object reference is invalid");
+        return NULL;
+    }
+
+    // 安全获取当前实例对应的 Class
     jclass clazz = (*env)->GetObjectClass(env, jimft);
     if (clazz == NULL) {
         throwNPException(env, "Error: GetObjectClass returned NULL");
         return NULL;
     }
 
-    // 动态获取 Field ID
+    // 动态获取属性 ID
     jfieldID cmmFormatID = (*env)->GetFieldID(env, clazz, "cmmFormat", "I");
     jfieldID colsID = (*env)->GetFieldID(env, clazz, "cols", "I");
     jfieldID rowsID = (*env)->GetFieldID(env, clazz, "rows", "I");
@@ -44,14 +51,15 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
     jfieldID dataOffsetID = (*env)->GetFieldID(env, clazz, "dataOffset", "I");
     jfieldID alphaOffsetID = (*env)->GetFieldID(env, clazz, "alphaOffset", "I");
 
-    // 检查是否有任何字段获取失败 (例如因为 R8 混淆导致找不到)
+    // 如果属性 ID 获取失败（比如类被 R8/Proguard 混淆），清空异常并安全返回
     if ((*env)->ExceptionCheck(env)) {
-        // 如果出错，释放局部引用并让 Java 层的 NoSuchFieldError 正常向上抛出
+        (*env)->ExceptionClear(env);
         (*env)->DeleteLocalRef(env, clazz);
+        throwNPException(env, "Error: Failed to obtain field IDs for NativeImageFormat. Is it obfuscated?");
         return NULL;
     }
 
-    // 分配 C 侧结构体
+    // 分配内存
     ImageFormat *imft = malloc(sizeof(ImageFormat));
     if (imft == NULL) {
         (*env)->DeleteLocalRef(env, clazz);
@@ -59,7 +67,7 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
         return NULL;
     }
 
-    // 安全地获取实例字段数据
+    // 提取 Java 属性
     imft->cmmFormat = (int) (*env)->GetIntField(env, jimft, cmmFormatID);
     imft->cols = (int) (*env)->GetIntField(env, jimft, colsID);
     imft->rows = (int) (*env)->GetIntField(env, jimft, rowsID);
@@ -67,10 +75,9 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
     imft->dataOffset = (int) (*env)->GetIntField(env, jimft, dataOffsetID);
     imft->alphaOffset = (int) (*env)->GetIntField(env, jimft, alphaOffsetID);
 
-    // 获取并安全校验 imageData
     imft->jImageData = (jarray) (*env)->GetObjectField(env, jimft, imageDataID);
     
-    // 必须释放 local ref 防止表溢出
+    // 及时释放 clazz 局部引用避免 Local Reference Table 溢出
     (*env)->DeleteLocalRef(env, clazz);
 
     if (imft->jImageData == NULL) {
