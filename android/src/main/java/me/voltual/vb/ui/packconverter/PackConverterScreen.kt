@@ -2,8 +2,6 @@ package me.voltual.vb.ui.packconverter
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
@@ -12,12 +10,11 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.anggrayudi.storage.compose.rememberLauncherForFilePicker
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
-import com.anggrayudi.storage.file.StorageType
+import me.voltual.vb.ui.TerminalViewAndroidView
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,17 +29,7 @@ fun PackConverterScreen(
     val outputTreeUri by viewModel.outputTreeUri.collectAsState()
     val debugMode by viewModel.debugMode.collectAsState()
     val isRunning by viewModel.isRunning.collectAsState()
-    val logs by viewModel.logs.collectAsState()
-
-    val context = LocalContext.current
-    val scrollState = rememberScrollState()
-
-    // 自动滚动到最新日志
-    LaunchedEffect(logs) {
-        if (logs.isNotEmpty()) {
-            scrollState.animateScrollTo(scrollState.maxValue)
-        }
-    }
+    val session by viewModel.session.collectAsState()
 
     val filePicker = rememberLauncherForFilePicker(
         filterMimeTypes = setOf("application/zip", "application/java-archive"),
@@ -178,17 +165,21 @@ fun PackConverterScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest, MaterialTheme.shapes.small)
+                .background(Color(0xFF121212), MaterialTheme.shapes.small)
                 .padding(8.dp)
         ) {
-            Text(
-                text = logs.ifEmpty { "暂无日志" },
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState)
-            )
+            session?.let { activeSession ->
+                TerminalViewAndroidView(
+                    session = activeSession,
+                    modifier = Modifier.fillMaxSize(),
+                    initialTextSize = 28
+                )
+            } ?: Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("暂无日志", color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
     }
 }
