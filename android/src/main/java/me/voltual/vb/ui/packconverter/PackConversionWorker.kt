@@ -123,7 +123,7 @@ class PackConversionWorker(
         }
     }
 
-    private class WorkerLogListener(val logFile: File, val isDebugEnabled: Boolean) : LogListener {
+    private class WorkerLogListener(val logFile: File, val debugMode: Boolean) : LogListener {
         private fun appendLog(text: String) {
             try {
                 logFile.appendText("$text\n")
@@ -132,12 +132,16 @@ class PackConversionWorker(
             }
         }
 
+        override fun isDebugEnabled(): Boolean {
+            return debugMode
+        }
+
         override fun debug(message: String) {
-            if (isDebugEnabled) appendLog("DEBUG: $message")
+            if (debugMode) appendLog("DEBUG: $message")
         }
 
         override fun debugUnchecked(message: String) {
-            if (isDebugEnabled) appendLog("DEBUG_UNCHECKED: $message")
+            if (debugMode) appendLog("DEBUG_UNCHECKED: $message")
         }
 
         override fun info(message: String) {
