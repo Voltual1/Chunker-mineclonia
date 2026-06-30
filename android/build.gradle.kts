@@ -73,6 +73,10 @@ android {
         }
     }
 
+    buildTypes.forEach {
+        it.matchingFallbacks.add("release")
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -97,15 +101,7 @@ android {
             excludes.add("/org/iq80/leveldb/impl/version.txt")
             excludes.add("/assets/PublicSuffixDatabase.list")
             excludes.add("/kotlin/**")
-//            excludes.add("/org/apache/ftpserver/**")            
-//万万不能不能把/org/apache/ftpserver/删了！
-//            excludes.add("/java/**") 
-//这个"/java/"其实是Chunker需要的资源
         }
-//        jniLibs {
-//            excludes.add("**/libawtcompat-native-components.so")
-//        }
-        //现在需要处理材质包转换我估计可能会用到这个so
     }
 
     kotlin {
@@ -115,7 +111,6 @@ android {
 
 dependencies {
     coreLibraryDesugaring(libs.android.desugar)
-//    implementation(libs.google.material)
     implementation(libs.okhttp)
     
     implementation(libs.room3.runtime)
@@ -137,9 +132,6 @@ dependencies {
 
     implementation(libs.kotlinx.coroutines.android)
     
-//    implementation(libs.filekit.core)
-//    implementation(libs.filekit.dialogs)
-//    implementation(libs.filekit.dialogs.compose)    
     implementation(libs.simple.storage)
     implementation(libs.simple.storage.compose)
     implementation(libs.kotlinx.io)    
@@ -158,7 +150,6 @@ dependencies {
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
-//    implementation(libs.ktor.io)
     implementation(libs.ktor.client.logging)
     implementation(libs.kotlinx.serialization.json)
     
@@ -168,7 +159,6 @@ dependencies {
 
     implementation(libs.kotlinx.datetime)
     
-    // Add WorkManager dependency
     implementation(libs.work.runtime)
     
     implementation(project(":cli"))
@@ -180,4 +170,74 @@ dependencies {
 
 room3 {
     schemaDirectory("$projectDir/schemas")
+}
+
+// 针对 :converter 模块的 String.formatted JVM 字节码自动脱糖构建逻辑
+project(":converter") {
+    val desugarStringFormatted by tasks.registering {
+        val compileJava = tasks.named("compileJava")
+        val classesDir = compileJava.map { (it as org.gradle.api.tasks.compile.JavaCompile).destinationDirectory.get() }
+        inputs.dir(classesDir)
+        outputs.dir(classesDir)
+
+        doLast {
+            val dir = classesDir.get().asFile
+            if (dir.exists()) {
+                dir.walkTopDown().forEach { file ->
+                    if (file.isFile && file.extension == "class") {
+                        val bytes = file.readBytes()
+                        val reader = org.objectweb.asm.ClassReader(bytes)
+                        val writer = org.objectweb.asm.ClassWriter(reader, org.objectweb.asm.ClassWriter.COMPUTE_MAXS)
+                        var modified = false
+                        val visitor = object : org.objectweb.asm.ClassVisitor(org.objectweb.asm.Opcodes.ASM9, writer) {
+                            override fun visitMethod(
+                                access: Int,
+                                name: String?,
+                                descriptor: String?,
+                                signature: String?,
+                                exceptions: Array<out String>?
+                            ): org.objectweb.asm.MethodVisitor {
+                                val mv = super.visitMethod(access, name, descriptor, signature, exceptions)
+                                return object : org.objectweb.asm.MethodVisitor(org.objectweb.asm.Opcodes.ASM9, mv) {
+                                    override fun visitMethodInsn(
+                                        opcode: Int,
+                                        owner: String?,
+                                        methodName: String?,
+                                        methodDesc: String?,
+                                        isInterface: Boolean
+                                    ) {
+                                        if (opcode == org.objectweb.asm.Opcodes.INVOKEVIRTUAL &&
+                                            owner == "java/lang/String" &&
+                                            methodName == "formatted" &&
+                                            methodDesc == "([Ljava/lang/Object;)Ljava/lang/String;"
+                                        ) {
+                                            modified = true
+                                            super.visitMethodInsn(
+                                                org.objectweb.asm.Opcodes.INVOKESTATIC,
+                                                "org/geysermc/pack/converter/util/StringDesugar",
+                                                "formatted",
+                                                "(Ljava/lang/String;[Ljava/lang/Object;)Ljava/lang/String;",
+                                                false
+                                            )
+                                        } else {
+                                            super.visitMethodInsn(opcode, owner, methodName, methodDesc, isInterface)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        reader.accept(visitor, 0)
+                        if (modified) {
+                            file.writeBytes(writer.toByteArray())
+                            logger.lifecycle("Desugared String.formatted in class: ${file.name}")
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    tasks.named("classes") {
+        dependsOn(desugarStringFormatted)
+    }
 }
