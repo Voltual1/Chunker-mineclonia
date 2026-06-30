@@ -32,14 +32,13 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.net.URI;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 /**
@@ -126,13 +125,50 @@ public class ZipUtils {
 
     public static void openFileSystem(Path input, boolean compressed, PathConsumer inputConsumer) throws IOException {
         if (compressed) {
-            URI uri = URI.create("jar:" + input.toUri().toString());
-            try (FileSystem compressedFileSystem = FileSystems.newFileSystem(uri, Collections.emptyMap())) {
-                inputConsumer.accept(compressedFileSystem.getPath("/"));
+            Path tempDir = Files.createTempDirectory("extracted_zip_");
+            try {
+                unzip(input, tempDir);
+                inputConsumer.accept(tempDir);
+            } finally {
+                deleteDirectory(tempDir);
             }
         } else {
             inputConsumer.accept(input);
         }
+    }
+
+    private static void unzip(Path zipFile, Path destDir) throws IOException {
+        try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                Path newPath = destDir.resolve(entry.getName()).normalize();
+                // 防范 Zip Slip 漏洞安全校验
+                if (!newPath.startsWith(destDir)) {
+                    throw new IOException("Entry is outside of the target dir: " + entry.getName());
+                }
+                if (entry.isDirectory()) {
+                    Files.createDirectories(newPath);
+                } else {
+                    Files.createDirectories(newPath.getParent());
+                    Files.copy(zis, newPath, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+                }
+                zis.closeEntry();
+            }
+        }
+    }
+
+    private static void deleteDirectory(Path path) {
+        try {
+            if (Files.exists(path)) {
+                Files.walk(path)
+                     .sorted(Comparator.reverseOrder())
+                     .forEach(p -> {
+                         try {
+                             Files.delete(p);
+                         } catch (IOException ignored) {}
+                     });
+            }
+        } catch (IOException ignored) {}
     }
 
     public interface PathConsumer {
