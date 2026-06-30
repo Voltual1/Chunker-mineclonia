@@ -26,8 +26,8 @@ import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 
 /**
- * This class combines ColorScaler, ICC_Transform and NativeImageFormat functionality
- * in the workflows for different types of input/output pixel data.
+ * 这个类不再依赖 Native CMM 转换器，
+ * 而是直接利用 Android SDK 26+ 的 android.graphics.ColorSpace 进行高效率且安全的色彩空间转换。
  */
 public class ColorConverter {
     private ColorScaler scaler = new ColorScaler();
@@ -37,189 +37,314 @@ public class ColorConverter {
     }
 
     /**
-     * Translates pixels, stored in source buffered image and writes the data
-     * to the destination image.
-     * @param t - ICC transform
-     * @param src - source image
-     * @param dst - destination image
+     * 将 Harmony/AWT 的 ColorSpace 映射为 Android SDK 的 ColorSpace
      */
-    public void translateColor(ICC_Transform t,
-            BufferedImage src, BufferedImage dst) {
-      NativeImageFormat srcIF = NativeImageFormat.createNativeImageFormat(src);
-      NativeImageFormat dstIF = NativeImageFormat.createNativeImageFormat(dst);
+    private static android.graphics.ColorSpace getAndroidColorSpace(ColorSpace cs) {
+        if (cs == null) {
+            return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
+        }
+        if (cs.isCS_sRGB()) {
+            return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
+        }
 
-      if (srcIF != null && dstIF != null) {
-          t.translateColors(srcIF, dstIF);
-          return;
-      }
+        int type = cs.getType();
+        switch (type) {
+            case ColorSpace.TYPE_RGB:
+                if (cs == LUTColorConverter.LINEAR_RGB_CS) {
+                    return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.LINEAR_SRGB);
+                }
+                return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
+                
+            case ColorSpace.TYPE_GRAY:
+                if (cs == LUTColorConverter.LINEAR_GRAY_CS) {
+                    return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.LINEAR_EXTENDED_SRGB);
+                }
+                return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
+                
+            case ColorSpace.TYPE_XYZ:
+                return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.CIE_XYZ);
+                
+            default:
+                return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
+        }
+    }
 
-        srcIF = createImageFormat(src);
-        dstIF = createImageFormat(dst);
-
-        short srcChanData[] = (short[]) srcIF.getChannelData();
-        short dstChanData[] = (short[]) dstIF.getChannelData();
-
+    /**
+     * 翻译 BufferedImage 的色彩空间
+     */
+    public void translateColor(ICC_Transform t, BufferedImage src, BufferedImage dst) {
         ColorModel srcCM = src.getColorModel();
-        int nColorChannels = srcCM.getNumColorComponents();
-        scaler.loadScalingData(srcCM.getColorSpace()); // input scaling data
         ColorModel dstCM = dst.getColorModel();
 
-        // Prepare array for alpha channel
-        float alpha[] = null;
-        boolean saveAlpha = srcCM.hasAlpha() && dstCM.hasAlpha();
-        if (saveAlpha) {
-            alpha = new float[src.getWidth()*src.getHeight()];
-        }
+        ColorSpace srcCS = srcCM.getColorSpace();
+        ColorSpace dstCS = dstCM.getColorSpace();
 
-        WritableRaster wr = src.getRaster();
-        int srcDataPos = 0, alphaPos = 0;
-        float normalizedVal[];
-        for (int row=0, nRows = srcIF.getNumRows(); row<nRows; row++) {
-            for (int col=0, nCols = srcIF.getNumCols(); col<nCols; col++) {
-                normalizedVal = srcCM.getNormalizedComponents(
-                    wr.getDataElements(col, row, null),
-                    null, 0);
-                // Save alpha channel
-                if (saveAlpha) {
-                    // We need nColorChannels'th element cause it's nChannels - 1
-                    alpha[alphaPos++] = normalizedVal[nColorChannels];
+        android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
+        android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
+
+        android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
+
+        int w = src.getWidth();
+        int h = src.getHeight();
+
+        WritableRaster srcRaster = src.getRaster();
+        WritableRaster dstRaster = dst.getRaster();
+
+        float[] srcPixel = new float[srcCM.getNumComponents()];
+        float[] dstPixel = new float[dstCM.getNumComponents()];
+
+        int srcNumColorCaps = srcCM.getNumColorComponents();
+        int dstNumColorCaps = dstCM.getNumColorComponents();
+
+        boolean srcHasAlpha = srcCM.hasAlpha();
+        boolean dstHasAlpha = dstCM.hasAlpha();
+
+        float[] rgb = new float[3];
+
+        for (int y = 0; y < h; y++) {
+            for (int x = 0; x < w; x++) {
+                // 获取归一化的分量颜色值
+                srcPixel = srcCM.getNormalizedComponents(srcRaster.getDataElements(x, y, null), srcPixel, 0);
+
+                if (srcNumColorCaps == 3) {
+                    rgb[0] = srcPixel[0];
+                    rgb[1] = srcPixel[1];
+                    rgb[2] = srcPixel[2];
+                } else if (srcNumColorCaps == 1) {
+                    rgb[0] = srcPixel[0];
+                    rgb[1] = srcPixel[0];
+                    rgb[2] = srcPixel[0];
+                } else {
+                    rgb[0] = srcPixel[0];
+                    rgb[1] = srcPixel[1 % srcPixel.length];
+                    rgb[2] = srcPixel[2 % srcPixel.length];
                 }
-                scaler.scale(normalizedVal, srcChanData, srcDataPos);
-                srcDataPos += nColorChannels;
-            }
-        }
 
-        t.translateColors(srcIF, dstIF);
+                // 转换
+                float[] transformed = connector.transform(rgb);
 
-        nColorChannels = dstCM.getNumColorComponents();
-        boolean fillAlpha = dstCM.hasAlpha();
-        scaler.loadScalingData(dstCM.getColorSpace()); // output scaling data
-        float dstPixel[] = new float[dstCM.getNumComponents()];
-        int dstDataPos = 0;
-        alphaPos = 0;
-        wr = dst.getRaster();
+                if (dstNumColorCaps == 3) {
+                    dstPixel[0] = transformed[0];
+                    dstPixel[1] = transformed[1];
+                    dstPixel[2] = transformed[2];
+                } else if (dstNumColorCaps == 1) {
+                    // RGB 转化为 灰度公式
+                    dstPixel[0] = 0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2];
+                } else {
+                    dstPixel[0] = transformed[0];
+                    if (dstPixel.length > 1) dstPixel[1] = transformed[1];
+                    if (dstPixel.length > 2) dstPixel[2] = transformed[2];
+                }
 
-        for (int row=0, nRows = dstIF.getNumRows(); row<nRows; row++) {
-            for (int col=0, nCols = dstIF.getNumCols(); col<nCols; col++) {
-                scaler.unscale(dstPixel, dstChanData, dstDataPos);
-                dstDataPos += nColorChannels;
-                if (fillAlpha) {
-                    if (saveAlpha) {
-                        dstPixel[nColorChannels] = alpha[alphaPos++];
+                // 处理透明通道
+                if (dstHasAlpha) {
+                    if (srcHasAlpha) {
+                        dstPixel[dstNumColorCaps] = srcPixel[srcNumColorCaps];
                     } else {
-                        dstPixel[nColorChannels] = 1f;
+                        dstPixel[dstNumColorCaps] = 1.0f;
                     }
                 }
-                wr.setDataElements(col, row,
-                        dstCM.getDataElements(dstPixel, 0 , null));
+
+                dstRaster.setDataElements(x, y, dstCM.getDataElements(dstPixel, 0, null));
             }
         }
     }
 
     /**
-     * Translates pixels, stored in the float data buffer.
-     * Each pixel occupies separate array. Input pixels passed in the buffer
-     * are replaced by output pixels and then the buffer is returned
-     * @param t - ICC transform
-     * @param buffer - data buffer
-     * @param srcCS - source color space
-     * @param dstCS - destination color space
-     * @param nPixels - number of pixels
-     * @return translated pixels
+     * 翻译 Float buffer 数组的色彩空间
      */
     public float[][] translateColor(ICC_Transform t,
             float buffer[][],
             ColorSpace srcCS,
             ColorSpace dstCS,
             int nPixels) {
-        // Scale source data
-        if (srcCS != null) { // if it is null use old scaling data
-            scaler.loadScalingData(srcCS);
-        }
-        int nSrcChannels = t.getNumInputChannels();
-        short srcShortData[] = new short[nPixels*nSrcChannels];
-        for (int i=0, srcDataPos = 0; i<nPixels; i++) {
-            scaler.scale(buffer[i], srcShortData, srcDataPos);
-            srcDataPos += nSrcChannels;
-        }
 
-        // Apply transform
-        short dstShortData[] = this.translateColor(t, srcShortData, null);
+        android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
+        android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
 
-        int nDstChannels = t.getNumOutputChannels();
-        int bufferSize = buffer[0].length;
-        if (bufferSize < nDstChannels + 1) { // Re-allocate buffer if needed
-            for (int i=0; i<nPixels; i++) {
-                // One extra element reserved for alpha
-                buffer[i] = new float[nDstChannels + 1];
+        android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
+
+        float[] rgb = new float[3];
+
+        for (int i = 0; i < nPixels; i++) {
+            float[] pixel = buffer[i];
+
+            if (pixel.length >= 3) {
+                rgb[0] = pixel[0];
+                rgb[1] = pixel[1];
+                rgb[2] = pixel[2];
+            } else if (pixel.length == 1) {
+                rgb[0] = pixel[0];
+                rgb[1] = pixel[0];
+                rgb[2] = pixel[0];
+            } else {
+                rgb[0] = pixel[0];
+                rgb[1] = pixel[1 % pixel.length];
+                rgb[2] = pixel[2 % pixel.length];
             }
-        }
 
-        // Unscale destination data
-        if (dstCS != null) { // if it is null use old scaling data
-            scaler.loadScalingData(dstCS);
-        }
-        for (int i=0, dstDataPos = 0; i<nPixels; i++) {
-            scaler.unscale(buffer[i], dstShortData, dstDataPos);
-            dstDataPos += nDstChannels;
+            float[] transformed = connector.transform(rgb);
+
+            int dstChannels = aDstCS.getComponentCount();
+            if (pixel.length < dstChannels) {
+                float[] newPixel = new float[dstChannels + 1];
+                System.arraycopy(pixel, 0, newPixel, 0, pixel.length);
+                pixel = newPixel;
+                buffer[i] = pixel;
+            }
+
+            if (dstChannels == 3) {
+                pixel[0] = transformed[0];
+                pixel[1] = transformed[1];
+                pixel[2] = transformed[2];
+            } else if (dstChannels == 1) {
+                pixel[0] = 0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2];
+            } else {
+                pixel[0] = transformed[0];
+                if (pixel.length > 1) pixel[1] = transformed[1];
+                if (pixel.length > 2) pixel[2] = transformed[2];
+            }
         }
 
         return buffer;
     }
 
     /**
-     * Translates pixels stored in a raster.
-     * All data types are supported
-     * @param t - ICC transform
-     * @param src - source pixels
-     * @param dst - destination pixels
+     * 翻译 Raster 的色彩空间
      */
-   public void translateColor(ICC_Transform t, Raster src, WritableRaster dst) {
-        try{
-            NativeImageFormat srcFmt = NativeImageFormat.createNativeImageFormat(src);
-            NativeImageFormat dstFmt = NativeImageFormat.createNativeImageFormat(dst);
+    public void translateColor(ICC_Transform t, Raster src, WritableRaster dst) {
+        ColorSpace srcCS = null;
+        ColorSpace dstCS = null;
+        if (t != null) {
+            try {
+                srcCS = new java.awt.color.ICC_ColorSpace(t.getSrc());
+                dstCS = new java.awt.color.ICC_ColorSpace(t.getDst());
+            } catch (Exception e) {
+                // fallback
+            }
+        }
 
-          if (srcFmt != null && dstFmt != null) {
-              t.translateColors(srcFmt, dstFmt);
-              return;
-          }
-        } catch (IllegalArgumentException e) {
-      }
+        android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
+        android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
 
-        // Go ahead and rescale the source image
-        scaler.loadScalingData(src, t.getSrc());
-        short srcData[] = scaler.scale(src);
+        android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
 
-        short dstData[] = translateColor(t, srcData, null);
+        int w = src.getWidth();
+        int h = src.getHeight();
 
-        scaler.loadScalingData(dst, t.getDst());
-        scaler.unscale(dstData, dst);
-   }
+        int srcBands = src.getNumBands();
+        int dstBands = dst.getNumBands();
 
-    /**
-     * Translates pixels stored in an array of shorts.
-     * Samples are stored one-by-one, i.e. array structure is like following: RGBRGBRGB...
-     * The number of pixels is (size of the array) / (number of components).
-     * @param t - ICC transform
-     * @param src - source pixels
-     * @param dst - destination pixels
-     * @return destination pixels, stored in the array, passed in dst
-     */
-    public short[] translateColor(ICC_Transform t, short src[], short dst[]) {
-        NativeImageFormat srcFmt = createImageFormat(t, src, 0, true);
-        NativeImageFormat dstFmt = createImageFormat(t, dst, srcFmt.getNumCols(), false);
+        float[] srcPixel = new float[srcBands];
+        float[] dstPixel = new float[dstBands];
+        float[] rgb = new float[3];
 
-        t.translateColors(srcFmt, dstFmt);
+        int minX = src.getMinX();
+        int minY = src.getMinY();
 
-        return (short[]) dstFmt.getChannelData();
+        for (int y = minY; y < minY + h; y++) {
+            for (int x = minX; x < minX + w; x++) {
+                srcPixel = src.getPixel(x, y, srcPixel);
+
+                if (srcBands >= 3) {
+                    rgb[0] = srcPixel[0] / 255.0f;
+                    rgb[1] = srcPixel[1] / 255.0f;
+                    rgb[2] = srcPixel[2] / 255.0f;
+                } else {
+                    float grayVal = srcPixel[0] / 255.0f;
+                    rgb[0] = grayVal;
+                    rgb[1] = grayVal;
+                    rgb[2] = grayVal;
+                }
+
+                float[] transformed = connector.transform(rgb);
+
+                if (dstBands >= 3) {
+                    dstPixel[0] = transformed[0] * 255.0f;
+                    dstPixel[1] = transformed[1] * 255.0f;
+                    dstPixel[2] = transformed[2] * 255.0f;
+                } else {
+                    float grayVal = (0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2]) * 255.0f;
+                    dstPixel[0] = grayVal;
+                }
+
+                if (dstBands > 3 && srcBands > 3) {
+                    dstPixel[3] = srcPixel[3];
+                } else if (dstBands > 3) {
+                    dstPixel[3] = 255.0f;
+                }
+
+                dst.setPixel(x, y, dstPixel);
+            }
+        }
     }
 
-
     /**
-     * Creates NativeImageFormat from buffered image.
-     * @param bi - buffered image
-     * @return created NativeImageFormat
+     * 翻译 Short 数组的色彩空间
      */
+    public short[] translateColor(ICC_Transform t, short src[], short dst[]) {
+        ColorSpace srcCS = null;
+        ColorSpace dstCS = null;
+        if (t != null) {
+            try {
+                srcCS = new java.awt.color.ICC_ColorSpace(t.getSrc());
+                dstCS = new java.awt.color.ICC_ColorSpace(t.getDst());
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+
+        int nSrcChannels = t != null ? t.getNumInputChannels() : 3;
+        int nDstChannels = t != null ? t.getNumOutputChannels() : 3;
+
+        int nPixels = src.length / nSrcChannels;
+        if (dst == null || dst.length < nPixels * nDstChannels) {
+            dst = new short[nPixels * nDstChannels];
+        }
+
+        android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
+        android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
+
+        android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
+
+        float[] rgb = new float[3];
+
+        for (int i = 0; i < nPixels; i++) {
+            int srcIdx = i * nSrcChannels;
+            int dstIdx = i * nDstChannels;
+
+            if (nSrcChannels >= 3) {
+                rgb[0] = (src[srcIdx] & 0xFFFF) / 65535.0f;
+                rgb[1] = (src[srcIdx + 1] & 0xFFFF) / 65535.0f;
+                rgb[2] = (src[srcIdx + 2] & 0xFFFF) / 65535.0f;
+            } else {
+                float grayVal = (src[srcIdx] & 0xFFFF) / 65535.0f;
+                rgb[0] = grayVal;
+                rgb[1] = grayVal;
+                rgb[2] = grayVal;
+            }
+
+            float[] transformed = connector.transform(rgb);
+
+            if (nDstChannels >= 3) {
+                dst[dstIdx] = (short) Math.round(transformed[0] * 65535.0f);
+                dst[dstIdx + 1] = (short) Math.round(transformed[1] * 65535.0f);
+                dst[dstIdx + 2] = (short) Math.round(transformed[2] * 65535.0f);
+            } else {
+                float grayVal = (0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2]) * 65535.0f;
+                dst[dstIdx] = (short) Math.round(grayVal);
+            }
+
+            if (nDstChannels > 3 && nSrcChannels > 3) {
+                dst[dstIdx + 3] = src[srcIdx + 3];
+            } else if (nDstChannels > 3) {
+                dst[dstIdx + 3] = (short) 65535;
+            }
+        }
+
+        return dst;
+    }
+
     private NativeImageFormat createImageFormat(BufferedImage bi) {
         int nRows = bi.getHeight();
         int nCols = bi.getWidth();
@@ -229,16 +354,6 @@ public class ColorConverter {
                 imgData, nComps, nRows, nCols);
     }
 
-    /**
-     * Creates one-row NativeImageFormat, using either nCols if it is positive,
-     * or arr.length to determine the number of pixels
-     *
-     * @param t - transform
-     * @param arr - short array or null if nCols is positive
-     * @param nCols - number of pixels in the array or 0 if array is not null
-     * @param in - is it an input or output array
-     * @return one-row NativeImageFormat
-     */
     private NativeImageFormat createImageFormat(
             ICC_Transform t, short arr[], int nCols, boolean in
     ) {
