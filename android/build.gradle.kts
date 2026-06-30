@@ -172,6 +172,7 @@ dependencies {
     implementation(libs.work.runtime)
     
     implementation(project(":cli"))
+    implementation(project(":converter"))
     implementation(project(":mcl"))
     implementation(project(":terminal-emulator"))
     implementation(project(":terminal-view"))
