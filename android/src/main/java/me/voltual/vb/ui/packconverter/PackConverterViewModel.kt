@@ -2,143 +2,165 @@ package me.voltual.vb.ui.packconverter
 
 import android.content.Context
 import android.net.Uri
-import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
-import androidx.work.*
-import androidx.work.multiprocess.RemoteWorkManager
+import androidx.documentfile.provider.DocumentFile
+import androidx.work.WorkerParameters
+import androidx.work.multiprocess.RemoteCoroutineWorker
+import com.anggrayudi.storage.extension.openInputStream
+import com.anggrayudi.storage.extension.openOutputStream
+import com.anggrayudi.storage.extension.fromTreeUri
+import com.anggrayudi.storage.file.makeFile
+import com.anggrayudi.storage.file.openOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.geysermc.pack.converter.PackConverter
+import org.geysermc.pack.converter.pipeline.AssetConverters
+import org.geysermc.pack.converter.util.LogListener
 import java.io.File
-import java.io.RandomAccessFile
-import java.nio.charset.StandardCharsets
+import java.io.FileOutputStream
+import java.nio.file.Path
 
-class PackConverterViewModel(private val context: Context) : ViewModel() {
+class PackConversionWorker(
+    val context: Context,
+    val params: WorkerParameters
+) : RemoteCoroutineWorker(context, params) {
 
-    private val _packName = MutableStateFlow("")
-    val packName: StateFlow<String> = _packName.asStateFlow()
+    override suspend fun doRemoteWork(): Result = withContext(Dispatchers.IO) {
+        val inputUriStr = inputData.getString("inputUri") ?: return@withContext Result.failure()
+        val outputTreeUriStr = inputData.getString("outputTreeUri") ?: return@withContext Result.failure()
+        val packName = inputData.getString("packName") ?: "ConvertedPack"
+        val debugMode = inputData.getBoolean("debugMode", false)
 
-    private val _inputUri = MutableStateFlow<Uri?>(null)
-    val inputUri: StateFlow<Uri?> = _inputUri.asStateFlow()
+        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
+        val logger = WorkerLogListener(logFile, debugMode)
 
-    private val _outputTreeUri = MutableStateFlow<Uri?>(null)
-    val outputTreeUri: StateFlow<Uri?> = _outputTreeUri.asStateFlow()
+        // 临时文件配置
+        val tempInputDir = File(context.cacheDir, "pack_converter_input")
+        tempInputDir.mkdirs()
+        val tempInputZip = File(tempInputDir, "input_pack.zip")
+        
+        val tempOutputDir = File(context.cacheDir, "pack_converter_output")
+        tempOutputDir.mkdirs()
+        val tempOutputMcpack = File(tempOutputDir, "$packName.mcpack")
 
-    private val _debugMode = MutableStateFlow(false)
-    val debugMode: StateFlow<Boolean> = _debugMode.asStateFlow()
+        val vanillaPackZip = File(context.cacheDir, "Vanilla-Assets.zip")
 
-    private val _isRunning = MutableStateFlow(false)
-    val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
+        try {
+            // 清理旧的日志
+            if (logFile.exists()) logFile.delete()
+            logFile.createNewFile()
 
-    private val _logs = MutableStateFlow("")
-    val logs: StateFlow<String> = _logs.asStateFlow()
+            logger.info("系统：正在从 SAF 拷贝输入材质包...")
+            
+            // 1. 将用户的输入文件通过 SAF 复制到本地缓存
+            val inputUri = Uri.parse(inputUriStr)
+            val inputStream = context.contentResolver.openInputStream(inputUri)
+            if (inputStream == null) {
+                logger.error("系统：无法读取输入文件。")
+                return@withContext Result.failure()
+            }
+            FileOutputStream(tempInputZip).use { outputStream ->
+                inputStream.copyTo(outputStream)
+            }
+            inputStream.close()
+            
+            logger.info("系统：输入文件拷贝完毕，开始转换过程。")
 
-    private var tailJob: Job? = null
+            // 2. 执行 Geyser PackConverter 转换
+            val converter = PackConverter()
+                .enforcePackCheck(true)
+                .input(Path.of(tempInputZip.absolutePath))
+                .output(Path.of(tempOutputMcpack.absolutePath))
+                .packName(packName)
+                .vanillaPackPath(Path.of(vanillaPackZip.absolutePath))
+                .converters(AssetConverters.converters(debugMode))
+                .logListener(logger)
 
-    fun setPackName(name: String) {
-        _packName.value = name
-    }
+            converter.convert().pack()
 
-    fun setInputUri(uri: Uri, fileName: String) {
-        _inputUri.value = uri
-        if (_packName.value.isBlank()) {
-            _packName.value = fileName.replace(Regex("\\.[^.]+$"), "")
-        }
-    }
+            logger.info("系统：转换处理完成，正在将结果写入用户选择的输出目录...")
 
-    fun setOutputTreeUri(uri: Uri) {
-        _outputTreeUri.value = uri
-    }
+            // 3. 将转换后的 .mcpack 写入到用户选择的 SAF 目录中
+            val outputTreeUri = Uri.parse(outputTreeUriStr)
+            val outputDirDoc = context.fromTreeUri(outputTreeUri)
+            if (outputDirDoc == null || !outputDirDoc.canWrite()) {
+                logger.error("系统：输出目录无法访问或没有写入权限。")
+                return@withContext Result.failure()
+            }
 
-    fun setDebugMode(debug: Boolean) {
-        _debugMode.value = debug
-    }
+            // 在目标目录中创建文件 (解决重名自动递增可以通过 SimpleStorage 内部处理，或自行处理)
+            val finalFileName = "$packName.mcpack"
+            val targetDoc = outputDirDoc.makeFile(context, finalFileName)
+            if (targetDoc == null) {
+                logger.error("系统：无法在输出目录创建文件 $finalFileName。")
+                return@withContext Result.failure()
+            }
 
-    fun startConversion() {
-        if (_isRunning.value) return
-        val currentInput = _inputUri.value ?: return
-        val currentOutput = _outputTreeUri.value ?: return
+            val targetOutputStream = targetDoc.openOutputStream(context)
+            if (targetOutputStream == null) {
+                logger.error("系统：无法向新建文件写入数据。")
+                return@withContext Result.failure()
+            }
 
-        _isRunning.value = true
-        _logs.value = "准备开启多进程材质包转换任务...\n"
-
-        val workData = workDataOf(
-            "inputUri" to currentInput.toString(),
-            "outputTreeUri" to currentOutput.toString(),
-            "packName" to _packName.value,
-            "debugMode" to _debugMode.value,
-            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
-            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
-        )
-
-        val workRequest = OneTimeWorkRequestBuilder<PackConversionWorker>()
-            .setInputData(workData)
-            .build()
-
-        val remoteWorkManager = RemoteWorkManager.getInstance(context)
-        remoteWorkManager.enqueueUniqueWork(
-            "pack_conversion_work",
-            ExistingWorkPolicy.REPLACE,
-            workRequest
-        )
-
-        startTailLog()
-
-        // 监听 WorkManager 的完成状态
-        viewModelScope.launch {
-            val workManager = WorkManager.getInstance(context)
-            workManager.getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
-                if (workInfo != null && workInfo.state.isFinished) {
-                    _isRunning.value = false
-                    tailJob?.cancel()
-                    // 确保日志读完最后一部分
-                    readLogFileTail()
+            tempOutputMcpack.inputStream().use { input ->
+                targetOutputStream.use { output ->
+                    input.copyTo(output)
                 }
             }
-        }
-    }
 
-    private fun startTailLog() {
-        tailJob?.cancel()
-        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
-        if (logFile.exists()) logFile.delete()
+            logger.info("系统：导出成功！转换已彻底完成。")
 
-        tailJob = viewModelScope.launch(Dispatchers.IO) {
-            var filePointer = 0L
-            while (_isRunning.value) {
-                if (logFile.exists()) {
-                    try {
-                        RandomAccessFile(logFile, "r").use { raf ->
-                            val length = raf.length()
-                            if (length > filePointer) {
-                                raf.seek(filePointer)
-                                val buffer = ByteArray((length - filePointer).toInt())
-                                raf.readFully(buffer)
-                                val text = String(buffer, StandardCharsets.UTF_8)
-                                _logs.value += text
-                                filePointer = length
-                            }
-                        }
-                    } catch (ignored: Exception) {}
-                }
-                delay(200)
-            }
-        }
-    }
-
-    private suspend fun readLogFileTail() = withContext(Dispatchers.IO) {
-        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
-        if (logFile.exists()) {
+            return@withContext Result.success()
+        } catch (e: Exception) {
+            logger.error("系统：转换期间发生严重错误", e)
+            e.printStackTrace()
+            return@withContext Result.failure()
+        } finally {
+            // 4. 清理缓存垃圾
             try {
-                val fullText = logFile.readText(StandardCharsets.UTF_8)
-                _logs.value = fullText
+                if (tempInputDir.exists()) tempInputDir.deleteRecursively()
+                if (tempOutputDir.exists()) tempOutputDir.deleteRecursively()
+            } catch (ignored: Exception) {}
+        }
+    }
+
+    private class WorkerLogListener(val logFile: File, val debugMode: Boolean) : LogListener {
+        private fun appendLog(text: String) {
+            try {
+                logFile.appendText("$text\n")
             } catch (e: Exception) {
-                _logs.value += "\n读取最终日志失败: ${e.message}"
+                e.printStackTrace()
+            }
+        }
+
+        override fun isDebugEnabled(): Boolean {
+            return debugMode
+        }
+
+        override fun debug(message: String) {
+            if (debugMode) appendLog("DEBUG: $message")
+        }
+
+        override fun debugUnchecked(message: String) {
+            if (debugMode) appendLog("DEBUG_UNCHECKED: $message")
+        }
+
+        override fun info(message: String) {
+            appendLog("INFO: $message")
+        }
+
+        override fun warn(message: String) {
+            appendLog("WARN: $message")
+        }
+
+        override fun error(message: String) {
+            appendLog("ERROR: $message")
+        }
+
+        override fun error(message: String, error: Throwable?) {
+            if (error != null) {
+                appendLog("ERROR: $message\n${error.stackTraceToString()}")
+            } else {
+                appendLog("ERROR: $message")
             }
         }
     }
