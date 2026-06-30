@@ -151,9 +151,7 @@ dependencies {
     implementation(libs.ktor.client.content.negotiation)
     implementation(libs.ktor.serialization.json)
     implementation(libs.ktor.client.logging)
-    implementation(libs.kotlinx.serialization.json)
-    
-    implementation("ro.andob.androidawt:androidawt:1.0.4")
+    implementation(libs.kotlinx.serialization.json)    
     
     implementation("androidx.work:work-multiprocess:2.11.0")
 
@@ -165,6 +163,7 @@ dependencies {
     implementation(project(":converter"))
     implementation(project(":bedrock-pack-schema")) // 显式依赖，确保基岩版 Schema 字节码被打包进 APK
     implementation(project(":mcl"))
+    implementation(files("libs/android-awt.aar"))
     implementation(project(":terminal-emulator"))
     implementation(project(":terminal-view"))
 }
