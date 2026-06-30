@@ -12,8 +12,12 @@ https://github.com/HiveGamesOSS/Chunker/
 
 https://github.com/termux/termux-app/
 
+https://github.com/andob/android-awt
+
 https://github.com/wolpi/prim-ftpd
 
 https://github.com/rollerozxa/MC2MT
+
+https://github.com/GeyserMC/PackConverter
 
 （如果你发现了应该鸣谢的但是这处并未列出来的请向仓库提交一个pr来修复）

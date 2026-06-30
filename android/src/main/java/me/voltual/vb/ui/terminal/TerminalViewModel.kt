@@ -121,27 +121,23 @@ class TerminalViewModel(
     }
     
     fun killApplicationProcess() {
-    viewModelScope.launch(Dispatchers.IO) {
-        try {
-            // 1. 尝试取消独占的后台任务
-            val workManager = androidx.work.multiprocess.RemoteWorkManager.getInstance(context)
-            workManager.cancelUniqueWork("world_conversion_work")
-        } catch (ignored: Exception) {}
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val workManager = androidx.work.multiprocess.RemoteWorkManager.getInstance(context)
+                workManager.cancelUniqueWork("world_conversion_work")
+            } catch (ignored: Exception) {}
 
-        // 2. 清理相关的活动状态标记
-        ConversionProgressDataStore.clearActiveConversion(context)
+            ConversionProgressDataStore.clearActiveConversion(context)
 
-        // 3. 释放终端 Session
-        withContext(Dispatchers.Main) {
-            isRunning = false
-            _session.value?.finishIfRunning()
+            withContext(Dispatchers.Main) {
+                isRunning = false
+                _session.value?.finishIfRunning()
+            }
+
+            android.os.Process.killProcess(android.os.Process.myPid())
+            java.lang.System.exit(10)
         }
-
-        // 4. 彻底杀死应用进程（包含其所有的Activity和后台服务线程）
-        android.os.Process.killProcess(android.os.Process.myPid())
-        java.lang.System.exit(10)
     }
-}
 
     private suspend fun runChunkerTask(session: TerminalSession, args: TerminalExec, navigator: Navigator) {
         val crashLogFile = File(context.filesDir, "terminal_crash.log")
@@ -158,21 +154,19 @@ class TerminalViewModel(
         val workManager = WorkManager.getInstance(context)
         val remoteWorkManager = RemoteWorkManager.getInstance(context)
 
-        // 将检测后台是否存活的逻辑前置
         val existingInfos = try {
             workManager.getWorkInfosForUniqueWork("world_conversion_work").get()
         } catch (e: Exception) { emptyList() }
         var activeWork = existingInfos.firstOrNull { !it.state.isFinished }
 
         val logFile = File(context.cacheDir, "slice_log.txt")
-        // 只有在全新启动（非接管后台）且日志文件存在时，才允许删除重置！
         if (activeWork == null && logFile.exists()) {
             logFile.delete()
         }
 
         val tailJob = viewModelScope.launch(Dispatchers.IO) {
             val delayTime = 100L
-            var filePointer = 0L // 如果是无缝接管，由于未删除文件，这里的 0L 会将老日志一次性输出并回放！
+            var filePointer = 0L 
             while (isActive) {
                 if (logFile.exists()) {
                     try {
@@ -202,7 +196,6 @@ class TerminalViewModel(
         while (attempt < maxAttempts && !isSuccess) {
             attempt++
             if (attempt > 1) {
-                // 如果经历重试，则证明先前的 Worker 已死，需要清空存活标记拉起新的
                 activeWork = null
                 outBridge.println("\n\u001B[1;33m[System] Connection lost. Resuming conversion (Attempt $attempt/$maxAttempts)...\u001B[0m")
                 delay(1500)
@@ -272,8 +265,18 @@ class TerminalViewModel(
             try {
                 if (crashLogFile.exists()) {
                     val logContent = crashLogFile.readText()
+                    
+                    // ===== 暂时注释掉了 Mineclonia 特殊判断逻辑（Mineclonia相关尚不稳定也不是开发重心） =====
+                    val logType = "${args.format}_CONVERSION"
+                    /* val logType = if (args.format == "MINECLONIA") {
+                        "MINECLONIA_CONVERSION" 
+                    } else {
+                        "${args.format}_CONVERSION"
+                    }
+                    */
+
                     logRepository.insertLog(
-                        type = if (args.format == "MINECLONIA") "MINECLONIA_CONVERSION" else "${args.format}_CONVERSION",
+                        type = logType,
                         requestBody = "Input: ${args.inputPath}\nOutput: ${args.outputPath}\nFormat: ${args.format}",
                         responseBody = logContent,
                         status = if (isSuccess) "SUCCESS" else "FAILURE"

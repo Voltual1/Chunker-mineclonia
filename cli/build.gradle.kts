@@ -40,7 +40,7 @@ version = "1.18.1"
 description = "chunker"
 base.archivesName = "chunker-cli"
 
-java.sourceCompatibility = JavaVersion.VERSION_17
+java.sourceCompatibility = JavaVersion.VERSION_21
 
 publishing {
     publications.create<MavenPublication>("maven") {
