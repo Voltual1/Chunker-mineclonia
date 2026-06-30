@@ -102,10 +102,10 @@ android {
 //            excludes.add("/java/**") 
 //这个"/java/"其实是Chunker需要的资源
         }
-        jniLibs {
-            excludes.add("**/libawtcompat-native-components.so")
-        }
-        //我估计不会用这个so
+//        jniLibs {
+//            excludes.add("**/libawtcompat-native-components.so")
+//        }
+        //现在需要处理材质包转换我估计可能会用到这个so
     }
 
     kotlin {

@@ -1,7 +1,8 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
--assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
+#-assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
+#现在需要处理材质包转换可能会需要用到so
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }

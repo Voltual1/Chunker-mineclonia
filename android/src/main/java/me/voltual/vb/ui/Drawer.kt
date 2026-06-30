@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -67,6 +68,7 @@ fun NavigationDrawerItems(
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
+            DrawerItem("pack_converter", "材质包转换", IconSource.Vector(Icons.Default.Build), PackConverterDest),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理（FTP）", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("conversion_settings", "转换性能设置", IconSource.Vector(Icons.Default.Settings), ConversionSettings),

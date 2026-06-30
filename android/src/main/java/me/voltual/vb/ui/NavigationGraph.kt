@@ -34,6 +34,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.conversion.ConversionSettingsScreen
 import me.voltual.vb.ui.settings.conversion.ClearProgressScreen
+import me.voltual.vb.ui.packconverter.PackConverterScreen
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -133,6 +134,13 @@ fun BBQNavDisplay(
                             UpdateSettingsScreen(
                                 viewModel = viewModel,
                                 snackbarHostState = snackbarHostState
+                            )
+                        }
+                        
+                        is PackConverterDest -> {
+                            PackConverterScreen(
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
                             )
                         }
 

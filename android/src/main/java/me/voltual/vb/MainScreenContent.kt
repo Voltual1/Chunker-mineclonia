@@ -235,6 +235,7 @@ fun getTitleForDestination(route: NavKey?): String {
         Export -> "导出" 
         ConversionSettings -> "转换性能设置"
         ClearProgress -> "清除进度"
+        PackConverterDest -> "材质包转换"
         else -> "在~ $route ~里~哦"
     }
 }

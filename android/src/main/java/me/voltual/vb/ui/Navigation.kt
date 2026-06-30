@@ -41,3 +41,6 @@ data class TerminalExec(
 
 /** 清除转换进度界面 */
 @Serializable data object ClearProgress : AppDestination
+
+/** 材质包转换界面 */
+@Serializable data object PackConverterDest : AppDestination
