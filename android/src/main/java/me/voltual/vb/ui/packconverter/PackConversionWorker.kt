@@ -7,10 +7,10 @@ import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.anggrayudi.storage.extension.openInputStream
 import com.anggrayudi.storage.extension.openOutputStream
-import com.anggrayudi.storage.file.DocumentFileCompat
+import com.anggrayudi.storage.extension.fromTreeUri
 import com.anggrayudi.storage.file.makeFile
+import com.anggrayudi.storage.file.openOutputStream
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.geysermc.pack.converter.PackConverter
 import org.geysermc.pack.converter.pipeline.AssetConverters
@@ -81,7 +81,7 @@ class PackConversionWorker(
 
             // 3. 将转换后的 .mcpack 写入到用户选择的 SAF 目录中
             val outputTreeUri = Uri.parse(outputTreeUriStr)
-            val outputDirDoc = DocumentFileCompat.fromTreeUri(context, outputTreeUri)
+            val outputDirDoc = context.fromTreeUri(outputTreeUri)
             if (outputDirDoc == null || !outputDirDoc.canWrite()) {
                 logger.error("系统：输出目录无法访问或没有写入权限。")
                 return@withContext Result.failure()
@@ -136,6 +136,10 @@ class PackConversionWorker(
             if (isDebugEnabled) appendLog("DEBUG: $message")
         }
 
+        override fun debugUnchecked(message: String) {
+            if (isDebugEnabled) appendLog("DEBUG_UNCHECKED: $message")
+        }
+
         override fun info(message: String) {
             appendLog("INFO: $message")
         }
@@ -148,8 +152,12 @@ class PackConversionWorker(
             appendLog("ERROR: $message")
         }
 
-        override fun error(message: String, error: Throwable) {
-            appendLog("ERROR: $message\n${error.stackTraceToString()}")
+        override fun error(message: String, error: Throwable?) {
+            if (error != null) {
+                appendLog("ERROR: $message\n${error.stackTraceToString()}")
+            } else {
+                appendLog("ERROR: $message")
+            }
         }
     }
 }
