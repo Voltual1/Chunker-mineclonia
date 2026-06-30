@@ -25,10 +25,6 @@ import java.awt.image.ColorModel;
 import java.awt.image.Raster;
 import java.awt.image.WritableRaster;
 
-/**
- * 这个类不再依赖 Native CMM 转换器，
- * 而是直接利用 Android SDK 26+ 的 android.graphics.ColorSpace 进行高效率且安全的色彩空间转换。
- */
 public class ColorConverter {
     private ColorScaler scaler = new ColorScaler();
 
@@ -36,9 +32,6 @@ public class ColorConverter {
         scaler.loadScalingData(cs);
     }
 
-    /**
-     * 将 Harmony/AWT 的 ColorSpace 映射为 Android SDK 的 ColorSpace
-     */
     private static android.graphics.ColorSpace getAndroidColorSpace(ColorSpace cs) {
         if (cs == null) {
             return android.graphics.ColorSpace.get(android.graphics.ColorSpace.Named.SRGB);
@@ -69,9 +62,6 @@ public class ColorConverter {
         }
     }
 
-    /**
-     * 翻译 BufferedImage 的色彩空间
-     */
     public void translateColor(ICC_Transform t, BufferedImage src, BufferedImage dst) {
         ColorModel srcCM = src.getColorModel();
         ColorModel dstCM = dst.getColorModel();
@@ -103,7 +93,6 @@ public class ColorConverter {
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                // 获取归一化的分量颜色值
                 srcPixel = srcCM.getNormalizedComponents(srcRaster.getDataElements(x, y, null), srcPixel, 0);
 
                 if (srcNumColorCaps == 3) {
@@ -120,7 +109,6 @@ public class ColorConverter {
                     rgb[2] = srcPixel[2 % srcPixel.length];
                 }
 
-                // 转换
                 float[] transformed = connector.transform(rgb);
 
                 if (dstNumColorCaps == 3) {
@@ -128,7 +116,7 @@ public class ColorConverter {
                     dstPixel[1] = transformed[1];
                     dstPixel[2] = transformed[2];
                 } else if (dstNumColorCaps == 1) {
-                    // RGB 转化为 灰度公式
+                
                     dstPixel[0] = 0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2];
                 } else {
                     dstPixel[0] = transformed[0];
@@ -136,7 +124,6 @@ public class ColorConverter {
                     if (dstPixel.length > 2) dstPixel[2] = transformed[2];
                 }
 
-                // 处理透明通道
                 if (dstHasAlpha) {
                     if (srcHasAlpha) {
                         dstPixel[dstNumColorCaps] = srcPixel[srcNumColorCaps];
@@ -150,9 +137,6 @@ public class ColorConverter {
         }
     }
 
-    /**
-     * 翻译 Float buffer 数组的色彩空间
-     */
     public float[][] translateColor(ICC_Transform t,
             float buffer[][],
             ColorSpace srcCS,
@@ -209,9 +193,6 @@ public class ColorConverter {
         return buffer;
     }
 
-    /**
-     * 翻译 Raster 的色彩空间
-     */
     public void translateColor(ICC_Transform t, Raster src, WritableRaster dst) {
         ColorSpace srcCS = null;
         ColorSpace dstCS = null;
@@ -279,9 +260,6 @@ public class ColorConverter {
         }
     }
 
-    /**
-     * 翻译 Short 数组的色彩空间
-     */
     public short[] translateColor(ICC_Transform t, short src[], short dst[]) {
         ColorSpace srcCS = null;
         ColorSpace dstCS = null;
