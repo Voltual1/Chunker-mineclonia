@@ -15,6 +15,7 @@ import kotlinx.coroutines.withContext
 import org.geysermc.pack.converter.PackConverter
 import org.geysermc.pack.converter.pipeline.AssetConverters
 import org.geysermc.pack.converter.util.LogListener
+import org.geysermc.pack.converter.util.IccProfileStore
 import java.io.File
 import java.io.FileOutputStream
 import java.nio.file.Path
@@ -57,6 +58,10 @@ class PackConversionWorker(
             } catch (t: Throwable) {
                 logger.error("系统：AWT JNI 加载失败，这会导致 AWT/ImageIO 相关的材质转换不可用。请检查 APK 的 ABI 兼容性（如模拟器是否缺失 x86_64 支持）。", t)
             }
+
+            // 初始化释放本地 Base64 ICC 颜色配置档
+            logger.info("系统：释放并配置 AWT 颜色映射参数...")
+            IccProfileStore.install(context.cacheDir)
 
             logger.info("系统：正在从 SAF 拷贝输入材质包...")
             
