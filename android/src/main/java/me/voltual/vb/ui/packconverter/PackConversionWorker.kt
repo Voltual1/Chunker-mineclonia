@@ -49,6 +49,15 @@ class PackConversionWorker(
             if (logFile.exists()) logFile.delete()
             logFile.createNewFile()
 
+            // 诊断 AWT Native JNI 库是否能被当前 CPU 架构正常加载
+            try {
+                logger.info("系统：正在诊断 AWT Native Library...")
+                val hello = ro.andob.awtcompat.nativec.AwtCompatNativeComponents.getHelloWorldMesssage()
+                logger.info("系统：AWT JNI 测试消息: $hello")
+            } catch (t: Throwable) {
+                logger.error("系统：AWT JNI 加载失败，这会导致 AWT/ImageIO 相关的材质转换不可用。请检查 APK 的 ABI 兼容性（如模拟器是否缺失 x86_64 支持）。", t)
+            }
+
             logger.info("系统：正在从 SAF 拷贝输入材质包...")
             
             // 1. 将用户的输入文件通过 SAF 复制到本地缓存
@@ -110,7 +119,7 @@ class PackConversionWorker(
             logger.info("系统：导出成功！转换已彻底完成。")
 
             return@withContext Result.success()
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             logger.error("系统：转换期间发生严重错误", e)
             e.printStackTrace()
             return@withContext Result.failure()
