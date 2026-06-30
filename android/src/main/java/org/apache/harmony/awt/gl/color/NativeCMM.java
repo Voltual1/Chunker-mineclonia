@@ -14,26 +14,25 @@
  *  See the License for the specific language governing permissions and
  *  limitations under the License.
  */
-/**
- * @author Oleg V. Khaschansky
- */
 package org.apache.harmony.awt.gl.color;
 
 import java.awt.color.ICC_Profile;
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import ro.andob.awtcompat.nativec.AwtCompatNativeComponents;
 
-/**
- * This class is a wrapper for the native CMM library
- */
 public class NativeCMM {
 
     static {
         try {
-            // 确保 AwtCompatNativeComponents 加载了 native 库
+            // 确保 Native 库已被加载
             Class.forName("ro.andob.awtcompat.nativec.AwtCompatNativeComponents");
-            // 显式执行 initIDs() 以绑定 NativeImageFormat 的 jfieldID
-            initIDs();
+            
+            // 强制通过反射调用 NativeCMM 本身的 private static native void initIDs()
+            // 这样可以直接激活 C 层的 initIDs 函数，初始化所有字段 ID 变量
+            Method initIDsMethod = NativeCMM.class.getDeclaredMethod("initIDs");
+            initIDsMethod.setAccessible(true);
+            initIDsMethod.invoke(null);
         } catch (Throwable t) {
             t.printStackTrace();
         }
@@ -41,10 +40,6 @@ public class NativeCMM {
 
     private static native void initIDs();
 
-    /**
-     * Storage for profile handles, since they are private
-     * in ICC_Profile, but we need access to them.
-     */
     private static HashMap<ICC_Profile, Long> profileHandles = new HashMap<ICC_Profile, Long>();
 
     public static void addHandle(ICC_Profile key, long handle) {
@@ -59,7 +54,6 @@ public class NativeCMM {
         return profileHandles.get(key).longValue();
     }
 
-    /* ICC profile management */
     public static long cmmOpenProfile(byte[] data) {
         return AwtCompatNativeComponents.cmmOpenProfile(data);
     }
@@ -88,8 +82,6 @@ public class NativeCMM {
         AwtCompatNativeComponents.cmmSetProfileElement(profileID, tagSignature, data);
     }
 
-
-    /* ICC transforms */
     public static long cmmCreateMultiprofileTransform(long[] profileHandles, int[] renderingIntents) {
         return AwtCompatNativeComponents.cmmCreateMultiprofileTransform(profileHandles, renderingIntents);
     }
