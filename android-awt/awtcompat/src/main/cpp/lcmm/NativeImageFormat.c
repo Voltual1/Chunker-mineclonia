@@ -21,27 +21,6 @@
 
 #include "NativeImageFormat.h"
 #include "exceptions.h"
-#include <pthread.h>
-
-jfieldID clr_NIF_cmmFormatID = NULL;
-jfieldID clr_NIF_colsID = NULL;
-jfieldID clr_NIF_rowsID = NULL;
-jfieldID clr_NIF_scanlineStrideID = NULL;
-jfieldID clr_NIF_imageDataID = NULL;
-jfieldID clr_NIF_dataOffsetID = NULL;
-jfieldID clr_NIF_alphaOffsetID = NULL;
-
-static pthread_mutex_t nif_init_mutex = PTHREAD_MUTEX_INITIALIZER;
-static volatile int nif_ids_initialized = 0;
-
-static jfieldID safe_get_field_id(JNIEnv* env, jclass clazz, const char* name, const char* sig) {
-    jfieldID fid = (*env)->GetFieldID(env, clazz, name, sig);
-    if ((*env)->ExceptionCheck(env)) {
-        (*env)->ExceptionClear(env);
-        return NULL;
-    }
-    return fid;
-}
 
 ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
     if (jimft == NULL) {
@@ -49,71 +28,51 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
         return NULL;
     }
 
-    if (!nif_ids_initialized) {
-        pthread_mutex_lock(&nif_init_mutex);
-        if (!nif_ids_initialized) {
-            jclass clazz = (*env)->GetObjectClass(env, jimft);
-            if (clazz != NULL) {
-                clr_NIF_cmmFormatID = safe_get_field_id(env, clazz, "cmmFormat", "I");
-                clr_NIF_colsID = safe_get_field_id(env, clazz, "cols", "I");
-                clr_NIF_rowsID = safe_get_field_id(env, clazz, "rows", "I");
-                clr_NIF_scanlineStrideID = safe_get_field_id(env, clazz, "scanlineStride", "I");
-                clr_NIF_imageDataID = safe_get_field_id(env, clazz, "imageData", "Ljava/lang/Object;");
-                clr_NIF_dataOffsetID = safe_get_field_id(env, clazz, "dataOffset", "I");
-                clr_NIF_alphaOffsetID = safe_get_field_id(env, clazz, "alphaOffset", "I");
-                (*env)->DeleteLocalRef(env, clazz);
-                nif_ids_initialized = 1;
-            }
-        }
-        pthread_mutex_unlock(&nif_init_mutex);
-    }
-
-    // 详尽的安全检查，防止 Proguard/R8 混淆或者字段被裁剪导致 NULL 崩溃
-    if (clr_NIF_cmmFormatID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.cmmFormat field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_colsID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.cols field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_rowsID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.rows field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_scanlineStrideID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.scanlineStride field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_imageDataID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.imageData field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_dataOffsetID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.dataOffset field ID is NULL. Make sure Proguard rules keep this field.");
-        return NULL;
-    }
-    if (clr_NIF_alphaOffsetID == NULL) {
-        throwNPException(env, "JNI Error: NativeImageFormat.alphaOffset field ID is NULL. Make sure Proguard rules keep this field.");
+    // 获取当前实例对应的 Class (可对抗多 ClassLoader 的情况)
+    jclass clazz = (*env)->GetObjectClass(env, jimft);
+    if (clazz == NULL) {
+        throwNPException(env, "Error: GetObjectClass returned NULL");
         return NULL;
     }
 
-    // Create the structure.
+    // 动态获取 Field ID
+    jfieldID cmmFormatID = (*env)->GetFieldID(env, clazz, "cmmFormat", "I");
+    jfieldID colsID = (*env)->GetFieldID(env, clazz, "cols", "I");
+    jfieldID rowsID = (*env)->GetFieldID(env, clazz, "rows", "I");
+    jfieldID scanlineStrideID = (*env)->GetFieldID(env, clazz, "scanlineStride", "I");
+    jfieldID imageDataID = (*env)->GetFieldID(env, clazz, "imageData", "Ljava/lang/Object;");
+    jfieldID dataOffsetID = (*env)->GetFieldID(env, clazz, "dataOffset", "I");
+    jfieldID alphaOffsetID = (*env)->GetFieldID(env, clazz, "alphaOffset", "I");
+
+    // 检查是否有任何字段获取失败 (例如因为 R8 混淆导致找不到)
+    if ((*env)->ExceptionCheck(env)) {
+        // 如果出错，释放局部引用并让 Java 层的 NoSuchFieldError 正常向上抛出
+        (*env)->DeleteLocalRef(env, clazz);
+        return NULL;
+    }
+
+    // 分配 C 侧结构体
     ImageFormat *imft = malloc(sizeof(ImageFormat));
     if (imft == NULL) {
+        (*env)->DeleteLocalRef(env, clazz);
         throwNewOutOfMemoryError(env, "Error: out of memory allocating ImageFormat");
         return NULL;
     }
 
-    imft->cmmFormat = (int) (*env)->GetIntField(env, jimft, clr_NIF_cmmFormatID);
-    imft->cols = (int) (*env)->GetIntField(env, jimft, clr_NIF_colsID);
-    imft->rows = (int) (*env)->GetIntField(env, jimft, clr_NIF_rowsID);
-    imft->scanlineStride = (int) (*env)->GetIntField(env, jimft, clr_NIF_scanlineStrideID);
-    imft->dataOffset = (int) (*env)->GetIntField(env, jimft, clr_NIF_dataOffsetID);
-    imft->alphaOffset = (int) (*env)->GetIntField(env, jimft, clr_NIF_alphaOffsetID);
+    // 安全地获取实例字段数据
+    imft->cmmFormat = (int) (*env)->GetIntField(env, jimft, cmmFormatID);
+    imft->cols = (int) (*env)->GetIntField(env, jimft, colsID);
+    imft->rows = (int) (*env)->GetIntField(env, jimft, rowsID);
+    imft->scanlineStride = (int) (*env)->GetIntField(env, jimft, scanlineStrideID);
+    imft->dataOffset = (int) (*env)->GetIntField(env, jimft, dataOffsetID);
+    imft->alphaOffset = (int) (*env)->GetIntField(env, jimft, alphaOffsetID);
 
-    // Get image data
-    imft->jImageData = (jarray) (*env)->GetObjectField(env, jimft, clr_NIF_imageDataID);
+    // 获取并安全校验 imageData
+    imft->jImageData = (jarray) (*env)->GetObjectField(env, jimft, imageDataID);
+    
+    // 必须释放 local ref 防止表溢出
+    (*env)->DeleteLocalRef(env, clazz);
+
     if (imft->jImageData == NULL) {
         free(imft);
         throwNPException(env, "Error: NativeImageFormat.imageData array is NULL");
@@ -121,9 +80,8 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
     }
 
     imft->imageData = (BYTE*) (*env)->GetPrimitiveArrayCritical(env, imft->jImageData, 0);
-    if(imft->imageData == NULL) { // All is lost, we don't have C array
+    if(imft->imageData == NULL) { 
         throwNPException(env, "Error while accessing java image data");
-        // Free resources and stop further processing...
         releaseImageFormat(env, imft);
         return NULL;
     }
@@ -132,13 +90,11 @@ ImageFormat* getImageFormat(JNIEnv* env, jobject jimft) {
 }
 
 void releaseImageFormat(JNIEnv* env, ImageFormat* imft) {
-    if(imft == NULL) return; // nothing to do
+    if(imft == NULL) return; 
 
-    // Release java array
     if(imft->imageData != NULL && imft->jImageData != NULL) {
         (*env)->ReleasePrimitiveArrayCritical(env, imft->jImageData, imft->imageData, 0);
     }
 
-    // Free memory
     free(imft);
 }
