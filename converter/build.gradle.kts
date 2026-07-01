@@ -33,3 +33,10 @@ dependencies {
 java {
     withSourcesJar()
 }
+
+tasks.named<Jar>("jar") {
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    
+    exclude("team/unnamed/creative/base/Writable.class")
+    exclude("team/unnamed/creative/base/Writable$1.class")
+}
