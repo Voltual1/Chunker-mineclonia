@@ -4,6 +4,8 @@ plugins {
 
 version = "1.13.6"
 
+java.sourceCompatibility = JavaVersion.VERSION_21
+
 description = "A resource-pack library for Minecraft: Java Edition."
 
 dependencies {
