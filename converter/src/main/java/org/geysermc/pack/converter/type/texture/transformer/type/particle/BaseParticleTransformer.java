@@ -82,104 +82,18 @@ public class BaseParticleTransformer implements TextureTransformer {
             context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, PATH + "/bubble_gray.png"), ImageUtil.grayscale(bubble), "png");
         }
 
-        this.createSpritesheet(context);
+        // 临时跳过粒子精灵图的生成以防卡死/OOM
+        // this.createSpritesheet(context);
     }
 
     private void createSpritesheet(@NotNull TransformContext context) throws IOException {
-        Spritesheet spritesheet = new Spritesheet();
-        int spriteSize = -1;
-
-        BufferedImage vanillaSprite = ImageUtil.loadImage("/spritesheets/particle_spritesheet.png");
-        
-        int[][] occupiedSectors = null;
-        for (int i = 0; i < TEXTURES.size(); i++) {
-            TextureData textureData = TEXTURES.get(i);
-            Texture[] textures = textureData.textures(context);
-            Image[] images = new Image[textures.length];
-            for (Texture texture : textures) {
-                if (texture == null) {
-                    continue;
-                }
-
-                BufferedImage image = this.readImage(texture);
-                if (spriteSize == -1) {
-                    spriteSize = image.getWidth(null);
-                    
-                    vanillaSprite = ImageUtil.resize(vanillaSprite, spriteSize * spriteSize, spriteSize * spriteSize);
-                    occupiedSectors = new int[spriteSize * spriteSize][spriteSize * spriteSize];
-                    break;
-                }
-            }
-
-            // This is a bit of a hack, but ensures that all elements in the sprite
-            // are the same size
-            if (spriteSize == -1) {
-                context.debug(String.format("No textures found for sprite with textures %s", Arrays.toString(textures)));
-                return;
-            }
-
-            for (int j = 0; j < textures.length; j++) {
-                Texture texture = textures[j];
-                if (texture == null) {
-                    images[j] = com.twelvemonkeys.image.ImageUtil.createTransparent(spriteSize, spriteSize);
-                    continue;
-                }
-
-                int textureSize = spriteSize * PARTICLE_SCALES.getOrDefault(texture.key().value(), 1);
-
-                BufferedImage image = ImageUtil.resize(this.readImage(texture), textureSize, textureSize);
-                images[j] = image;
-                
-                occupiedSectors[j][i] = textureSize;
-            }
-
-            spritesheet.addRow(images);
-        }
-
-        if (!spritesheet.hasSprites()) {
-            return;
-        }
-        
-        BufferedImage spriteImage = spritesheet.compile();
-        int expectedSize = spriteSize * spriteSize;
-        if (spriteImage.getWidth() != expectedSize || spriteImage.getHeight() != expectedSize) {
-            context.warn(String.format("Expected sprite image to be %dx%d, but was %dx%d. Automatically expanding canvas (this may cause issues).", expectedSize, expectedSize, spriteImage.getWidth(), spriteImage.getHeight()));
-            spriteImage = ImageUtil.expandCanvas(spriteImage, expectedSize, expectedSize);
-        }
-
-        vanillaSprite = ImageUtil.resize(vanillaSprite, spriteImage.getWidth(), spriteImage.getHeight());
-
-        Graphics2D graphics = vanillaSprite.createGraphics();
-        graphics.setBackground(new Color(0, 0, 0, 0));
-
-        for (int x = 0; x < occupiedSectors.length; x++) {
-            for (int y = 0; y < occupiedSectors[x].length; y++) {
-                int size = occupiedSectors[x][y];
-                if (size == 0) {
-                    continue;
-                }
-
-                int spriteX = x * spriteSize;
-                int spriteY = y * spriteSize;
-                graphics.clearRect(spriteX, spriteY, size, size);
-            }
-        }
-
-        graphics.drawImage(spriteImage, 0, 0, null);
-        graphics.dispose();
-
-        context.debug(String.format("Creating particle spritesheet %s", OUTPUT));
-
-        context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, PATH + "/" + OUTPUT), vanillaSprite, "png");
     }
 
     interface TextureData {
-
         Texture[] textures(@NotNull TransformContext context);
     }
 
     record AtlasTextureData(@NotNull String javaName, int atlasCount) implements TextureData {
-
         @NotNull
         public Key textureKey(int atlas) {
             return KeyUtil.key(Key.MINECRAFT_NAMESPACE, PATH + "/" + javaName + "_" + atlas + ".png");

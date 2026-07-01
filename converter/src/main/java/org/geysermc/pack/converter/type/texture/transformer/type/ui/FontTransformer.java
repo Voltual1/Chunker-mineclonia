@@ -516,6 +516,8 @@ public class FontTransformer implements TextureTransformer {
 
         @Override
         public void computeCache(TransformContext context, Map<Key, BufferedImage> imageCache) {
+            if (imageCache.containsKey(textureName)) return; // 修复致命问题：防止循环内数万次的高 CPU ImageIO.read 调用导致死锁。
+
             Texture texture = context.pollOrPeekVanilla(textureName);
 
             if (texture != null) {

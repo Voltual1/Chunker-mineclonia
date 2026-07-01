@@ -56,47 +56,7 @@ public abstract class SpritesheetParticleTransformer implements TextureTransform
 
     @Override
     public void transform(@NotNull TransformContext context) throws IOException {
-        int size = -1;
-        BitSet occupiedSectors = new BitSet(this.atlasCount);
-        Spritesheet spritesheet = new Spritesheet();
-        for (int i = 0; i < this.atlasCount; i++) {
-            if (javaPath == null) continue;
-            Texture texture = context.poll(KeyUtil.key(Key.MINECRAFT_NAMESPACE, String.format(this.javaPath, i)));
-            if (texture == null) {
-                continue;
-            }
-
-            BufferedImage image = this.readImage(texture);
-            if (size == -1) {
-                size = image.getWidth();
-            }
-
-            occupiedSectors.set(i);
-            spritesheet.addRow(image);
-        }
-
-        if (!spritesheet.hasSprites() || size == -1) {
-            return;
-        }
-
-        BufferedImage spriteImage = spritesheet.compile();
-        BufferedImage vanillaSprite = ImageUtil.resize(ImageUtil.loadImage("/spritesheets/" + this.vanillaSpritesheet + ".png"), spriteImage.getWidth(), spriteImage.getHeight());
-
-        Graphics2D graphics = vanillaSprite.createGraphics();
-        graphics.setBackground(new Color(0, 0, 0, 0));
-
-        for (int i = 0; i < occupiedSectors.size(); i++) {
-            if (occupiedSectors.get(i)) {
-                int y = i * size;
-                graphics.clearRect(0, y, size, size);
-            }
-        }
-
-        graphics.drawImage(spriteImage, 0, 0, null);
-        graphics.dispose();
-
-        context.debug(String.format("Creating particle spritesheet %s", this.bedrockPath));
-
-        context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, this.bedrockPath), vanillaSprite, "png");
+        // 临时跳过以防卡死
+        return;
     }
 }

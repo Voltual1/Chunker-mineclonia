@@ -73,45 +73,8 @@ public abstract class GridSpritesheetParticleTransformer implements TextureTrans
 
     @Override
     public void transform(@NotNull TransformContext context) throws IOException {
-        List<ItemData> itemDatas = new ArrayList<>();
-        boolean anyTexturePresent = false;
-
-        int k = 0;
-        for (int i = 0; i < rows; i++) {
-            for (int j = 0; j < columns; j++) {
-                String javaPath = javaPaths[k++];
-                Key key = javaPath == null ? null : KeyUtil.key(Key.MINECRAFT_NAMESPACE, javaPath);
-                Texture texture = context.pollOrPeekVanilla(key);
-                itemDatas.add(new ItemData(
-                        key,
-                        texture,
-                        j * particleWidth,
-                        i * particleHeight
-                ));
-
-                if (texture != null) anyTexturePresent = true;
-            }
-        }
-
-        if (!anyTexturePresent) return;
-
-        context.debug(String.format("Creating particle spritesheet %s", this.bedrockPath));
-
-        BufferedImage image = new BufferedImage(columns * particleWidth, rows * particleHeight, BufferedImage.TYPE_INT_ARGB);
-        Graphics g = image.getGraphics();
-
-        for (ItemData itemData : itemDatas) {
-            if (itemData.texture() == null) {
-                context.warn("%s is missing. Please report this.".formatted(itemData.key()));
-                continue;
-            }
-
-            BufferedImage javaImage = this.preProcessImage(this.readImage(itemData.texture()));
-
-            g.drawImage(javaImage, itemData.x(), itemData.y(), null);
-        }
-
-        context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, this.bedrockPath), image, "png");
+        // 临时跳过以防卡死
+        return;
     }
 
     public BufferedImage preProcessImage(BufferedImage image) {
