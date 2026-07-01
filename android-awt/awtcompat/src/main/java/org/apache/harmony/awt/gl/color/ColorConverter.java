@@ -71,7 +71,6 @@ public class ColorConverter {
 
         android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
         android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
-
         android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
 
         int w = src.getWidth();
@@ -80,22 +79,26 @@ public class ColorConverter {
         WritableRaster srcRaster = src.getRaster();
         WritableRaster dstRaster = dst.getRaster();
 
-        float[] srcPixel = new float[srcCM.getNumComponents()];
-        float[] dstPixel = new float[dstCM.getNumComponents()];
-
         int srcNumColorCaps = srcCM.getNumColorComponents();
         int dstNumColorCaps = dstCM.getNumColorComponents();
 
         boolean srcHasAlpha = srcCM.hasAlpha();
         boolean dstHasAlpha = dstCM.hasAlpha();
 
+        // 提前分配所有缓存，避免在百万次循环中触发 GC
+        float[] srcPixel = new float[srcCM.getNumComponents()];
+        float[] dstPixel = new float[dstCM.getNumComponents()];
         float[] rgb = new float[3];
+        Object srcData = null;
+        Object dstData = null;
 
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
-                srcPixel = srcCM.getNormalizedComponents(srcRaster.getDataElements(x, y, null), srcPixel, 0);
+                // 复用 srcData 和 srcPixel，零对象分配
+                srcData = srcRaster.getDataElements(x, y, srcData);
+                srcCM.getNormalizedComponents(srcData, srcPixel, 0);
 
-                if (srcNumColorCaps == 3) {
+                if (srcNumColorCaps >= 3) {
                     rgb[0] = srcPixel[0];
                     rgb[1] = srcPixel[1];
                     rgb[2] = srcPixel[2];
@@ -105,23 +108,23 @@ public class ColorConverter {
                     rgb[2] = srcPixel[0];
                 } else {
                     rgb[0] = srcPixel[0];
-                    rgb[1] = srcPixel[1 % srcPixel.length];
-                    rgb[2] = srcPixel[2 % srcPixel.length];
+                    rgb[1] = srcPixel[1 % srcNumColorCaps];
+                    rgb[2] = srcPixel[2 % srcNumColorCaps];
                 }
 
-                float[] transformed = connector.transform(rgb);
+                // Android 的 transform(float[]) 支持原地修改 (in-place modification)
+                connector.transform(rgb);
 
-                if (dstNumColorCaps == 3) {
-                    dstPixel[0] = transformed[0];
-                    dstPixel[1] = transformed[1];
-                    dstPixel[2] = transformed[2];
+                if (dstNumColorCaps >= 3) {
+                    dstPixel[0] = rgb[0];
+                    dstPixel[1] = rgb[1];
+                    dstPixel[2] = rgb[2];
                 } else if (dstNumColorCaps == 1) {
-                
-                    dstPixel[0] = 0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2];
+                    dstPixel[0] = 0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2];
                 } else {
-                    dstPixel[0] = transformed[0];
-                    if (dstPixel.length > 1) dstPixel[1] = transformed[1];
-                    if (dstPixel.length > 2) dstPixel[2] = transformed[2];
+                    dstPixel[0] = rgb[0];
+                    if (dstNumColorCaps > 1) dstPixel[1] = rgb[1];
+                    if (dstNumColorCaps > 2) dstPixel[2] = rgb[2];
                 }
 
                 if (dstHasAlpha) {
@@ -132,7 +135,9 @@ public class ColorConverter {
                     }
                 }
 
-                dstRaster.setDataElements(x, y, dstCM.getDataElements(dstPixel, 0, null));
+                // 复用 dstData，零对象分配
+                dstData = dstCM.getDataElements(dstPixel, 0, dstData);
+                dstRaster.setDataElements(x, y, dstData);
             }
         }
     }
@@ -145,10 +150,10 @@ public class ColorConverter {
 
         android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
         android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
-
         android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
 
         float[] rgb = new float[3];
+        int dstChannels = aDstCS.getComponentCount();
 
         for (int i = 0; i < nPixels; i++) {
             float[] pixel = buffer[i];
@@ -167,26 +172,26 @@ public class ColorConverter {
                 rgb[2] = pixel[2 % pixel.length];
             }
 
-            float[] transformed = connector.transform(rgb);
+            // 原地转换
+            connector.transform(rgb);
 
-            int dstChannels = aDstCS.getComponentCount();
             if (pixel.length < dstChannels) {
-                float[] newPixel = new float[dstChannels + 1];
+                float[] newPixel = new float[Math.max(dstChannels, pixel.length)];
                 System.arraycopy(pixel, 0, newPixel, 0, pixel.length);
                 pixel = newPixel;
                 buffer[i] = pixel;
             }
 
-            if (dstChannels == 3) {
-                pixel[0] = transformed[0];
-                pixel[1] = transformed[1];
-                pixel[2] = transformed[2];
+            if (dstChannels >= 3) {
+                pixel[0] = rgb[0];
+                pixel[1] = rgb[1];
+                pixel[2] = rgb[2];
             } else if (dstChannels == 1) {
-                pixel[0] = 0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2];
+                pixel[0] = 0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2];
             } else {
-                pixel[0] = transformed[0];
-                if (pixel.length > 1) pixel[1] = transformed[1];
-                if (pixel.length > 2) pixel[2] = transformed[2];
+                pixel[0] = rgb[0];
+                if (pixel.length > 1) pixel[1] = rgb[1];
+                if (pixel.length > 2) pixel[2] = rgb[2];
             }
         }
 
@@ -200,14 +205,11 @@ public class ColorConverter {
             try {
                 srcCS = new java.awt.color.ICC_ColorSpace(t.getSrc());
                 dstCS = new java.awt.color.ICC_ColorSpace(t.getDst());
-            } catch (Exception e) {
-                // fallback
-            }
+            } catch (Exception e) {}
         }
 
         android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
         android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
-
         android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
 
         int w = src.getWidth();
@@ -222,10 +224,12 @@ public class ColorConverter {
 
         int minX = src.getMinX();
         int minY = src.getMinY();
+        int maxX = minX + w;
+        int maxY = minY + h;
 
-        for (int y = minY; y < minY + h; y++) {
-            for (int x = minX; x < minX + w; x++) {
-                srcPixel = src.getPixel(x, y, srcPixel);
+        for (int y = minY; y < maxY; y++) {
+            for (int x = minX; x < maxX; x++) {
+                src.getPixel(x, y, srcPixel);
 
                 if (srcBands >= 3) {
                     rgb[0] = srcPixel[0] / 255.0f;
@@ -238,15 +242,14 @@ public class ColorConverter {
                     rgb[2] = grayVal;
                 }
 
-                float[] transformed = connector.transform(rgb);
+                connector.transform(rgb); // 原地转换
 
                 if (dstBands >= 3) {
-                    dstPixel[0] = transformed[0] * 255.0f;
-                    dstPixel[1] = transformed[1] * 255.0f;
-                    dstPixel[2] = transformed[2] * 255.0f;
+                    dstPixel[0] = rgb[0] * 255.0f;
+                    dstPixel[1] = rgb[1] * 255.0f;
+                    dstPixel[2] = rgb[2] * 255.0f;
                 } else {
-                    float grayVal = (0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2]) * 255.0f;
-                    dstPixel[0] = grayVal;
+                    dstPixel[0] = (0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2]) * 255.0f;
                 }
 
                 if (dstBands > 3 && srcBands > 3) {
@@ -267,9 +270,7 @@ public class ColorConverter {
             try {
                 srcCS = new java.awt.color.ICC_ColorSpace(t.getSrc());
                 dstCS = new java.awt.color.ICC_ColorSpace(t.getDst());
-            } catch (Exception e) {
-                // fallback
-            }
+            } catch (Exception e) {}
         }
 
         int nSrcChannels = t != null ? t.getNumInputChannels() : 3;
@@ -282,7 +283,6 @@ public class ColorConverter {
 
         android.graphics.ColorSpace aSrcCS = getAndroidColorSpace(srcCS);
         android.graphics.ColorSpace aDstCS = getAndroidColorSpace(dstCS);
-
         android.graphics.ColorSpace.Connector connector = android.graphics.ColorSpace.connect(aSrcCS, aDstCS);
 
         float[] rgb = new float[3];
@@ -302,14 +302,14 @@ public class ColorConverter {
                 rgb[2] = grayVal;
             }
 
-            float[] transformed = connector.transform(rgb);
+            connector.transform(rgb); // 原地转换
 
             if (nDstChannels >= 3) {
-                dst[dstIdx] = (short) Math.round(transformed[0] * 65535.0f);
-                dst[dstIdx + 1] = (short) Math.round(transformed[1] * 65535.0f);
-                dst[dstIdx + 2] = (short) Math.round(transformed[2] * 65535.0f);
+                dst[dstIdx] = (short) Math.round(rgb[0] * 65535.0f);
+                dst[dstIdx + 1] = (short) Math.round(rgb[1] * 65535.0f);
+                dst[dstIdx + 2] = (short) Math.round(rgb[2] * 65535.0f);
             } else {
-                float grayVal = (0.2126f * transformed[0] + 0.7152f * transformed[1] + 0.0722f * transformed[2]) * 65535.0f;
+                float grayVal = (0.2126f * rgb[0] + 0.7152f * rgb[1] + 0.0722f * rgb[2]) * 65535.0f;
                 dst[dstIdx] = (short) Math.round(grayVal);
             }
 
