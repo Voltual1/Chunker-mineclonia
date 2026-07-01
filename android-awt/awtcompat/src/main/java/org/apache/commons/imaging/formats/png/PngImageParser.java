@@ -573,7 +573,8 @@ public class PngImageParser extends ImageParser {
                 final PngChunkIccp pngChunkiCCP = (PngChunkIccp) iCCPs.get(0);
                 final byte[] bytes = pngChunkiCCP.uncompressedProfile;
 
-                iccProfile = ICC_Profile.getInstance(bytes);
+                // 屏蔽 ICC Profile 应用逻辑，防止 Android AWT 环境下的 DirectColorModel 崩溃
+                // iccProfile = ICC_Profile.getInstance(bytes);
             } else if (gAMAs.size() == 1) {
                 final PngChunkGama pngChunkgAMA = (PngChunkGama) gAMAs.get(0);
                 final double gamma = pngChunkgAMA.getGamma();
@@ -638,6 +639,8 @@ public class PngImageParser extends ImageParser {
 
             scanExpediter.drive();
 
+            // 既然已经在上面屏蔽了 iccProfile 的读取，这里的转换逻辑也永远不会执行。
+            // 但为了安全起见，我们保留这个空的判断。
             if (iccProfile != null) {
                 final Boolean is_srgb = new IccProfileParser().issRGB(iccProfile);
                 if (is_srgb == null || !is_srgb.booleanValue()) {

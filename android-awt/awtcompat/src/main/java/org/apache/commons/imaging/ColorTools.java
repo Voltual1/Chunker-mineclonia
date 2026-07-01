@@ -113,12 +113,19 @@ public class ColorTools {
         } else if (colorModel instanceof DirectColorModel) {
             final DirectColorModel dcm = (DirectColorModel) colorModel;
 
+            // 安全检查：Android AWT 要求 DirectColorModel 必须使用 TYPE_RGB。
+            // 如果传入了非 RGB 空间（例如 ICC 解析出来的异形空间），则直接回退到原模型的标准空间以防崩溃。
+            ColorSpace targetCs = cs;
+            if (targetCs.getType() != ColorSpace.TYPE_RGB) {
+                targetCs = ColorSpace.getInstance(ColorSpace.CS_sRGB);
+            }
+
             final int oldMask = dcm.getRedMask() | dcm.getGreenMask()
                     | dcm.getBlueMask() | dcm.getAlphaMask();
 
             final int oldBits = countBitsInMask(oldMask);
 
-            return new DirectColorModel(cs, oldBits, dcm.getRedMask(),
+            return new DirectColorModel(targetCs, oldBits, dcm.getRedMask(),
                     dcm.getGreenMask(), dcm.getBlueMask(), dcm.getAlphaMask(),
                     dcm.isAlphaPremultiplied(), dcm.getTransferType());
         }
