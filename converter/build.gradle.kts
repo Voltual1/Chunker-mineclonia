@@ -19,8 +19,6 @@ sourceSets {
 java.sourceCompatibility = JavaVersion.VERSION_21
 
 abstract class PatchIIOUtilTransform : TransformAction<TransformParameters.None> {
-    @get:InputParameters
-    abstract val parameters: TransformParameters.None
 
     @get:InputArtifact
     abstract val inputArtifact: Provider<FileSystemLocation>
@@ -30,32 +28,32 @@ abstract class PatchIIOUtilTransform : TransformAction<TransformParameters.None>
         val outputFile = outputs.file(inputFile.name)
 
         if (inputFile.name.contains("imageio-core-3.9.4")) {
-            ZipFile(inputFile).use { zipIn ->
-                ZipOutputStream(FileOutputStream(outputFile)).use { zipOut ->
+            java.util.zip.ZipFile(inputFile).use { zipIn ->
+                java.util.zip.ZipOutputStream(java.io.FileOutputStream(outputFile)).use { zipOut ->
                     val entries = zipIn.entries()
                     while (entries.hasMoreElements()) {
                         val entry = entries.nextElement()
                         
                         if (entry.name == "com/twelvemonkeys/imageio/util/IIOUtil.class") {
-                            zipOut.putNextEntry(ZipEntry(entry.name))
+                            zipOut.putNextEntry(java.util.zip.ZipEntry(entry.name))
                             
                             val patchedFile = File("${System.getProperty("user.dir")}/patches/IIOUtil.class")
                             if (patchedFile.exists()) {
                                 zipOut.write(patchedFile.readBytes())
                             } else {
-                                throw GradleException("找不到修改后的 IIOUtil.class，请确保路径正确: ${patchedFile.absolutePath}")
+                                throw GradleException("找不到修改后的 IIOUtil.class")
                             }
                             
                             zipOut.closeEntry()
                         } else {
-                            zipOut.putNextEntry(ZipEntry(entry.name))
+                            zipOut.putNextEntry(java.util.zip.ZipEntry(entry.name))
                             zipIn.getInputStream(entry).use { it.copyTo(zipOut) }
                             zipOut.closeEntry()
                         }
                     }
                 }
             }
-            println("====== 已替换 Jar 中的 IIOUtil.class ======")
+            println("已替换 Jar 中的 IIOUtil.class")
         } else {
             inputFile.copyTo(outputFile, overwrite = true)
         }
