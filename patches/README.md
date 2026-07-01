@@ -1,0 +1,1 @@
+This is a patch about "imageio-core-3.9.4.jar"

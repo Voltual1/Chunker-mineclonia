@@ -86,7 +86,16 @@ dependencies {
     compileOnly(project(":bedrock-pack-schema")) // Is provided by pack-schema-api for consumers, but not for us during compile time
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("commons-io:commons-io:2.11.0")
-    implementation("com.twelvemonkeys.imageio:imageio-tga:3.9.4")
+    
+    implementation("com.twelvemonkeys.imageio:imageio-tga:3.9.4") {
+    exclude(group = "com.twelvemonkeys.imageio", module = "imageio-core")
+}
+    
+    implementation(files("libs/imageio-core-3.9.4.jar"))
+    implementation("com.twelvemonkeys.common:common-lang:3.9.4")
+    implementation("com.twelvemonkeys.common:common-io:3.9.4")
+    implementation("com.twelvemonkeys.common:common-image:3.9.4")
+    
     implementation("it.unimi.dsi:fastutil:8.5.18")
     api("net.kyori:adventure-api:4.14.0")
     api("net.kyori:adventure-text-serializer-gson:4.14.0")
