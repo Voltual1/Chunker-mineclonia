@@ -76,7 +76,7 @@ jobs:
           echo "===  修复完成！ ==="
 
       - name: Build with Gradle
-        run: ./gradlew assembleRelease
+        run: ./gradlew :creative-api:compileJava
         env:
           KEYSTORE_PATH: tag_keystore.p12
           KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
