@@ -1,7 +1,16 @@
+import java.io.File
 import java.io.FileOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipFile
 import java.util.zip.ZipOutputStream
+import org.gradle.api.artifacts.transform.TransformAction
+import org.gradle.api.artifacts.transform.TransformOutputs
+import org.gradle.api.artifacts.transform.TransformParameters
+import org.gradle.api.file.FileSystemLocation
+import org.gradle.api.provider.Provider
+import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
 
 plugins {
     id("io.freefair.lombok") version "9.5.0"
@@ -18,7 +27,13 @@ sourceSets {
 
 java.sourceCompatibility = JavaVersion.VERSION_21
 
-abstract class PatchIIOUtilTransform : TransformAction<TransformParameters.None> {
+interface PatchParameters : TransformParameters {
+    @get:InputFiles
+    @get:PathSensitive(PathSensitivity.NAME_ONLY)
+    val patchFiles: ConfigurableFileCollection
+}
+
+abstract class PatchIIOUtilTransform : TransformAction<PatchParameters> {
 
     @get:InputArtifact
     abstract val inputArtifact: Provider<FileSystemLocation>
@@ -28,25 +43,22 @@ abstract class PatchIIOUtilTransform : TransformAction<TransformParameters.None>
         val outputFile = outputs.file(inputFile.name)
 
         if (inputFile.name.contains("imageio-core-3.9.4")) {
-            java.util.zip.ZipFile(inputFile).use { zipIn ->
-                java.util.zip.ZipOutputStream(java.io.FileOutputStream(outputFile)).use { zipOut ->
+            val patchDir = parameters.patchFiles.files
+            val patchedFile = patchDir.firstOrNull { it.name == "IIOUtil.class" }
+                ?: throw GradleException("在指定的补丁路径中找不到 IIOUtil.class")
+
+            ZipFile(inputFile).use { zipIn ->
+                ZipOutputStream(FileOutputStream(outputFile)).use { zipOut ->
                     val entries = zipIn.entries()
                     while (entries.hasMoreElements()) {
                         val entry = entries.nextElement()
                         
                         if (entry.name == "com/twelvemonkeys/imageio/util/IIOUtil.class") {
-                            zipOut.putNextEntry(java.util.zip.ZipEntry(entry.name))
-                            
-                            val patchedFile = File("${System.getProperty("user.dir")}/patches/IIOUtil.class")
-                            if (patchedFile.exists()) {
-                                zipOut.write(patchedFile.readBytes())
-                            } else {
-                                throw GradleException("找不到修改后的 IIOUtil.class")
-                            }
-                            
+                            zipOut.putNextEntry(ZipEntry(entry.name))
+                            zipOut.write(patchedFile.readBytes())
                             zipOut.closeEntry()
                         } else {
-                            zipOut.putNextEntry(java.util.zip.ZipEntry(entry.name))
+                            zipOut.putNextEntry(ZipEntry(entry.name))
                             zipIn.getInputStream(entry).use { it.copyTo(zipOut) }
                             zipOut.closeEntry()
                         }
@@ -64,6 +76,8 @@ dependencies {
     registerTransform(PatchIIOUtilTransform::class) {
         from.attribute(Attribute.of("artifactType", String::class.java), "jar")
         to.attribute(Attribute.of("artifactType", String::class.java), "jar")
+        
+        parameters.patchFiles.from(rootProject.file("patches"))
     }
 }
 
@@ -72,9 +86,7 @@ dependencies {
     compileOnly(project(":bedrock-pack-schema")) // Is provided by pack-schema-api for consumers, but not for us during compile time
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("commons-io:commons-io:2.11.0")
-    
     implementation("com.twelvemonkeys.imageio:imageio-tga:3.9.4")
-    
     implementation("it.unimi.dsi:fastutil:8.5.18")
     api("net.kyori:adventure-api:4.14.0")
     api("net.kyori:adventure-text-serializer-gson:4.14.0")
