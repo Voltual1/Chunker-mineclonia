@@ -38,6 +38,7 @@ include(":terminal-view")
 include("cli", "app")
 
 include(":converter")
+include(":creative-api")
 
 include(":pack-schema-api")
 include(":bedrock-pack-schema")

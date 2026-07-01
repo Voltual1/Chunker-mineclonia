@@ -45,5 +45,6 @@ include(":bedrock-pack-schema")
 include(":schema-generator")
 
 project(":pack-schema-api").projectDir = file("pack-schema/api")
+project(":creative-api").projectDir = file("creative-api/")
 project(":bedrock-pack-schema").projectDir = file("pack-schema/bedrock")
 project(":schema-generator").projectDir = file("pack-schema/generator")
