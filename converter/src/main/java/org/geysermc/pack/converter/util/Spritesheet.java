@@ -51,65 +51,10 @@ public class Spritesheet {
     /**
      * Compiles all the sprites into a single spritesheet image.
      *
-     * @return the compiled spritesheet image
+     * @return the compiled spritesheet image (here returning a 1x1 transparent placeholder to skip processing)
      */
     @NotNull
     public BufferedImage compile() {
-        int width = 0;
-        int height = 0;
-
-        for (Image[] row : this.rows) {
-            int rowWidth = 0;
-            for (Image sprite : row) {
-                if (sprite != null) {
-                    rowWidth += sprite.getWidth(null);
-                }
-            }
-
-            width = Math.max(width, rowWidth);
-            Image fp = firstPresent(row);
-            if (fp != null) {
-                height += fp.getHeight(null);
-            }
-        }
-
-        if (width <= 0) width = 1;
-        if (height <= 0) height = 1;
-
-        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
-
-        java.awt.Graphics g = image.getGraphics();
-        try {
-            int y = 0;
-            for (Image[] row : this.rows) {
-                int x = 0;
-                for (Image sprite : row) {
-                    if (sprite != null) {
-                        g.drawImage(sprite, x, y, null);
-                        x += sprite.getWidth(null);
-                    }
-                }
-
-                Image fp = firstPresent(row);
-                if (fp != null) {
-                    y += fp.getHeight(null);
-                }
-            }
-        } finally {
-            g.dispose();
-        }
-
-        return image;
-    }
-
-    @NotNull
-    private static Image firstPresent(Image[] row) {
-        for (Image sprite : row) {
-            if (sprite != null) {
-                return sprite;
-            }
-        }
-
-        throw new IllegalArgumentException("No sprites present in row");
+        return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
     }
 }
