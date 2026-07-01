@@ -1,8 +1,7 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
-#-assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
-#现在需要处理材质包转换可能会需要用到so
+-assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
@@ -66,21 +65,6 @@
 
 -keepnames class com.google.common.cache.** { *; }
 
-# 保护 NativeImageFormat 及其全部实例字段（C 语言 JNI 依赖名称和签名直接映射）
--keep class org.apache.harmony.awt.gl.color.NativeImageFormat {
-    private int cmmFormat;
-    private int rows;
-    private int cols;
-    private int scanlineStride;
-    private java.lang.Object imageData;
-    private int dataOffset;
-    private int alphaOffset;
-    public <init>(...);
-    public <methods>;
-}
-
-# 保护 JNI 绑定类极其子成员
--keep class org.apache.harmony.awt.gl.color.NativeCMM { *; }
--keep class ro.andob.awtcompat.nativec.AwtCompatNativeComponents { *; }
--keep class ro.andob.awtcompat.nativec.AwtCompatNativeComponents$NativePointerContainer { *; }
--keep class org.apache.harmony.awt.gl.image.GifDecoder** { *; }
+-dontwarn team.unnamed.creative.**
+-dontwarn com.twelvemonkeys.imageio.util.**
+-dontwarn org.geysermc.pack.bedrock.resource.**

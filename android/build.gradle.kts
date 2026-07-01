@@ -161,7 +161,7 @@ dependencies {
     
     implementation(project(":cli"))
     implementation(project(":converter"))
-
+    implementation(project(":bedrock-pack-schema")) // 显式依赖，确保基岩版 Schema 字节码被打包进 APK
     implementation(project(":mcl"))
     implementation(files("libs/android-awt.aar"))
     implementation(project(":terminal-emulator"))
