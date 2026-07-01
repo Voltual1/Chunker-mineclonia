@@ -25,7 +25,7 @@ dependencies {
     api("net.kyori:adventure-text-serializer-legacy:4.14.0")
     api("team.unnamed:creative-api:1.13.6")
     api("team.unnamed:creative-serializer-minecraft:1.13.6")
-
+    api(libs.guava)
     compileOnly("com.google.auto.service:auto-service:1.0.1")
     annotationProcessor("com.google.auto.service:auto-service:1.0.1")
 }
