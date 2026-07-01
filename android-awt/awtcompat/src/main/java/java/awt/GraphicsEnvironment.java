@@ -29,11 +29,15 @@ import java.util.Locale;
 public abstract class GraphicsEnvironment {
 
     static Boolean isHeadless;
+    private static GraphicsEnvironment localEnv;
 
     protected GraphicsEnvironment() {}
 
-    public static GraphicsEnvironment getLocalGraphicsEnvironment() {
-    	return new HeadlessGraphicsEnvironment();
+    public static synchronized GraphicsEnvironment getLocalGraphicsEnvironment() {
+        if (localEnv == null) {
+            localEnv = new HeadlessGraphicsEnvironment();
+        }
+        return localEnv;
     }
 
     public boolean isHeadlessInstance() {

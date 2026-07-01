@@ -42,8 +42,10 @@ public abstract class AwtImageBackdoorAccessor {
     static protected AwtImageBackdoorAccessor inst;
 
     public static AwtImageBackdoorAccessor getInstance(){
-        // First we need to run the static initializer in the DataBuffer class to resolve inst.
-        new DataBufferInt(0);
+        if (inst == null) {
+            // First we need to run the static initializer in the DataBuffer class to resolve inst.
+            new DataBufferInt(0);
+        }
         return inst;
     }
 

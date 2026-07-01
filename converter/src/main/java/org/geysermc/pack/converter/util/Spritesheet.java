@@ -61,24 +61,42 @@ public class Spritesheet {
         for (Image[] row : this.rows) {
             int rowWidth = 0;
             for (Image sprite : row) {
-                rowWidth += sprite.getWidth(null);
+                if (sprite != null) {
+                    rowWidth += sprite.getWidth(null);
+                }
             }
 
             width = Math.max(width, rowWidth);
-            height += firstPresent(row).getHeight(null);
+            Image fp = firstPresent(row);
+            if (fp != null) {
+                height += fp.getHeight(null);
+            }
         }
+
+        if (width <= 0) width = 1;
+        if (height <= 0) height = 1;
 
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
 
-        int y = 0;
-        for (Image[] row : this.rows) {
-            int x = 0;
-            for (Image sprite : row) {
-                image.getGraphics().drawImage(sprite, x, y, null);
-                x += sprite.getWidth(null);
-            }
+        java.awt.Graphics g = image.getGraphics();
+        try {
+            int y = 0;
+            for (Image[] row : this.rows) {
+                int x = 0;
+                for (Image sprite : row) {
+                    if (sprite != null) {
+                        g.drawImage(sprite, x, y, null);
+                        x += sprite.getWidth(null);
+                    }
+                }
 
-            y += firstPresent(row).getHeight(null);
+                Image fp = firstPresent(row);
+                if (fp != null) {
+                    y += fp.getHeight(null);
+                }
+            }
+        } finally {
+            g.dispose();
         }
 
         return image;

@@ -130,9 +130,7 @@ public class SURFACE_STRUCTURE
             invalidated = true;
             bmp_byte_stride = width << 2;
             
-            createBuffer();
-            // TODO create the appropriate type based on ss_type
-            bmpData = new byte[bmp_byte_stride  * height];
+            createBuffer(width * height);
 	}
 	
 	int getShift(int mask){
@@ -682,63 +680,66 @@ public class SURFACE_STRUCTURE
 	            break;
 	    }
 	}
-	
-	void createBuffer()
+
+	void createBuffer(int size)
 	{
 	    switch(ss_type){
 
 	        case BufferedImage.TYPE_INT_RGB:
-	            bmpData = new int[1];
+	            bmpData = new int[size];
 	            break;
 
 	        case BufferedImage.TYPE_INT_ARGB:
                 if(isAlphaPre){
-                    bmpData = new byte[1];
+                    bmpData = new byte[size * 4];
                 }else{
-                    bmpData = new int[1];
+                    bmpData = new int[size];
                 }
 	            break;
 
 	        case BufferedImage.TYPE_INT_ARGB_PRE:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_INT_BGR:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_3BYTE_BGR:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 3];
 	            break;
 
 	        case BufferedImage.TYPE_4BYTE_ABGR:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_4BYTE_ABGR_PRE:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_USHORT_555_RGB:
 	        case BufferedImage.TYPE_USHORT_565_RGB:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_USHORT_GRAY:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
 
 	        case BufferedImage.TYPE_BYTE_BINARY:
-	            bmpData = new int[1];
+	            bmpData = new int[size];
 	            break;
 
 	        case BufferedImage.TYPE_BYTE_INDEXED:
-	            bmpData = new int[1];
+	            bmpData = new int[size];
 	            break;
 
 	        case BufferedImage.TYPE_BYTE_GRAY:
-	            bmpData = new byte[1];
+	            bmpData = new byte[size * 4];
 	            break;
+            default:
+                bmpData = new byte[size * 4];
+                break;
 	    }
 	}
 }
