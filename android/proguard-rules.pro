@@ -65,6 +65,8 @@
 
 -keepnames class com.google.common.cache.** { *; }
 
--dontwarn team.unnamed.creative.**
--dontwarn com.twelvemonkeys.imageio.util.**
--dontwarn org.geysermc.pack.bedrock.resource.**
+-dontwarn com.google.typography.font.sfntly.**
+
+-dontwarn java.awt.font.sfntly.**
+
+-dontwarn lombok.**
