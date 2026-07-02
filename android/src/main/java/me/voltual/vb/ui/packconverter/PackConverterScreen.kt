@@ -106,7 +106,6 @@ fun PackConverterScreen(
             text = {
                 Box(
                     modifier = Modifier
-                        .maxHeight(400.dp)
                         .verticalScroll(rememberScrollState())
                 ) {
                     MarkDownText(content = helpMarkdown)
