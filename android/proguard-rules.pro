@@ -70,6 +70,13 @@
 
 -dontwarn lombok.**
 
+-keepclassmembers class org.geysermc.pack.converter.util.VanillaPackProvider$* {
+    <init>(...);
+}
+
+-keepclassmembers class org.geysermc.pack.converter.util.VanillaPackProvider$* {
+    <fields>;
+}
 
 
 
