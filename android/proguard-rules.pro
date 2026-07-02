@@ -74,8 +74,30 @@
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 -repackageclasses 'androidx'
 -flattenpackagehierarchy 'androidx'
+#这不是为了好玩，是为了镇压 java.awt 内部残存的 SPI 恶灵！
+#由于 Java 跨平台材质包转换机制的底层缺陷，如果把这些包名平铺到其他地方，
+#反射机制会直接抓瞎，在触发“材质包转换”时会原地爆炸，抛出不可逆的 java.lang.NullPointerException！
+#而androidx这个地方是受官方保护的圣地！ 
+#如果你觉得这两行“很神经”而顺手删掉，编译虽然能过，但只要运行到材质包转换功能，
+#程序就会炸了。此时请不要来提 Issue，因为神仙也救不了你。
+#留着它，它保你材质包转换一路顺风；删掉它，你没有好果子吃了
 
 -keep class * implements javax.imageio.spi.RegisterableService { *; }
 -keep class * extends javax.imageio.spi.ImageReaderWriterSpi { *; }

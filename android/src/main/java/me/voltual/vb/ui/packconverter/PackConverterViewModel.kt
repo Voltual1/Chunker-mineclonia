@@ -5,27 +5,21 @@ import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.*
+import androidx.work.multiprocess.RemoteWorkManager
 import com.termux.terminal.TerminalSession
 import com.termux.terminal.TerminalSessionClient
-import com.anggrayudi.storage.extension.openInputStream
-import com.anggrayudi.storage.extension.openOutputStream
-import com.anggrayudi.storage.extension.fromTreeUri
-import com.anggrayudi.storage.file.makeFile
-import com.anggrayudi.storage.file.openOutputStream
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.geysermc.pack.converter.PackConverter
-import org.geysermc.pack.converter.pipeline.AssetConverters
-import org.geysermc.pack.converter.util.LogListener
-import org.geysermc.pack.converter.util.IccProfileStore
 import java.io.File
-import java.io.FileOutputStream
+import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
-import java.nio.file.Path
 
 class PackConverterViewModel(private val context: Context) : ViewModel() {
 
@@ -46,6 +40,8 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
 
     private val _session = MutableStateFlow<TerminalSession?>(null)
     val session: StateFlow<TerminalSession?> = _session.asStateFlow()
+
+    private var tailJob: Job? = null
 
     fun setPackName(name: String) {
         _packName.value = name
@@ -73,7 +69,7 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
 
         _isRunning.value = true
 
-        // 初始化本地终端 Session，用于直接接收实时输出
+        // 初始化终端 Session
         val sessionClient = object : TerminalSessionClient {
             override fun onTextChanged(changedSession: TerminalSession) {
                 _session.value = changedSession
@@ -121,133 +117,40 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
         )
         _session.value = newSession
 
-        writeToTerminal("\u001B[1;32m[System] 准备在主进程中执行材质包转换任务...\u001B[0m\r\n")
+        writeToTerminal("\u001B[1;32m[System] 准备开启多进程材质包转换任务...\u001B[0m\r\n")
 
-        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
-        if (logFile.exists()) logFile.delete()
-        logFile.createNewFile()
+        val workData = workDataOf(
+            "inputUri" to currentInput.toString(),
+            "outputTreeUri" to currentOutput.toString(),
+            "packName" to _packName.value,
+            "debugMode" to _debugMode.value,
+            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
+            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
+        )
 
-        val logger = object : LogListener {
-            private fun appendLog(text: String) {
-                try {
-                    logFile.appendText("$text\n")
-                    viewModelScope.launch(Dispatchers.Main) {
-                        writeFormattedLog(text + "\n")
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+        val workRequest = OneTimeWorkRequestBuilder<PackConversionWorker>()
+            .setInputData(workData)
+            .build()
 
-            override fun isDebugEnabled(): Boolean {
-                return _debugMode.value
-            }
+        val remoteWorkManager = RemoteWorkManager.getInstance(context)
+        remoteWorkManager.enqueueUniqueWork(
+            "pack_conversion_work",
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
 
-            override fun debug(message: String) {
-                if (_debugMode.value) appendLog("DEBUG: $message")
-            }
+        startTailLog(newSession)
 
-            override fun debugUnchecked(message: String) {
-                if (_debugMode.value) appendLog("DEBUG_UNCHECKED: $message")
-            }
-
-            override fun info(message: String) {
-                appendLog("INFO: $message")
-            }
-
-            override fun warn(message: String) {
-                appendLog("WARN: $message")
-            }
-
-            override fun error(message: String) {
-                appendLog("ERROR: $message")
-            }
-
-            override fun error(message: String, error: Throwable?) {
-                if (error != null) {
-                    appendLog("ERROR: $message\n${error.stackTraceToString()}")
-                } else {
-                    appendLog("ERROR: $message")
-                }
-            }
-        }
-
-        viewModelScope.launch(Dispatchers.IO) {
-            val tempInputDir = File(context.cacheDir, "pack_converter_input")
-            tempInputDir.mkdirs()
-            val tempInputZip = File(tempInputDir, "input_pack.zip")
-            
-            val tempOutputDir = File(context.cacheDir, "pack_converter_output")
-            tempOutputDir.mkdirs()
-            val tempOutputMcpack = File(tempOutputDir, "${_packName.value}.mcpack")
-
-            val vanillaPackZip = File(context.cacheDir, "Vanilla-Assets.zip")
-
-            var success = false
-            try {
-                // 诊断 AWT Native JNI 库是否能被当前 CPU 架构正常加载
-                try {
-                    logger.info("系统：正在诊断 AWT Native Library...")
-                    val hello = ro.andob.awtcompat.nativec.AwtCompatNativeComponents.getHelloWorldMesssage()
-                    logger.info("系统：AWT JNI 测试消息: $hello")
-                } catch (t: Throwable) {
-                    logger.error("系统：AWT JNI 加载失败，这会导致 AWT/ImageIO 相关的材质转换不可用。请检查 APK 的 ABI 兼容性。", t)
-                }
-
-                // 初始化释放本地 Base64 ICC 颜色配置档
-                logger.info("系统：释放并配置 AWT 颜色映射参数...")
-                IccProfileStore.install(context.cacheDir)
-
-                logger.info("系统：正在从 SAF 拷贝输入材质包...")
-                context.contentResolver.openInputStream(currentInput)?.use { inputStream ->
-                    FileOutputStream(tempInputZip).use { outputStream ->
-                        inputStream.copyTo(outputStream)
-                    }
-                }
-
-                logger.info("系统：输入文件拷贝完毕，开始转换过程。")
-                val converter = PackConverter()
-                    .enforcePackCheck(true)
-                    .input(Path.of(tempInputZip.absolutePath))
-                    .output(Path.of(tempOutputMcpack.absolutePath))
-                    .packName(_packName.value)
-                    .vanillaPackPath(Path.of(vanillaPackZip.absolutePath))
-                    .converters(AssetConverters.converters(_debugMode.value))
-                    .logListener(logger)
-
-                converter.convert().pack()
-
-                logger.info("系统：转换处理完成，正在将结果写入用户选择的输出目录...")
-                val outputDirDoc = context.fromTreeUri(currentOutput)
-                if (outputDirDoc == null || !outputDirDoc.canWrite()) {
-                    logger.error("系统：输出目录无法访问或没有写入权限。")
-                } else {
-                    val finalFileName = "${_packName.value}.mcpack"
-                    val targetDoc = outputDirDoc.makeFile(context, finalFileName)
-                    if (targetDoc == null) {
-                        logger.error("系统：无法在输出目录创建文件 $finalFileName。")
-                    } else {
-                        targetDoc.openOutputStream(context)?.use { targetOutputStream ->
-                            tempOutputMcpack.inputStream().use { input ->
-                                input.copyTo(targetOutputStream)
-                            }
-                        }
-                        success = true
-                        logger.info("系统：导出成功！转换已彻底完成。")
-                    }
-                }
-            } catch (e: Throwable) {
-                logger.error("系统：转换期间发生严重错误", e)
-                e.printStackTrace()
-            } finally {
-                try {
-                    if (tempInputDir.exists()) tempInputDir.deleteRecursively()
-                    if (tempOutputDir.exists()) tempOutputDir.deleteRecursively()
-                } catch (ignored: Exception) {}
-
-                withContext(Dispatchers.Main) {
+        // 监听 WorkManager 的完成状态
+        viewModelScope.launch {
+            val workManager = WorkManager.getInstance(context)
+            workManager.getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+                if (workInfo != null && workInfo.state.isFinished) {
                     _isRunning.value = false
-                    if (success) {
+                    tailJob?.cancel()
+                    // 确保日志读完最后一部分
+                    readLogFileTail(newSession)
+                    if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         writeToTerminal("\r\n\u001B[1;32m[System] 材质包转换成功完成！\u001B[0m\r\n")
                     } else {
                         writeToTerminal("\r\n\u001B[1;31m[System] 材质包转换失败，请检查上方错误日志。\u001B[0m\r\n")
@@ -281,8 +184,57 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
         writeToTerminal(colorizedText)
     }
 
+    private fun startTailLog(activeSession: TerminalSession) {
+        tailJob?.cancel()
+        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
+        if (logFile.exists()) logFile.delete()
+
+        tailJob = viewModelScope.launch(Dispatchers.IO) {
+            var filePointer = 0L
+            while (_isRunning.value) {
+                if (logFile.exists()) {
+                    try {
+                        RandomAccessFile(logFile, "r").use { raf ->
+                            val length = raf.length()
+                            if (length > filePointer) {
+                                raf.seek(filePointer)
+                                val buffer = ByteArray((length - filePointer).toInt())
+                                raf.readFully(buffer)
+                                val text = String(buffer, StandardCharsets.UTF_8)
+                                withContext(Dispatchers.Main) {
+                                    writeFormattedLog(text)
+                                }
+                                filePointer = length
+                            }
+                        }
+                    } catch (ignored: Exception) {}
+                }
+                delay(200)
+            }
+        }
+    }
+
+    private suspend fun readLogFileTail(activeSession: TerminalSession) = withContext(Dispatchers.IO) {
+        val logFile = File(context.cacheDir, "pack_conversion_log.txt")
+        if (logFile.exists()) {
+            try {
+                val fullText = logFile.readText(StandardCharsets.UTF_8)
+                withContext(Dispatchers.Main) {
+                    // 清屏并重新绘制完整着色日志
+                    writeToTerminal("\u001B[2J\u001B[H")
+                    writeFormattedLog(fullText)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    writeToTerminal("\r\n\u001B[1;31m[System] 读取最终日志失败: ${e.message}\u001B[0m\r\n")
+                }
+            }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
+        tailJob?.cancel()
         _session.value?.finishIfRunning()
     }
 }
