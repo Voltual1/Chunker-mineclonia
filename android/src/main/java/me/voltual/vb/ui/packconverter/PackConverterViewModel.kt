@@ -107,6 +107,7 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
             override fun logStackTrace(tag: String, e: Exception) {}
         }
 
+        // Use pure log terminal session mode by passing null for shell path & args
         val newSession = TerminalSession(
             null,
             context.filesDir.absolutePath,
@@ -117,7 +118,7 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
         )
         _session.value = newSession
 
-        writeToTerminal("\u001B[1;32m[System] 准备开启多进程材质包转换任务...\u001B[0m\r\n")
+        writeToTerminal("\u001B[1;32m[System] 准备开启多进程材质包转换任务...\u001B[0m\n")
 
         val workData = workDataOf(
             "inputUri" to currentInput.toString(),
@@ -151,18 +152,18 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
                     // 确保日志读完最后一部分
                     readLogFileTail(newSession)
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                        writeToTerminal("\r\n\u001B[1;32m[System] 材质包转换成功完成！\u001B[0m\r\n")
+                        writeToTerminal("\n\u001B[1;32m[System] 材质包转换成功完成！\u001B[0m\n")
                     } else {
-                        writeToTerminal("\r\n\u001B[1;31m[System] 材质包转换失败，请检查上方错误日志。\u001B[0m\r\n")
+                        writeToTerminal("\n\u001B[1;31m[System] 材质包转换失败，请检查上方错误日志。\u001B[0m\n")
                     }
                 }
             }
         }
     }
 
+    // Call appendToEmulator for safe thread handling and automatic newline formatting
     private fun writeToTerminal(text: String) {
-        val bytes = text.toByteArray(StandardCharsets.UTF_8)
-        _session.value?.write(bytes, 0, bytes.size)
+        _session.value?.appendToEmulator(text)
     }
 
     private fun colorizeLogLine(line: String): String {
@@ -178,7 +179,7 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
 
     private fun writeFormattedLog(text: String) {
         val lines = text.split("\n")
-        val colorizedText = lines.joinToString("\r\n") { line ->
+        val colorizedText = lines.joinToString("\n") { line ->
             colorizeLogLine(line)
         }
         writeToTerminal(colorizedText)
@@ -226,7 +227,7 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
-                    writeToTerminal("\r\n\u001B[1;31m[System] 读取最终日志失败: ${e.message}\u001B[0m\r\n")
+                    writeToTerminal("\n\u001B[1;31m[System] 读取最终日志失败: ${e.message}\u001B[0m\n")
                 }
             }
         }
