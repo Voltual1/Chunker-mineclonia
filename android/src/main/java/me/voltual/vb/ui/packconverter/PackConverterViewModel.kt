@@ -108,10 +108,10 @@ class PackConverterViewModel(private val context: Context) : ViewModel() {
         }
 
         val newSession = TerminalSession(
-            "/system/bin/sh",
+            null,
             context.filesDir.absolutePath,
-            arrayOf("sh", "-c", "stty -echo && cat"),
-            emptyArray(),
+            null,
+            null,
             5000,
             sessionClient
         )
