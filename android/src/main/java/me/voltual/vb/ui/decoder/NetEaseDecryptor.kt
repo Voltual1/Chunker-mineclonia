@@ -30,7 +30,7 @@ object NetEaseDecryptor {
 
         val header = allBytes.copyOfRange(0, HEADER_SIZE)
         if (!header.contentEquals(MAGIC_HEADER)) {
-            throw IllegalArgumentException("CURRENT file is not encrypted (Magic header mismatch)")
+            throw IllegalArgumentException("CURRENT file is not encrypted by NetEase (Magic header mismatch)")
         }
 
         val encryptedBody = allBytes.copyOfRange(HEADER_SIZE, allBytes.size)

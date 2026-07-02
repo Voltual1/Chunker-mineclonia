@@ -1,6 +1,7 @@
 package me.voltual.vb.ui.decoder
 
 import android.content.Context
+import android.net.Uri
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -12,15 +13,11 @@ import androidx.work.Data
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkInfo
 import androidx.work.WorkManager
-import com.anggrayudi.storage.callback.SingleFolderConflictCallback
-import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.openOutputStream
-import com.anggrayudi.storage.result.SingleFolderResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.voltual.vb.core.utils.extension.text.formatSize
 import java.io.File
 
 class DecoderViewModel(private val context: Context) : ViewModel() {
@@ -37,70 +34,17 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
         val outputFolder = selectedOutputFolder ?: return
 
         isProcessing = true
-        progressVal = 0f
-        progressText = "正在准备导入加密世界..."
+        progressVal = 0.1f
+        progressText = "正在启动解密任务..."
 
-        viewModelScope.launch(Dispatchers.IO) {
-            val cacheInputDir = File(context.cacheDir, "decoder_input")
-            val cacheOutputDir = File(context.cacheDir, "decoder_output")
+        val cacheOutputDir = File(context.cacheDir, "decoder_final_output")
+        cacheOutputDir.deleteRecursively()
+        cacheOutputDir.mkdirs()
 
-            cacheInputDir.deleteRecursively()
-            cacheOutputDir.deleteRecursively()
-
-            cacheInputDir.mkdirs()
-            cacheOutputDir.mkdirs()
-
-            // 拷贝源加密世界文件夹至内部缓存
-            val targetParentDoc = DocumentFile.fromFile(context.cacheDir)
-            val conflictCallback = object : SingleFolderConflictCallback(viewModelScope) {
-                override fun onParentConflict(
-                    destinationFolder: DocumentFile,
-                    action: ParentFolderConflictAction,
-                    canMerge: Boolean
-                ) {
-                    action.confirmResolution(ConflictResolution.REPLACE)
-                }
-            }
-
-            inputFolder.copyFolderTo(
-                context = context,
-                targetParentFolder = targetParentDoc,
-                skipEmptyFiles = false,
-                newFolderNameInTargetPath = "decoder_input",
-                onConflict = conflictCallback
-            ).collect { result ->
-                when (result) {
-                    is SingleFolderResult.InProgress -> {
-                        withContext(Dispatchers.Main) {
-                            progressVal = (result.progress / 100f) * 0.4f
-                            progressText = "正在导入存档: ${(result.progress).toInt()}% (${result.bytesMoved.formatSize()})"
-                        }
-                    }
-                    is SingleFolderResult.Completed -> {
-                        runWorker(cacheInputDir, cacheOutputDir, outputFolder, onFinished)
-                    }
-                    is SingleFolderResult.Error -> {
-                        withContext(Dispatchers.Main) {
-                            isProcessing = false
-                            onFinished(false, "导入存档失败，错误码: ${result.errorCode}")
-                        }
-                    }
-                    else -> {}
-                }
-            }
-        }
-    }
-
-    private fun runWorker(
-        inputDir: File,
-        outputDir: File,
-        safOutputDir: DocumentFile,
-        onFinished: (Boolean, String) -> Unit
-    ) {
         val workManager = WorkManager.getInstance(context)
         val inputData = Data.Builder()
-            .putString("inputPath", inputDir.absolutePath)
-            .putString("outputPath", outputDir.absolutePath)
+            .putString("inputUri", inputFolder.uri.toString())
+            .putString("outputPath", cacheOutputDir.absolutePath)
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<DecoderWorker>()
@@ -108,9 +52,6 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
             .build()
 
         viewModelScope.launch(Dispatchers.Main) {
-            progressText = "正在自动推导密钥并还原数据..."
-            progressVal = 0.5f
-
             workManager.enqueue(workRequest)
             val liveData = workManager.getWorkInfoByIdLiveData(workRequest.id)
             
@@ -118,19 +59,18 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                 override fun onChanged(value: WorkInfo?) {
                     if (value != null) {
                         when (value.state) {
+                            WorkInfo.State.RUNNING -> {
+                                progressText = "正在解密 LevelDB 存档流..."
+                                progressVal = 0.5f
+                            }
                             WorkInfo.State.SUCCEEDED -> {
                                 liveData.removeObserver(this)
-                                exportDecodedFolder(outputDir, safOutputDir, onFinished)
+                                exportDecodedFolder(cacheOutputDir, outputFolder, onFinished)
                             }
                             WorkInfo.State.FAILED -> {
                                 liveData.removeObserver(this)
                                 isProcessing = false
-                                onFinished(false, "解密失败，请检查该存档是否为合规的网易加密格式")
-                            }
-                            WorkInfo.State.CANCELLED -> {
-                                liveData.removeObserver(this)
-                                isProcessing = false
-                                onFinished(false, "解密任务被取消")
+                                onFinished(false, "解密失败，请确保选择的是正确的加密存档目录")
                             }
                             else -> {}
                         }
@@ -148,8 +88,8 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                progressText = "正在导出解密后的国际版存档..."
-                progressVal = 0.7f
+                progressText = "解密完成，正在写出到目标文件夹..."
+                progressVal = 0.8f
             }
 
             try {
@@ -157,16 +97,15 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                 withContext(Dispatchers.Main) {
                     isProcessing = false
                     progressVal = 1f
-                    onFinished(true, "存档解密成功，已成功导出！")
+                    onFinished(true, "解密成功！")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     isProcessing = false
-                    onFinished(false, "导出解密存档失败: ${e.message}")
+                    onFinished(false, "写出失败: ${e.message}")
                 }
             } finally {
                 localOutputDir.deleteRecursively()
-                File(context.cacheDir, "decoder_input").deleteRecursively()
             }
         }
     }
