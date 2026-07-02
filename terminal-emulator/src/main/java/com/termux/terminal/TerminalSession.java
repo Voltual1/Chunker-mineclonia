@@ -244,7 +244,7 @@ public final class TerminalSession extends TerminalOutput {
             /* 11110xxx leading byte with leading 3 bits */
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b11110000 | (codePoint >> 18));
             /* 10xxxxxx continuation byte with following 6 bits */
-            mUtf8InputBuffer[byteToFollow = 1] = (byte) (0b10000000 | ((codePoint >> 12) & 0b111111)); // Note: index fixed by compiler desugar context if needed, standard logic below
+            mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | ((codePoint >> 12) & 0b111111));
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b11110000 | (codePoint >> 18));
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | ((codePoint >> 12) & 0b111111));
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | ((codePoint >> 6) & 0b111111));
