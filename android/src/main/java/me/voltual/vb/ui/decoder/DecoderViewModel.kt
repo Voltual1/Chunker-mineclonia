@@ -5,6 +5,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.documentfile.provider.DocumentFile
+import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.Data
@@ -136,29 +137,38 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
             .setInputData(inputData)
             .build()
 
+        // 确保整个观察 LiveData 的操作都在主线程上执行
         viewModelScope.launch(Dispatchers.Main) {
             progressText = "正在解析并解码存档数据..."
             progressVal = 0.5f
-        }
 
-        workManager.enqueue(workRequest)
-        workManager.getWorkInfoByIdLiveData(workRequest.id).observeForever { workInfo ->
-            if (workInfo != null) {
-                when (workInfo.state) {
-                    WorkInfo.State.SUCCEEDED -> {
-                        exportDecodedFolder(outputDir, safOutputDir, onFinished)
+            workManager.enqueue(workRequest)
+            val liveData = workManager.getWorkInfoByIdLiveData(workRequest.id)
+            
+            val observer = object : Observer<WorkInfo?> {
+                override fun onChanged(value: WorkInfo?) {
+                    if (value != null) {
+                        when (value.state) {
+                            WorkInfo.State.SUCCEEDED -> {
+                                liveData.removeObserver(this)
+                                exportDecodedFolder(outputDir, safOutputDir, onFinished)
+                            }
+                            WorkInfo.State.FAILED -> {
+                                liveData.removeObserver(this)
+                                isProcessing = false
+                                onFinished(false, "解码任务失败")
+                            }
+                            WorkInfo.State.CANCELLED -> {
+                                liveData.removeObserver(this)
+                                isProcessing = false
+                                onFinished(false, "解码任务被取消")
+                            }
+                            else -> {}
+                        }
                     }
-                    WorkInfo.State.FAILED -> {
-                        isProcessing = false
-                        onFinished(false, "解码任务失败")
-                    }
-                    WorkInfo.State.CANCELLED -> {
-                        isProcessing = false
-                        onFinished(false, "解码任务被取消")
-                    }
-                    else -> {}
                 }
             }
+            liveData.observeForever(observer)
         }
     }
 
