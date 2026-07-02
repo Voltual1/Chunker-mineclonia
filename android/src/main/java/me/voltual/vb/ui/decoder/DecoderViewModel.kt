@@ -9,10 +9,8 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.work.Data
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkInfo
-import androidx.work.WorkManager
+import androidx.work.*
+import androidx.work.multiprocess.RemoteWorkManager
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.openOutputStream
 import kotlinx.coroutines.Dispatchers
@@ -41,18 +39,35 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
         cacheOutputDir.deleteRecursively()
         cacheOutputDir.mkdirs()
 
+        val remoteWorkManager = RemoteWorkManager.getInstance(context)
         val workManager = WorkManager.getInstance(context)
+
         val inputData = Data.Builder()
             .putString("inputUri", inputFolder.uri.toString())
             .putString("outputPath", cacheOutputDir.absolutePath)
+            // ======== 关键：注入跨进程绑定参数 ========
+            .putString(
+                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME",
+                context.packageName
+            )
+            .putString(
+                "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME",
+                "androidx.work.multiprocess.RemoteWorkerService"
+            )
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<DecoderWorker>()
             .setInputData(inputData)
             .build()
 
+        // 使用 RemoteWorkManager 来确保跨进程绑定生效
+        remoteWorkManager.enqueueUniqueWork(
+            "decoder_work",
+            ExistingWorkPolicy.REPLACE,
+            workRequest
+        )
+
         viewModelScope.launch(Dispatchers.Main) {
-            workManager.enqueue(workRequest)
             val liveData = workManager.getWorkInfoByIdLiveData(workRequest.id)
             
             val observer = object : Observer<WorkInfo?> {
@@ -72,6 +87,11 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                                 isProcessing = false
                                 onFinished(false, "解密失败，请确保选择的是正确的加密存档目录")
                             }
+                            WorkInfo.State.CANCELLED -> {
+                                liveData.removeObserver(this)
+                                isProcessing = false
+                                onFinished(false, "解密任务被取消")
+                            }
                             else -> {}
                         }
                     }
@@ -81,6 +101,7 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
         }
     }
 
+    // exportDecodedFolder 与 writeLocalDirToSaf 保持不变...
     private fun exportDecodedFolder(
         localOutputDir: File,
         safOutputDir: DocumentFile,

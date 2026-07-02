@@ -34,7 +34,7 @@ class DecoderWorker(
                     targetExportDir = targetExportDir,
                     listener = object : AndroidWorldDecryptor.DecryptListener {
                         override fun onProgress(progress: Int) {
-                            // WorkManager 进度可以通过 setProgress 更新，但这里主要靠 ViewModel 观察状态
+                            // 可扩展：通过 setProgress() 向 WorkManager 传递进度
                         }
                         override fun onLog(message: String) {
                             println("DecoderLog: $message")
