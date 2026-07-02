@@ -86,6 +86,7 @@ class TerminalViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
+            // CAN Change: Pass null as shellPath to start in pure log rendering mode
             val newSession = TerminalSession(
                 null,
                 context.filesDir.absolutePath,
@@ -320,6 +321,7 @@ class TerminalViewModel(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
+    // CAN Change: Simplified printing logic. Directly delegate appending and normalization to the session.
     private inner class TerminalPrintStream(val session: TerminalSession, val file: File) :
         PrintStream(ByteArrayOutputStream(), true) {
 
@@ -346,7 +348,7 @@ class TerminalViewModel(
         @Synchronized
         override fun println(x: String?) {
             val line = (x ?: "null") + "\n"
-            session.appendToEmulator(line.replace("\n", "\r\n"))
+            session.appendToEmulator(line)
             writeToCrashLog(line)
         }
 

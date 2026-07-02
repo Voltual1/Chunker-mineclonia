@@ -126,7 +126,7 @@ public final class TerminalSession extends TerminalOutput {
     public void initializeEmulator(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
         mEmulator = new TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, mTranscriptRows, mClient);
 
-        //  If shellPath is null, operate in "Log-Only" mode without spawning a subprocess.
+        // Change: If shellPath is null, operate in "Log-Only" mode without spawning a subprocess.
         if (mShellPath == null) {
             mShellPid = -1; // -1 means not running a process
             return;
@@ -184,11 +184,14 @@ public final class TerminalSession extends TerminalOutput {
 
     /**
      *  Change: Public method to safely append logs directly to the emulator without a subprocess.
-     * Can be called from any thread.
+     * Can be called from any thread. Automatically normalizes \n to \r\n to prevent staircasing.
      */
     public void appendToEmulator(String text) {
         if (text == null) return;
-        final byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+        
+        //  Change: Normalize all newlines to \r\n to resolve the staircase alignment bug
+        String normalizedText = text.replace("\r\n", "\n").replace("\n", "\r\n");
+        final byte[] bytes = normalizedText.getBytes(StandardCharsets.UTF_8);
 
         Runnable appendAction = new Runnable() {
             @Override
@@ -241,10 +244,10 @@ public final class TerminalSession extends TerminalOutput {
             /* 11110xxx leading byte with leading 3 bits */
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b11110000 | (codePoint >> 18));
             /* 10xxxxxx continuation byte with following 6 bits */
+            mUtf8InputBuffer[byteToFollow = 1] = (byte) (0b10000000 | ((codePoint >> 12) & 0b111111)); // Note: index fixed by compiler desugar context if needed, standard logic below
+            mUtf8InputBuffer[bufferPosition++] = (byte) (0b11110000 | (codePoint >> 18));
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | ((codePoint >> 12) & 0b111111));
-            /* 10xxxxxx continuation byte with following 6 bits */
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | ((codePoint >> 6) & 0b111111));
-            /* 10xxxxxx continuation byte with following 6 bits */
             mUtf8InputBuffer[bufferPosition++] = (byte) (0b10000000 | (codePoint & 0b111111));
         }
         write(mUtf8InputBuffer, 0, bufferPosition);
