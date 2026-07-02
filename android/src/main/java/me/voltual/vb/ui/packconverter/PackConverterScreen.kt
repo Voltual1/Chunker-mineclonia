@@ -52,6 +52,7 @@ fun PackConverterScreen(
     }
 
     val helpMarkdown = """
+        ### 仅支持Java版材质包转换成基岩版材质包
         ### 说明：已跳过精灵图(Spritesheet)合并
         为避免在 Android 设备上因大图合并导致转换卡死，本程序在转换时已**跳过精灵图合并**。部分依赖合并精灵图的粒子及 UI 贴图可能无法完美呈现，敬请知悉。
 
