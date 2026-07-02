@@ -2,6 +2,7 @@ package com.termux.terminal;
 
 import android.annotation.SuppressLint;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Message;
 import android.system.ErrnoException;
 import android.system.Os;
@@ -104,7 +105,9 @@ public final class TerminalSession extends TerminalOutput {
         if (mEmulator == null) {
             initializeEmulator(columns, rows, cellWidthPixels, cellHeightPixels);
         } else {
-            JNI.setPtyWindowSize(mTerminalFileDescriptor, rows, columns, cellWidthPixels, cellHeightPixels);
+            if (mShellPath != null) {
+                JNI.setPtyWindowSize(mTerminalFileDescriptor, rows, columns, cellWidthPixels, cellHeightPixels);
+            }
             mEmulator.resize(columns, rows, cellWidthPixels, cellHeightPixels);
         }
     }
@@ -122,6 +125,12 @@ public final class TerminalSession extends TerminalOutput {
      */
     public void initializeEmulator(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
         mEmulator = new TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, mTranscriptRows, mClient);
+
+        // CAN Change: If shellPath is null, operate in "Log-Only" mode without spawning a subprocess.
+        if (mShellPath == null) {
+            mShellPid = -1; // -1 means not running a process
+            return;
+        }
 
         int[] processId = new int[1];
         mTerminalFileDescriptor = JNI.createSubprocess(mShellPath, mCwd, mArgs, mEnv, processId, rows, columns, cellWidthPixels, cellHeightPixels);
@@ -171,6 +180,31 @@ public final class TerminalSession extends TerminalOutput {
             }
         }.start();
 
+    }
+
+    /**
+     * CAN Change: Public method to safely append logs directly to the emulator without a subprocess.
+     * Can be called from any thread.
+     */
+    public void appendToEmulator(String text) {
+        if (text == null) return;
+        final byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+
+        Runnable appendAction = new Runnable() {
+            @Override
+            public void run() {
+                if (mEmulator != null) {
+                    mEmulator.append(bytes, bytes.length);
+                    notifyScreenUpdate();
+                }
+            }
+        };
+
+        if (Looper.myLooper() == mMainThreadHandler.getLooper()) {
+            appendAction.run();
+        } else {
+            mMainThreadHandler.post(appendAction);
+        }
     }
 
     /** Write data to the shell process. */
@@ -233,7 +267,7 @@ public final class TerminalSession extends TerminalOutput {
 
     /** Finish this terminal session by sending SIGKILL to the shell. */
     public void finishIfRunning() {
-        if (isRunning()) {
+        if (isRunning() && mShellPid > 0) {
             try {
                 Os.kill(mShellPid, OsConstants.SIGKILL);
             } catch (ErrnoException e) {
@@ -252,7 +286,9 @@ public final class TerminalSession extends TerminalOutput {
         // Stop the reader and writer threads, and close the I/O streams
         mTerminalToProcessIOQueue.close();
         mProcessToTerminalIOQueue.close();
-        JNI.close(mTerminalFileDescriptor);
+        if (mTerminalFileDescriptor > 0) {
+            JNI.close(mTerminalFileDescriptor);
+        }
     }
 
     @Override
