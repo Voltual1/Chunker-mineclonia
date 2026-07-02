@@ -33,7 +33,7 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
 
         isProcessing = true
         progressVal = 0.1f
-        progressText = "正在启动解密任务..."
+        progressText = "正在启动还原任务..."
 
         val cacheOutputDir = File(context.cacheDir, "decoder_final_output")
         cacheOutputDir.deleteRecursively()
@@ -45,7 +45,6 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
         val inputData = Data.Builder()
             .putString("inputUri", inputFolder.uri.toString())
             .putString("outputPath", cacheOutputDir.absolutePath)
-            // ======== 关键：注入跨进程绑定参数 ========
             .putString(
                 "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME",
                 context.packageName
@@ -60,7 +59,6 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
             .setInputData(inputData)
             .build()
 
-        // 使用 RemoteWorkManager 来确保跨进程绑定生效
         remoteWorkManager.enqueueUniqueWork(
             "decoder_work",
             ExistingWorkPolicy.REPLACE,
@@ -75,7 +73,7 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                     if (value != null) {
                         when (value.state) {
                             WorkInfo.State.RUNNING -> {
-                                progressText = "正在解密 LevelDB 存档流..."
+                                progressText = "正在扫描并还原世界存档流..."
                                 progressVal = 0.5f
                             }
                             WorkInfo.State.SUCCEEDED -> {
@@ -85,12 +83,12 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                             WorkInfo.State.FAILED -> {
                                 liveData.removeObserver(this)
                                 isProcessing = false
-                                onFinished(false, "解密失败，请确保选择的是正确的加密存档目录")
+                                onFinished(false, "还原失败，请确保选择的是有效的存档目录")
                             }
                             WorkInfo.State.CANCELLED -> {
                                 liveData.removeObserver(this)
                                 isProcessing = false
-                                onFinished(false, "解密任务被取消")
+                                onFinished(false, "还原任务被用户或系统取消")
                             }
                             else -> {}
                         }
@@ -101,7 +99,6 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
         }
     }
 
-    // exportDecodedFolder 与 writeLocalDirToSaf 保持不变...
     private fun exportDecodedFolder(
         localOutputDir: File,
         safOutputDir: DocumentFile,
@@ -109,7 +106,7 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             withContext(Dispatchers.Main) {
-                progressText = "解密完成，正在写出到目标文件夹..."
+                progressText = "还原完成，正在输出到目标文件夹..."
                 progressVal = 0.8f
             }
 
@@ -118,12 +115,12 @@ class DecoderViewModel(private val context: Context) : ViewModel() {
                 withContext(Dispatchers.Main) {
                     isProcessing = false
                     progressVal = 1f
-                    onFinished(true, "解密成功！")
+                    onFinished(true, "存档还原已完全成功！")
                 }
             } catch (e: Exception) {
                 withContext(Dispatchers.Main) {
                     isProcessing = false
-                    onFinished(false, "写出失败: ${e.message}")
+                    onFinished(false, "还原后写入目标文件夹失败: ${e.message}")
                 }
             } finally {
                 localOutputDir.deleteRecursively()

@@ -48,13 +48,13 @@ fun DecoderScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "网易版世界解密器",
+                text = "损坏世界还原器",
                 style = MaterialTheme.typography.headlineMedium,
                 color = MaterialTheme.colorScheme.primary
             )
 
             Text(
-                text = "一键将网易版《我的世界》基岩版加密存档自动还原为标准国际版基岩版存档格式。",
+                text = "一键将特定损坏或由于格式特殊无法直接读取的基岩版世界存档，智能还原为标准国际基岩版支持的正常存档格式。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -63,7 +63,7 @@ fun DecoderScreen(
 
             // 1. 输入文件夹选择
             Text(
-                text = "第一步：选择网易版加密世界存档根目录",
+                text = "第一步：选择待还原的基岩版世界存档根目录",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -87,11 +87,11 @@ fun DecoderScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "选择加密存档",
+                            contentDescription = "选择待还原存档",
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = viewModel.selectedInputFolder?.name ?: "点击选择需要解密的存档文件夹 (包含db)",
+                            text = viewModel.selectedInputFolder?.name ?: "点击选择需要还原的存档文件夹 (包含db)",
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -100,7 +100,7 @@ fun DecoderScreen(
 
             // 2. 输出文件夹选择
             Text(
-                text = "第二步：选择解密导出目标目录",
+                text = "第二步：选择还原目标导出目录",
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -128,7 +128,7 @@ fun DecoderScreen(
                             tint = MaterialTheme.colorScheme.primary
                         )
                         Text(
-                            text = viewModel.selectedOutputFolder?.name ?: "点击选择解密完成后的导出文件夹",
+                            text = viewModel.selectedOutputFolder?.name ?: "点击选择还原完成后的导出目标文件夹",
                             style = MaterialTheme.typography.bodyLarge
                         )
                     }
@@ -152,7 +152,7 @@ fun DecoderScreen(
                     .fillMaxWidth()
                     .height(50.dp)
             ) {
-                Text("一键智能解密还原")
+                Text("一键智能还原")
             }
         }
 
