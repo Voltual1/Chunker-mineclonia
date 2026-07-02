@@ -5,10 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Description
 import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -179,7 +179,12 @@ fun PackConverterScreen(
                         onClick = { filePicker.launch() },
                         enabled = !isRunning
                     ) {
-                        Icon(Icons.Default.InsertDriveFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                        // 此处替换为官方推荐的 AutoMirrored 文件/描述图标
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Description,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
                         Spacer(Modifier.width(8.dp))
                         Text("选择")
                     }
