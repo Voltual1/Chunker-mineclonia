@@ -21,6 +21,7 @@ import me.voltual.vb.ui.export.ExportViewModel
 import androidx.datastore.preferences.core.Preferences
 import me.voltual.vb.core.ftp.FtpServerManager
 import me.voltual.vb.ui.packconverter.PackConverterViewModel
+import me.voltual.vb.ui.decoder.DecoderViewModel
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
 val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
@@ -37,6 +38,7 @@ val appModule = module {
     viewModel { ExportViewModel(androidContext()) }
     viewModel { ChunkerSettingsViewModel(get()) }
     viewModel { PackConverterViewModel(androidContext()) }
+    viewModel { DecoderViewModel(androidContext()) }
    
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }

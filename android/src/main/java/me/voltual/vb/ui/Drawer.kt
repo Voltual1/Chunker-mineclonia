@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -69,6 +70,7 @@ fun NavigationDrawerItems(
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
             DrawerItem("pack_converter", "材质包转换", IconSource.Vector(Icons.Default.Build), PackConverterDest),
+            DrawerItem("decoder", "存档解码", IconSource.Vector(Icons.Default.LockOpen), DecoderDest),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理（FTP）", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("conversion_settings", "Chunker设置", IconSource.Vector(Icons.Default.Settings), ChunkerSettings),

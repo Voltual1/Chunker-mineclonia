@@ -34,6 +34,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
+import me.voltual.vb.ui.decoder.DecoderScreen
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -110,12 +111,12 @@ fun BBQNavDisplay(
                             ThemeCustomizeScreen(modifier = Modifier.fillMaxSize())
                         }
 
-is ChunkerSettings -> {
-    ChunkerSettingsScreen(
-        snackbarHostState = snackbarHostState,
-        modifier = Modifier.fillMaxSize()
-    )
-}
+                        is ChunkerSettings -> {
+                            ChunkerSettingsScreen(
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
                         
                         is FtpSettings -> {
                             FtpSettingsScreen(
@@ -134,6 +135,13 @@ is ChunkerSettings -> {
                         
                         is PackConverterDest -> {
                             PackConverterScreen(
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        is DecoderDest -> {
+                            DecoderScreen(
                                 snackbarHostState = snackbarHostState,
                                 modifier = Modifier.fillMaxSize()
                             )

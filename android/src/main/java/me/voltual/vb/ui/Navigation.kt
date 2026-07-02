@@ -41,3 +41,6 @@ data class TerminalExec(
 
 /** 材质包转换界面 */
 @Serializable data object PackConverterDest : AppDestination
+
+/** 存档解码还原界面 */
+@Serializable data object DecoderDest : AppDestination

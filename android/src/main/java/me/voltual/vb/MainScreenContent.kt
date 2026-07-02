@@ -235,6 +235,7 @@ fun getTitleForDestination(route: NavKey?): String {
         Export -> "导出" 
         ChunkerSettings -> "转换性能设置"
         PackConverterDest -> "材质包转换"
+        DecoderDest -> "存档解码"
         else -> "在~ $route ~里~哦"
     }
 }
