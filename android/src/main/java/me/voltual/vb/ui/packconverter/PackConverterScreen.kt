@@ -132,10 +132,6 @@ fun PackConverterScreen(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "材质包转换",
-                style = MaterialTheme.typography.titleLarge
-            )
             IconButton(onClick = { showHelpDialog = true }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.Help,
