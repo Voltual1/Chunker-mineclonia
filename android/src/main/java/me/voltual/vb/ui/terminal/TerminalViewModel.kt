@@ -87,10 +87,10 @@ class TerminalViewModel(
             }
 
             val newSession = TerminalSession(
-                "/system/bin/sh",
+                null,
                 context.filesDir.absolutePath,
-                arrayOf("sh", "-c", "stty -echo && cat"),
-                emptyArray(),
+                null,
+                null,
                 5000,
                 sessionClient
             )
@@ -265,15 +265,7 @@ class TerminalViewModel(
             try {
                 if (crashLogFile.exists()) {
                     val logContent = crashLogFile.readText()
-                    
-                    // ===== 暂时注释掉了 Mineclonia 特殊判断逻辑（Mineclonia相关尚不稳定也不是开发重心） =====
                     val logType = "${args.format}_CONVERSION"
-                    /* val logType = if (args.format == "MINECLONIA") {
-                        "MINECLONIA_CONVERSION" 
-                    } else {
-                        "${args.format}_CONVERSION"
-                    }
-                    */
 
                     logRepository.insertLog(
                         type = logType,
@@ -354,23 +346,21 @@ class TerminalViewModel(
         @Synchronized
         override fun println(x: String?) {
             val line = (x ?: "null") + "\n"
-            val bytes = line.replace("\n", "\r\n").toByteArray(StandardCharsets.UTF_8)
-            session.write(bytes, 0, bytes.size)
+            session.appendToEmulator(line.replace("\n", "\r\n"))
             writeToCrashLog(line)
         }
 
         @Synchronized
         override fun print(x: String?) {
             val text = x ?: "null"
-            val bytes = text.toByteArray(StandardCharsets.UTF_8)
-            session.write(bytes, 0, bytes.size)
+            session.appendToEmulator(text)
             writeToCrashLog(text)
         }
 
         @Synchronized
         override fun write(buf: ByteArray, off: Int, len: Int) {
-            session.write(buf, off, len)
             val text = String(buf, off, len, StandardCharsets.UTF_8)
+            session.appendToEmulator(text)
             writeToCrashLog(text)
         }
     }

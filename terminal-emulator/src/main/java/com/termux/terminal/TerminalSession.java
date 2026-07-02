@@ -126,7 +126,7 @@ public final class TerminalSession extends TerminalOutput {
     public void initializeEmulator(int columns, int rows, int cellWidthPixels, int cellHeightPixels) {
         mEmulator = new TerminalEmulator(this, columns, rows, cellWidthPixels, cellHeightPixels, mTranscriptRows, mClient);
 
-        // CAN Change: If shellPath is null, operate in "Log-Only" mode without spawning a subprocess.
+        //  If shellPath is null, operate in "Log-Only" mode without spawning a subprocess.
         if (mShellPath == null) {
             mShellPid = -1; // -1 means not running a process
             return;
@@ -183,7 +183,7 @@ public final class TerminalSession extends TerminalOutput {
     }
 
     /**
-     * CAN Change: Public method to safely append logs directly to the emulator without a subprocess.
+     *  Change: Public method to safely append logs directly to the emulator without a subprocess.
      * Can be called from any thread.
      */
     public void appendToEmulator(String text) {
