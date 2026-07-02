@@ -77,19 +77,9 @@
 -repackageclasses 'androidx'
 -flattenpackagehierarchy 'androidx'
 
--keep class java.awt.** { *; }
--keep class javax.imageio.** { *; }
--keep class org.apache.harmony.** { *; }
-
--keeppackagenames java.awt.**
--keeppackagenames javax.imageio.**
--keeppackagenames org.apache.harmony.**
-
 -keep class * implements javax.imageio.spi.RegisterableService { *; }
 -keep class * extends javax.imageio.spi.ImageReaderWriterSpi { *; }
 -keep class * extends javax.imageio.spi.ImageReaderSpi { *; }
 -keep class * extends javax.imageio.spi.ImageWriterSpi { *; }
 -keep class * extends javax.imageio.spi.ImageInputStreamSpi { *; }
 -keep class * extends javax.imageio.spi.ImageOutputStreamSpi { *; }
-
--keepattributes Signature,AnnotationDefault,EnclosingMethod,InnerClasses,SourceFile,LineNumberTable
