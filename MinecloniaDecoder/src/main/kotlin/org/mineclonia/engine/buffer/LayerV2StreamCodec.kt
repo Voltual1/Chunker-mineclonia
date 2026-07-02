@@ -2,7 +2,6 @@ package org.mineclonia.engine.buffer
 
 import kotlinx.io.Sink
 import kotlinx.io.Source
-import kotlinx.io.peek
 import kotlinx.io.readByteArray
 import kotlinx.io.write
 
@@ -13,11 +12,18 @@ object LayerV2StreamCodec : IStreamCodec {
     private const val IO_BUFFER_SIZE = 8192 
 
     override fun isFormatMatched(source: Source): Boolean {
-        val peekSource = source.peek()
-        val tagBuffer = ByteArray(TAG_SIZE)
         return try {
-            peekSource.readTo(tagBuffer)
-            tagBuffer.contentEquals(ALIGNMENT_TAG)
+            source.request(TAG_SIZE.toLong())
+            val buffer = source.buffer
+            
+            if (buffer.size < TAG_SIZE) return false
+            
+            for (i in 0 until TAG_SIZE) {
+                if (buffer.get(i.toLong()) != ALIGNMENT_TAG[i]) {
+                    return false
+                }
+            }
+            true
         } catch (e: Exception) {
             false
         }
@@ -52,10 +58,6 @@ object LayerV2StreamCodec : IStreamCodec {
         } else {
             derivedMatrix
         }
-    }
-
-    override fun decryptFile(input: Source, output: Sink, key: ByteArray): Boolean {
-        return transformStream(input, output, key)
     }
 
     override fun transformStream(input: Source, output: Sink, transformKey: ByteArray): Boolean {
