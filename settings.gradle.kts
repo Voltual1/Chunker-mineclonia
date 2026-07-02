@@ -38,6 +38,7 @@ include(":terminal-view")
 include("cli", "app")
 
 include(":converter")
+include(":MinecloniaDecoder")
 include(":creative-api")
 
 include(":pack-schema-api")
