@@ -2,6 +2,7 @@ package org.mineclonia.engine.buffer
 
 import kotlinx.io.Sink
 import kotlinx.io.Source
+import kotlinx.io.peek
 import kotlinx.io.readByteArray
 import kotlinx.io.write
 
@@ -13,17 +14,13 @@ object LayerV2StreamCodec : IStreamCodec {
 
     override fun isFormatMatched(source: Source): Boolean {
         return try {
-            source.request(TAG_SIZE.toLong())
-            val buffer = source.buffer
+            val peekSource = source.peek()
+            val tagBuffer = ByteArray(TAG_SIZE)
             
-            if (buffer.size < TAG_SIZE) return false
+            val bytesRead = peekSource.readAtMostTo(tagBuffer)
             
-            for (i in 0 until TAG_SIZE) {
-                if (buffer.get(i.toLong()) != ALIGNMENT_TAG[i]) {
-                    return false
-                }
-            }
-            true
+            if (bytesRead < TAG_SIZE) return false
+            tagBuffer.contentEquals(ALIGNMENT_TAG)
         } catch (e: Exception) {
             false
         }
