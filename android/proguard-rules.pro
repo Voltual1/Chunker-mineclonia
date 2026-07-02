@@ -74,8 +74,8 @@
 
 
 
--repackageclasses '.'
--flattenpackagehierarchy '.'
+-repackageclasses 'androidx'
+-flattenpackagehierarchy 'androidx'
 
 -keep class java.awt.** { *; }
 -keep class javax.imageio.** { *; }
