@@ -16,6 +16,8 @@ https://github.com/andob/android-awt
 
 https://github.com/wolpi/prim-ftpd
 
+https://github.com/rikkahub/rikkahub
+
 https://github.com/rollerozxa/MC2MT
 
 https://github.com/GeyserMC/PackConverter

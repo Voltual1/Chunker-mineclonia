@@ -10,7 +10,7 @@ package me.voltual.vb.ui
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
-import me.voltual.vb.ui.terminal.TerminalScreen
+import me.voltual.vb.ui.chunker.ChunkerScreen
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import me.voltual.vb.ui.TerminalExec
@@ -87,7 +87,7 @@ fun BBQNavDisplay(
                         }
                         
                         is TerminalExec -> {
-                            TerminalScreen(key)
+                            ChunkerScreen(key)
                         }
                         
                         is LogViewer -> {

@@ -1,4 +1,4 @@
-package me.voltual.vb.ui.terminal
+package me.voltual.vb.ui.chunker
 
 import java.util.concurrent.atomic.AtomicReference
 

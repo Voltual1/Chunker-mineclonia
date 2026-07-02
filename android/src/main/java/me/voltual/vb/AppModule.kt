@@ -16,7 +16,7 @@ import me.voltual.vb.core.ui.theme.*
 import org.koin.core.qualifier.named
 import me.voltual.vb.ui.home.HomeViewModel
 import androidx.datastore.core.DataStore
-import me.voltual.vb.ui.terminal.TerminalViewModel
+import me.voltual.vb.ui.chunker.ChunkerViewModel
 import me.voltual.vb.ui.export.ExportViewModel
 import androidx.datastore.preferences.core.Preferences
 import me.voltual.vb.core.ftp.FtpServerManager
@@ -31,7 +31,7 @@ val CONVERSION_SETTINGS_STORE_QUALIFIER = named("conversion_settings_store")
 val appModule = module {
     viewModel { UpdateSettingsViewModel(get()) }
     viewModel { HomeViewModel() }
-    viewModel { TerminalViewModel(androidContext(), get()) }
+    viewModel { ChunkerViewModel(androidContext(), get()) }
     viewModel { LogViewModel(androidContext(), get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
     viewModel { ExportViewModel(androidContext()) }

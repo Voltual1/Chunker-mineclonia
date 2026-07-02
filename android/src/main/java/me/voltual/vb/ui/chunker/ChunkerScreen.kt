@@ -1,4 +1,4 @@
-package me.voltual.vb.ui.terminal
+package me.voltual.vb.ui.chunker
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -19,10 +19,10 @@ import me.voltual.vb.ui.TerminalViewAndroidView
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
-fun TerminalScreen(
+fun ChunkerScreen(
     args: TerminalExec,
     modifier: Modifier = Modifier,
-    viewModel: TerminalViewModel = koinViewModel()
+    viewModel: ChunkerViewModel = koinViewModel()
 ) {
     val navigator = LocalNavigator.current
     val topAppBarController = LocalTopAppBarController.current

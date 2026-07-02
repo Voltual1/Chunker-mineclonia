@@ -1,4 +1,4 @@
-package me.voltual.vb.ui.terminal
+package me.voltual.vb.ui.chunker
 
 import android.content.ClipboardManager
 import android.content.Context
@@ -32,7 +32,7 @@ import me.voltual.vb.data.ConversionSettingsDataStore
 import me.voltual.vb.data.ConversionProgressDataStore
 import java.util.UUID
 
-class TerminalViewModel(
+class ChunkerViewModel(
     private val context: Context,
     private val conversionSettingsDataStore: ConversionSettingsDataStore
 ) : ViewModel(), KoinComponent {
