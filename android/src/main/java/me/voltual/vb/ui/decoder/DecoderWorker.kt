@@ -5,10 +5,6 @@ import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import kotlinx.io.asSink
-import kotlinx.io.asSource
-import kotlinx.io.buffered
-import org.mineclonia.engine.buffer.LayerV2StreamCodec
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
@@ -34,6 +30,7 @@ class DecoderWorker(
                 outputDir.deleteRecursively()
                 outputDir.mkdirs()
 
+                // 1. 自动寻找包含 CURRENT 和 MANIFEST 的 db 目录
                 val dbDir = findDbDir(inputDir)
                 if (dbDir == null) {
                     System.err.println("系统错误：未能在导入的存档中找到有效的 LevelDB 数据库目录(未找到 CURRENT 或 MANIFEST)")
@@ -47,17 +44,18 @@ class DecoderWorker(
                     return@withContext Result.failure()
                 }
 
-                // 2. 自动推导解密 Key
-                val metaSource = FileInputStream(currentFile).asSource().buffered()
-                val transformKey = try {
-                    LayerV2StreamCodec.deriveTransformKey(metaSource, manifestFile.name)
+                // 2. 采用原生原始算法推导解密 Key
+                val decryptKey = try {
+                    FileInputStream(currentFile).use { currentStream ->
+                        NetEaseDecryptor.deriveKey(currentStream, manifestFile.name)
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                     return@withContext Result.failure()
                 }
 
                 // 3. 递归解密并转换整个存档目录结构
-                val success = decryptDirectory(inputDir, outputDir, transformKey)
+                val success = decryptDirectory(inputDir, outputDir, decryptKey)
                 if (success) {
                     Result.success()
                 } else {
@@ -94,10 +92,11 @@ class DecoderWorker(
                 }
             } else {
                 try {
-                    val source = FileInputStream(file).asSource().buffered()
-                    val sink = FileOutputStream(destFile).asSink().buffered()
+                    val fis = FileInputStream(file)
+                    val fos = FileOutputStream(destFile)
                     
-                    val ok = LayerV2StreamCodec.transformStream(source, sink, key)
+                    // 利用原始 NetEaseDecryptor 的 decryptFile 方法完成转换
+                    val ok = NetEaseDecryptor.decryptFile(fis, fos, key)
                     if (!ok) {
                         file.copyTo(destFile, overwrite = true)
                     }
