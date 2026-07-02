@@ -161,7 +161,7 @@ dependencies {
     
     implementation(project(":cli"))
     implementation(project(":converter"))
-    api(project(":pack-schema-api"))
+    implementation(project(":pack-schema-api"))
     implementation(project(":mcl"))
     implementation(files("libs/android-awt.aar"))
     implementation(project(":terminal-emulator"))
