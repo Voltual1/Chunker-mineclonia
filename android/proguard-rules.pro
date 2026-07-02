@@ -98,6 +98,10 @@
 #如果你觉得这两行“很神经”而顺手删掉，编译虽然能过，但只要运行到材质包转换功能，
 #程序就会炸了。此时请不要来提 Issue，因为神仙也救不了你。
 #留着它，它保你材质包转换一路顺风；删掉它，你没有好果子吃了
+# 也千万不要试图把 'androidx' 改成自定义包名
+# 因为 R8 在执行高级混淆平铺时，为了极致压缩体积，机制上不允许“无中生有”创建全新的未定义根包。
+# 强行自定义新包名会导致 R8 字典映射错乱，编译直接Error`
+# 必须借用 Android 官方已经注册并在白名单内的 'androidx' 圣地作为宿主。
 
 -keep class * implements javax.imageio.spi.RegisterableService { *; }
 -keep class * extends javax.imageio.spi.ImageReaderWriterSpi { *; }

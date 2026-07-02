@@ -1,1 +1,6 @@
--keeppackagenames org.apache.harmony.**
+-keep class * implements javax.imageio.spi.RegisterableService { *; }
+-keep class * extends javax.imageio.spi.ImageReaderWriterSpi { *; }
+-keep class * extends javax.imageio.spi.ImageReaderSpi { *; }
+-keep class * extends javax.imageio.spi.ImageWriterSpi { *; }
+-keep class * extends javax.imageio.spi.ImageInputStreamSpi { *; }
+-keep class * extends javax.imageio.spi.ImageOutputStreamSpi { *; }
