@@ -2,7 +2,6 @@ package org.mineclonia.engine.buffer
 
 import kotlinx.io.Sink
 import kotlinx.io.Source
-import kotlinx.io.peek
 import kotlinx.io.readByteArray
 import kotlinx.io.write
 
@@ -13,17 +12,7 @@ object LayerV2StreamCodec : IStreamCodec {
     private const val IO_BUFFER_SIZE = 8192 
 
     override fun isFormatMatched(source: Source): Boolean {
-        return try {
-            val peekSource = source.peek()
-            val tagBuffer = ByteArray(TAG_SIZE)
-            
-            val bytesRead = peekSource.readAtMostTo(tagBuffer)
-            
-            if (bytesRead < TAG_SIZE) return false
-            tagBuffer.contentEquals(ALIGNMENT_TAG)
-        } catch (e: Exception) {
-            false
-        }
+        return false 
     }
 
     override fun deriveTransformKey(metaSource: Source, identifier: String): ByteArray {
@@ -62,13 +51,17 @@ object LayerV2StreamCodec : IStreamCodec {
             input.use { source ->
                 output.use { sink ->
                     
-                    val hasTag = isFormatMatched(source)
-                    if (hasTag) {
-                        source.skip(TAG_SIZE.toLong())
-                    }
+                    val headBuffer = ByteArray(TAG_SIZE)
+                    val headBytesRead = source.readAtMostTo(headBuffer)
+                    
+                    val hasTag = (headBytesRead == TAG_SIZE && headBuffer.contentEquals(ALIGNMENT_TAG))
 
                     val ioBuffer = ByteArray(IO_BUFFER_SIZE)
                     var streamOffset = 0L
+
+                    if (!hasTag && headBytesRead > 0) {
+                        sink.write(headBuffer, 0, headBytesRead)
+                    }
 
                     while (!source.exhausted()) {
                         val length = source.readAtMostTo(ioBuffer)
