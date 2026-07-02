@@ -5,7 +5,7 @@ import me.voltual.vb.core.database.dao.*
 import me.voltual.vb.data.*
 import me.voltual.vb.ui.settings.update.*
 import me.voltual.vb.ui.settings.cache.*
-import me.voltual.vb.ui.settings.conversion.*
+import me.voltual.vb.ui.settings.chunker.*
 import me.voltual.vb.ui.log.LogViewModel
 import org.koin.android.ext.koin.androidApplication
 import org.koin.android.ext.koin.androidContext
@@ -35,7 +35,7 @@ val appModule = module {
     viewModel { LogViewModel(androidContext(), get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
     viewModel { ExportViewModel(androidContext()) }
-    viewModel { ConversionSettingsViewModel(get()) }
+    viewModel { ChunkerSettingsViewModel(get()) }
     viewModel { PackConverterViewModel(androidContext()) }
    
     single { BBQApplication.instance.database }
@@ -48,7 +48,7 @@ val appModule = module {
     single { DrawerMenuDataStore(get(DRAWER_MENU_STORE_QUALIFIER)) }        
     single { FtpSettingsDataStore(androidContext()) }
     single { FtpServerManager(androidContext(), get()) }
-    single { ConversionSettingsDataStore(get(CONVERSION_SETTINGS_STORE_QUALIFIER)) }
+    single { ChunkerSettingsDataStore(get(CONVERSION_SETTINGS_STORE_QUALIFIER)) }
     
     val storeFiles = mapOf(
         USER_AGREEMENT_STORE_QUALIFIER to "user_agreement_prefs.preferences_pb",

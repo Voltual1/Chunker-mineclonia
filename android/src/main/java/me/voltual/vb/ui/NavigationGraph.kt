@@ -32,8 +32,7 @@ import me.voltual.vb.ui.settings.cache.CacheSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
-import me.voltual.vb.ui.settings.conversion.ConversionSettingsScreen
-import me.voltual.vb.ui.settings.conversion.ClearProgressScreen
+import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
@@ -111,16 +110,12 @@ fun BBQNavDisplay(
                             ThemeCustomizeScreen(modifier = Modifier.fillMaxSize())
                         }
 
-                        is ConversionSettings -> {
-                            ConversionSettingsScreen(modifier = Modifier.fillMaxSize())
-                        }
-
-                        is ClearProgress -> {
-                            ClearProgressScreen(
-                                snackbarHostState = snackbarHostState,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+is ChunkerSettings -> {
+    ChunkerSettingsScreen(
+        snackbarHostState = snackbarHostState,
+        modifier = Modifier.fillMaxSize()
+    )
+}
                         
                         is FtpSettings -> {
                             FtpSettingsScreen(

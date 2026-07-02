@@ -28,13 +28,13 @@ import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
-import me.voltual.vb.data.ConversionSettingsDataStore
+import me.voltual.vb.data.ChunkerSettingsDataStore
 import me.voltual.vb.data.ConversionProgressDataStore
 import java.util.UUID
 
 class ChunkerViewModel(
     private val context: Context,
-    private val conversionSettingsDataStore: ConversionSettingsDataStore
+    private val conversionSettingsDataStore: ChunkerSettingsDataStore
 ) : ViewModel(), KoinComponent {
 
     private val logRepository: LogRepository by inject()

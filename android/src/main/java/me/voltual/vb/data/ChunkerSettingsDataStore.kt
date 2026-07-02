@@ -8,7 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
-class ConversionSettingsDataStore(private val dataStore: DataStore<Preferences>) {
+class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
     companion object {
         val KEY_THREAD_COUNT = intPreferencesKey("thread_count")
         val KEY_PROCESS_MAPS = booleanPreferencesKey("process_maps")

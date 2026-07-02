@@ -233,8 +233,7 @@ fun getTitleForDestination(route: NavKey?): String {
         LogViewer -> "日志" 
         CacheSettings -> "缓存设置" 
         Export -> "导出" 
-        ConversionSettings -> "转换性能设置"
-        ClearProgress -> "清除进度"
+        ChunkerSettings -> "转换性能设置"
         PackConverterDest -> "材质包转换"
         else -> "在~ $route ~里~哦"
     }

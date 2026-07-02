@@ -1,4 +1,4 @@
-package me.voltual.vb.ui.settings.conversion
+package me.voltual.vb.ui.settings.chunker
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -6,10 +6,10 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import me.voltual.vb.data.ConversionSettingsDataStore
+import me.voltual.vb.data.ChunkerSettingsDataStore
 
-class ConversionSettingsViewModel(
-    private val dataStore: ConversionSettingsDataStore
+class ChunkerSettingsViewModel(
+    private val dataStore: ChunkerSettingsDataStore
 ) : ViewModel() {
 
     val threadCount: StateFlow<Int> = dataStore.threadCount
@@ -18,7 +18,7 @@ class ConversionSettingsViewModel(
     val processMaps: StateFlow<Boolean> = dataStore.processMaps
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    val maxCores = ConversionSettingsDataStore.maxAvailableCores
+    val maxCores = ChunkerSettingsDataStore.maxAvailableCores
 
     fun updateThreadCount(count: Int) {
         viewModelScope.launch {

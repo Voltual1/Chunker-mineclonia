@@ -36,11 +36,8 @@ data class TerminalExec(
 
 @Serializable data object CacheSettings : AppDestination
 
-/** 转换设置界面 */
-@Serializable data object ConversionSettings : AppDestination
-
-/** 清除转换进度界面 */
-@Serializable data object ClearProgress : AppDestination
+/** Chunker转换设置界面 */
+@Serializable data object ChunkerSettings : AppDestination
 
 /** 材质包转换界面 */
 @Serializable data object PackConverterDest : AppDestination

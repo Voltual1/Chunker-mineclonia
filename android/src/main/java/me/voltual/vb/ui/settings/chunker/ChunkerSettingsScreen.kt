@@ -1,4 +1,4 @@
-package me.voltual.vb.ui.settings.conversion
+package me.voltual.vb.ui.settings.chunker
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -7,19 +7,28 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import org.koin.compose.viewmodel.koinViewModel
+import kotlinx.coroutines.launch
+import me.voltual.vb.data.ConversionProgressDataStore
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ConversionSettingsScreen(
+fun ChunkerSettingsScreen(
+    snackbarHostState: SnackbarHostState, 
     modifier: Modifier = Modifier,
-    viewModel: ConversionSettingsViewModel = koinViewModel()
+    viewModel: ChunkerSettingsViewModel = koinViewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    
     val threadCount by viewModel.threadCount.collectAsState()
     val processMaps by viewModel.processMaps.collectAsState()
     
     val scrollState = rememberScrollState()
+    
+    // 控制二次确认对话框的显示状态
+    var showClearDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -27,11 +36,6 @@ fun ConversionSettingsScreen(
             .padding(16.dp)
             .verticalScroll(scrollState)
     ) {
-        Text(
-            text = "转换性能配置",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
         
         Spacer(modifier = Modifier.height(8.dp))
         
@@ -43,7 +47,7 @@ fun ConversionSettingsScreen(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // 线程并发滑块
+        // 1. 线程并发滑块
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -84,7 +88,7 @@ fun ConversionSettingsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // 地图读取转换开关
+        // 2. 地图读取转换开关
         Card(
             modifier = Modifier.fillMaxWidth(),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -114,5 +118,74 @@ fun ConversionSettingsScreen(
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // 3. 合并进来的：清除进度卡片
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)) // 使用淡错误色背景作为警告提示
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "清除断点进度",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "清除所有已保存的世界转换断点。清除后下次将从头开始转换，无法再使用自动恢复进度续传。",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Button(
+                    onClick = { showClearDialog = true },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) {
+                    Text("清除")
+                }
+            }
+        }
+    }
+
+    // 二次确认对话框
+    if (showClearDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearDialog = false },
+            title = { Text("确认清除全部进度？") },
+            text = { Text("清除后，下次进行相同世界的转换时将从头开始，无法再使用之前的自动恢复进度续传（因为断点续转可能会有一些问题）。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearDialog = false
+                        scope.launch {
+                            ConversionProgressDataStore.clearAllProgress(context)
+                            ConversionProgressDataStore.clearActiveConversion(context)
+                            snackbarHostState.showSnackbar("断点进度清除成功")
+                        }
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("确认清除")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearDialog = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 }

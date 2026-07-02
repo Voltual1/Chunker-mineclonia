@@ -26,9 +26,6 @@ class PackConversionWorker(
 ) : RemoteCoroutineWorker(context, params) {
 
     override suspend fun doRemoteWork(): Result {
-        // 在主线程中强制预加载 AWT JNI 类。
-        // 这确保了 System.loadLibrary 和 JNI_OnLoad 在 ClassLoader 完备的主线程中执行，
-        // 从而使 NativeImageFormat 等类的 jfieldID 能够被正确寻找并初始化。
         withContext(Dispatchers.Main) {
             try {
                 Class.forName("org.apache.harmony.awt.gl.color.NativeImageFormat")
