@@ -5,7 +5,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Description
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
@@ -179,9 +179,9 @@ fun PackConverterScreen(
                         onClick = { filePicker.launch() },
                         enabled = !isRunning
                     ) {
-                        // 此处替换为官方推荐的 AutoMirrored 文件/描述图标
+                        // 遵照编译器提示，直接使用 AutoMirrored 版本的原图标
                         Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Description,
+                            imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
                             contentDescription = null,
                             modifier = Modifier.size(18.dp)
                         )
