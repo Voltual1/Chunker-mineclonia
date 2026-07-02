@@ -102,10 +102,3 @@
 # 因为 R8 在执行高级混淆平铺时，为了极致压缩体积，机制上不允许“无中生有”创建全新的未定义根包。
 # 强行自定义新包名会导致 R8 字典映射错乱，编译直接Error`
 # 必须借用 Android 官方已经注册并在白名单内的 'androidx' 圣地作为宿主。
-
--keep class * implements javax.imageio.spi.RegisterableService { *; }
--keep class * extends javax.imageio.spi.ImageReaderWriterSpi { *; }
--keep class * extends javax.imageio.spi.ImageReaderSpi { *; }
--keep class * extends javax.imageio.spi.ImageWriterSpi { *; }
--keep class * extends javax.imageio.spi.ImageInputStreamSpi { *; }
--keep class * extends javax.imageio.spi.ImageOutputStreamSpi { *; }
