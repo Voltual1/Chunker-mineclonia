@@ -47,14 +47,9 @@ fun DecoderScreen(
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text(
-                text = "损坏世界还原器",
-                style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.primary
-            )
 
             Text(
-                text = "一键将特定损坏或由于格式特殊无法直接读取的基岩版世界存档，智能还原为标准国际基岩版支持的正常存档格式。",
+                text = "一键将特定损坏或由于格式特殊无法直接读取的基岩版世界存档（免责声明:不一定能成功），还原为标准国际基岩版支持的正常存档格式。",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

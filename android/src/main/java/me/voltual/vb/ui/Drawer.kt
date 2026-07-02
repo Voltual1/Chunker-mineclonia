@@ -70,7 +70,7 @@ fun NavigationDrawerItems(
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
             DrawerItem("pack_converter", "材质包转换", IconSource.Vector(Icons.Default.Build), PackConverterDest),
-            DrawerItem("decoder", "存档还原", IconSource.Vector(Icons.Default.LockOpen), DecoderDest),
+            DrawerItem("decoder", "存档还原", IconSource.Vector(healing), DecoderDest),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理（FTP）", IconSource.Vector(Icons.Default.Share), FtpSettings),
             DrawerItem("conversion_settings", "Chunker设置", IconSource.Vector(Icons.Default.Settings), ChunkerSettings),
