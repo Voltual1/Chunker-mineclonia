@@ -1,2 +1,1 @@
--keeppackagenames java.awt.**
--keeppackagenames javax.imageio.**
+-keeppackagenames org.apache.harmony.**

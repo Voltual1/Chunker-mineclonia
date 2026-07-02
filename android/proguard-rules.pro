@@ -74,4 +74,5 @@
 
 
 
--keeppackagenames org.apache.harmony.**
+-repackageclasses 'repackaged'
+-flattenpackagehierarchy 'repackaged'
