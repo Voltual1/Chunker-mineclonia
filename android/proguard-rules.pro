@@ -1,7 +1,6 @@
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
 -assumenosideeffects class **$$Lambda$* { *; }
 -assumenosideeffects class android.util.Log { *; }
--assumenosideeffects class ro.andob.awtcompat.nativec.** { *; }
 -assumenosideeffects class kotlinx.coroutines.DebugStrings {
     public static *** toString(...);
 }
