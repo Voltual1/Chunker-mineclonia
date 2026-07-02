@@ -1,0 +1,2 @@
+-keeppackagenames java.awt.**
+-keeppackagenames javax.imageio.**

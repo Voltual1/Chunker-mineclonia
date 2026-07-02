@@ -69,3 +69,6 @@
 -dontwarn java.awt.font.sfntly.**
 
 -dontwarn lombok.**
+
+-keeppackagenames java.awt.**
+-keeppackagenames javax.imageio.**
