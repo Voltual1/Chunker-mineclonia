@@ -70,5 +70,19 @@
 
 -dontwarn lombok.**
 
+
+
+
+
+-keep class java.awt.** { *; }
+-keep class javax.imageio.** { *; }
+
+-keep class org.apache.harmony.** { *; }
+
 -keeppackagenames java.awt.**
 -keeppackagenames javax.imageio.**
+-keeppackagenames org.apache.harmony.**
+
+-keepattributes Signature,AnnotationDefault,EnclosingMethod,InnerClasses,SourceFile,LineNumberTable
+
+-keepnames class * implements javax.imageio.spi.RegisterableService
