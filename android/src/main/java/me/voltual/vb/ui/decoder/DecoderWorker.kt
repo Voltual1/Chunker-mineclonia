@@ -7,6 +7,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.io.asSink
 import kotlinx.io.asSource
+import kotlinx.io.buffered
 import org.mineclonia.engine.buffer.LayerV2StreamCodec
 import java.io.File
 import java.io.FileInputStream
@@ -36,8 +37,8 @@ class DecoderWorker(
                 outputDir.deleteRecursively()
                 outputDir.mkdirs()
 
-                // Derive key
-                val metaSource = FileInputStream(metaFile).asSource()
+                // Derive key - 使用 .buffered() 将 RawSource 转换为 Source
+                val metaSource = FileInputStream(metaFile).asSource().buffered()
                 val transformKey = try {
                     LayerV2StreamCodec.deriveTransformKey(metaSource, identifier)
                 } catch (e: Exception) {
@@ -70,8 +71,10 @@ class DecoderWorker(
                 }
             } else {
                 try {
-                    val source = FileInputStream(file).asSource()
-                    val sink = FileOutputStream(destFile).asSink()
+                    // 使用 .buffered() 将 RawSource/RawSink 转换为 Source/Sink
+                    val source = FileInputStream(file).asSource().buffered()
+                    val sink = FileOutputStream(destFile).asSink().buffered()
+                    
                     val ok = LayerV2StreamCodec.transformStream(source, sink, key)
                     if (!ok) {
                         // 解码失败时作为兜底方案执行常规拷贝
