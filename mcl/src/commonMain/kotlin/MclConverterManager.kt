@@ -66,7 +66,7 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                             node.setLight(bl, sl)
                         } else {
                             // 默认光照：如果是地下则全黑，地上则全亮
-                            node.param1 = if (y < 0) 0x00.toByte() else 0x0F.toByte()
+                            node.param1 = if (y < -124) 0x00.toByte() else 0x0F.toByte()
                         }
                         
                         mclNodes.add(node)
