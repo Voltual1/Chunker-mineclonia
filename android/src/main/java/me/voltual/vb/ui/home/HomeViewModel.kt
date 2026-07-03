@@ -102,6 +102,38 @@ class HomeViewModel : ViewModel() {
         }
     }
 
+    /**
+     * 递归修复因 SimpleStorage 复制导致的文件名被强行追加 .bin 后缀的问题。
+     * 例如将 000022.ldb.bin 恢复为 000022.ldb，将 CURRENT.bin 恢复为 CURRENT
+     */
+    private fun repairCopiedDatabaseFiles(dir: File) {
+        if (!dir.exists() || !dir.isDirectory) return
+        val files = dir.listFiles() ?: return
+        for (file in files) {
+            if (file.isDirectory) {
+                repairCopiedDatabaseFiles(file)
+            } else {
+                val fileName = file.name
+                if (fileName.endsWith(".bin", ignoreCase = true)) {
+                    val originalName = fileName.substring(0, fileName.length - 4)
+                    // 仅当去掉 .bin 后的名称是 LevelDB 或基岩版存档特有数据文件时进行恢复
+                    if (originalName.endsWith(".ldb", ignoreCase = true) ||
+                        originalName.endsWith(".log", ignoreCase = true) ||
+                        originalName.equals("CURRENT", ignoreCase = true) ||
+                        originalName.equals("LOCK", ignoreCase = true) ||
+                        originalName.startsWith("MANIFEST-", ignoreCase = true)
+                    ) {
+                        val destFile = File(file.parentFile, originalName)
+                        if (destFile.exists()) {
+                            destFile.delete()
+                        }
+                        file.renameTo(destFile)
+                    }
+                }
+            }
+        }
+    }
+
     fun startCopyAndNavigate(context: Context, navigator: Navigator) {
         val format = selectedFormat ?: return
         val worldsDir = getWorldsDir(context)
@@ -173,7 +205,13 @@ class HomeViewModel : ViewModel() {
                         }
                         is SingleFolderResult.Completed -> {
                             isCopying = false
-                            copyStatusText = "复制完成！"
+                            copyStatusText = "复制完成，正在整理数据目录..."
+                            
+                            // 复制完成后在后台线程静默执行修复
+                            withContext(Dispatchers.IO) {
+                                repairCopiedDatabaseFiles(inputDir)
+                            }
+
                             val outputDir = File(localOutputPath)
                             if (outputDir.exists()) {
                                 outputDir.deleteRecursively()
