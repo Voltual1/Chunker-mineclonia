@@ -140,7 +140,8 @@ dependencies {
     implementation(libs.datastore.tink)
     implementation(libs.tink.android)
     implementation(libs.datastore.core)
-
+    
+    implementation("io.github.lizhangqu:retrace:1.0.2")
     implementation(libs.koin.android.compose)
     implementation(libs.koin.core)
     implementation(libs.koin.startup)

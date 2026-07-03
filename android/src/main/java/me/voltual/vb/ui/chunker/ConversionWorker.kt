@@ -123,12 +123,10 @@ class ConversionWorker(
         val reader = readerOptional.get()
         val srcFormat = reader.encodingType.name
 
-        // 为每一个 Worker 实例分配唯一的隔离文件夹，防范互相串扰
         val workerId = id.toString()
         val sliceInputDir = File(context.cacheDir, "slice_input_$workerId")
         val sliceOutputDir = File(context.cacheDir, "slice_output_$workerId")
 
-        // 清理此前因断电或意外退出残留下来的无用临时文件夹
         context.cacheDir.listFiles()?.forEach { file ->
             if (file.isDirectory && (file.name.startsWith("slice_input_") || file.name.startsWith("slice_output_"))) {
                 if (file.name != "slice_input_$workerId" && file.name != "slice_output_$workerId") {
@@ -184,7 +182,6 @@ class ConversionWorker(
             return Result.success()
 
         } catch (e: CancellationException) {
-            // 捕获取消异常，立即中止，并将其向上抛出以向 WorkManager 宣告 CANCELLED
             memoryMonitorThread.interrupt()
             throw e
         } catch (e: Exception) {
@@ -258,13 +255,13 @@ class ConversionWorker(
             sliceConverter.setProcessEntities(true)
             sliceConverter.setProcessBlockEntities(true)
             sliceConverter.setProcessBiomes(true)
-            sliceConverter.setProcessLighting(true)
+            sliceConverter.setProcessLighting(false) // 针对移动端优化，不计算光照
             sliceConverter.setProcessColumnPreTransform(false)
             sliceConverter.setThreadCount(threadCount)
             sliceConverter.setProcessMaps(processMaps)
 
             val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
-            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice. Slice input directory might be invalid.")
+            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
             val sliceWriterOpt = if (isMineclonia) {
@@ -273,12 +270,11 @@ class ConversionWorker(
                 encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
             if (!sliceWriterOpt.isPresent) {
-                throw IllegalStateException("Failed to create writer. Target db may still be locked by a prior process instance.")
+                throw IllegalStateException("Failed to create writer.")
             }
             val sliceWriter = sliceWriterOpt.get()
 
             val future = sliceConverter.convert(sliceReader, sliceWriter).future()
-            // 响应式协程等待：让 Coroutine 在等待期间能够瞬间响应外界的 Cancellation 信号
             while (!future.isDone) {
                 delay(250)
             }
@@ -388,13 +384,13 @@ class ConversionWorker(
             sliceConverter.setProcessEntities(true)
             sliceConverter.setProcessBlockEntities(true)
             sliceConverter.setProcessBiomes(true)
-            sliceConverter.setProcessLighting(true)
+            sliceConverter.setProcessLighting(false)
             sliceConverter.setProcessColumnPreTransform(false)
             sliceConverter.setThreadCount(threadCount)
             sliceConverter.setProcessMaps(processMaps)
 
             val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
-            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice. Slice db may be corrupted.")
+            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
 
             val sliceWriterOpt = if (isMineclonia) {
@@ -403,12 +399,11 @@ class ConversionWorker(
                 encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
             if (!sliceWriterOpt.isPresent) {
-                throw IllegalStateException("Failed to create writer. Target LevelDB might still be locked by a prior process instance.")
+                throw IllegalStateException("Failed to create writer.")
             }
             val sliceWriter = sliceWriterOpt.get()
 
             val future = sliceConverter.convert(sliceReader, sliceWriter).future()
-            // 响应式协程等待：让 Coroutine 在等待期间能够瞬间响应外界的 Cancellation 信号
             while (!future.isDone) {
                 delay(250)
             }
@@ -480,7 +475,24 @@ class ConversionWorker(
     }
 
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
-        if (targetFormat.contains("JAVA", ignoreCase = true) || targetFormat.equals("MINECLONIA", ignoreCase = true)) {
+        if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
+            // 处理 Mineclonia (Minetest) 特有的文件合并逻辑
+            val mapDb = File(sliceOutputDir, "map.sqlite")
+            if (mapDb.exists()) {
+                // Minetest 的 map.sqlite 是单一数据库文件，分片模式下 MclSqliteSaver 使用 INSERT OR REPLACE
+                // 因此可以直接将分片产生的 map.sqlite 移动（或合并）到最终目录
+                val finalMapDb = File(finalOutputDir, "map.sqlite")
+                copyFile(mapDb, finalMapDb)
+            }
+
+            val worldMt = File(sliceOutputDir, "world.mt")
+            if (worldMt.exists()) {
+                val finalWorldMt = File(finalOutputDir, "world.mt")
+                if (!finalWorldMt.exists()) {
+                    copyFile(worldMt, finalWorldMt)
+                }
+            }
+        } else if (targetFormat.contains("JAVA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
                 val srcFolder = File(sliceOutputDir, folderName)
