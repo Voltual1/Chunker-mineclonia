@@ -4,13 +4,14 @@ object MclMappingInitializer {
     fun initialize() {
         val modules = listOf(
             MclCoreMapping,
-            // MclWoodMapping,
-            // MclRedstoneMapping,
-            // MclVegetationMapping
+            MclWoodMapping
         )
         
-        println("正在加载 Mineclonia 映射模块...")
-        modules.forEach { it.register() }
-        println("成功加载 ${modules.size} 个映射模块")
+        println("--- Mineclonia 映射系统 ---")
+        modules.forEach { 
+            println("正在加载模块: ${it::class.java.simpleName}")
+            it.register() 
+        }
+        println("映射初始化完成。")
     }
 }
