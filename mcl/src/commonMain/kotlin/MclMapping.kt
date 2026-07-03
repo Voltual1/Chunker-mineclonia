@@ -59,6 +59,9 @@ object MclMappingRegistry {
                 }
             }
         }
+        
+        // 打印详细的未映射方块调试信息
+        System.err.println("\u001B[33m[Mapping Debug] Missing block mapping for identifier: $identifier (Type: ${type::class.java.simpleName})\u001B[0m")
         return MclNode("mcl_core:cobble") // 默认回退方块
     }
 }

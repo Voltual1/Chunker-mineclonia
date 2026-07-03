@@ -27,7 +27,8 @@ object MclItemRegistry {
             is ChunkerVanillaItemType -> "mcl_core:${type.name.lowercase()}"
             is ChunkerVanillaBlockType -> "mcl_core:${type.name.lowercase()}"
             else -> {
-                logger.warning("Unknown item type: ${type::class.java.name}")
+                // 增加详细控制台红色输出，帮助调试未实现的物品映射类型
+                System.err.println("\u001B[31m[Item Debug] Missing item mapping for identifier: $identifier (Type: ${type::class.java.name})\u001B[0m")
                 "mcl_core:cobble"
             }
         }
