@@ -1,4 +1,9 @@
-package me.voltual.mcl
+package me.voltual.mcl.mapping.modules
+
+import me.voltual.mcl.mapping.MclMappingDsl
+import me.voltual.mcl.mapping.MclMappingModule
+import me.voltual.mcl.mapping.MclMappingRegistry
+
 
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
 

@@ -1,4 +1,8 @@
-package me.voltual.mcl
+package me.voltual.mcl.core
+
+import me.voltual.mcl.mapping.MclBlockEntityRegistry
+import me.voltual.mcl.mapping.MclMappingRegistry
+
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier

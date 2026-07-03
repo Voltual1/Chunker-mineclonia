@@ -1,4 +1,8 @@
-package me.voltual.mcl
+package me.voltual.mcl.mapping
+
+import me.voltual.mcl.mapping.modules.MclCoreMapping
+import me.voltual.mcl.mapping.modules.MclWoodMapping
+
 
 object MclMappingInitializer {
     fun initialize() {

@@ -1,4 +1,4 @@
-package me.voltual.mcl
+package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity
 import kotlin.math.max

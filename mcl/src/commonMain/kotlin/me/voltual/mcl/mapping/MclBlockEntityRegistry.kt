@@ -1,4 +1,10 @@
-package me.voltual.mcl
+package me.voltual.mcl.mapping
+
+import me.voltual.mcl.core.MclBlockEntityData
+import me.voltual.mcl.core.MclConverterManager
+import me.voltual.mcl.core.MclInventory
+import me.voltual.mcl.core.MclItemStack
+
 
 import com.google.gson.JsonElement
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*

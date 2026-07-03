@@ -1,4 +1,8 @@
-package me.voltual.mcl
+package me.voltual.mcl.writer
+
+import me.voltual.mcl.core.MclConverterManager
+import me.voltual.mcl.mapping.MclMappingInitializer
+
 
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version

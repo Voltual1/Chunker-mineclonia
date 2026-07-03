@@ -1,4 +1,7 @@
-package me.voltual.mcl
+package me.voltual.mcl.writer
+
+import me.voltual.mcl.core.MclConverterManager
+
 
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn

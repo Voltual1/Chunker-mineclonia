@@ -1,4 +1,4 @@
-package me.voltual.mcl
+package me.voltual.mcl.core
 
 import java.io.File
 import java.lang.reflect.Method
