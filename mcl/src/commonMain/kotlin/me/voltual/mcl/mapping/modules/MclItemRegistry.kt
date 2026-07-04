@@ -21,7 +21,6 @@ object MclItemRegistry {
         
         // 1. 如果该物品本质上是一个方块 (BlockItem)
         if (type is ChunkerVanillaBlockType) {
-            // 直接重用方块映射注册表获取节点名称
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
             return MclMappingRegistry.convert(blockId).name
         }
@@ -29,7 +28,6 @@ object MclItemRegistry {
         // 2. 如果是纯物品 (Item)
         if (type is ChunkerVanillaItemType) {
             return itemMapping[type] ?: run {
-                // 如果没有显式映射，尝试自动化猜测或返回回退
                 System.err.println("\u001B[31m[Item Debug] Missing explicit mapping for: $type\u001B[0m")
                 "mcl_core:cobble"
             }
@@ -49,9 +47,6 @@ object MclItemRegistry {
         val name = getItemName(itemStack.identifier)
         val count = itemStack.get(ChunkerItemProperty.AMOUNT) ?: 1
         
-        // 处理耐用度 (Wear)
-        // Minetest 的 wear 是 0-65535, 0 为全新。
-        // Minecraft 的 damage 是 0 到 MaxDamage, 0 为全新。
         val mcDamage = itemStack.get(ChunkerItemProperty.DURABILITY) ?: 0
         var mtWear = 0
         if (mcDamage > 0) {
@@ -63,7 +58,7 @@ object MclItemRegistry {
     }
 
     // ==========================================
-    // 物品映射字典 (根据源码整理)
+    // 物品映射字典 (根据 Chunker 源码修正)
     // ==========================================
     private val itemMapping = mutableMapOf<ChunkerVanillaItemType, String>().apply {
         // 核心材料 (mcl_core)
@@ -77,8 +72,8 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.GOLD_NUGGET, "mcl_core:gold_nugget")
         put(ChunkerVanillaItemType.DIAMOND, "mcl_core:diamond")
         put(ChunkerVanillaItemType.EMERALD, "mcl_core:emerald")
-        put(ChunkerVanillaItemType.LAPIS_LAZULI, "mcl_core:lapis")
-        put(ChunkerVanillaItemType.NETHER_QUARTZ, "mcl_nether:quartz")
+        put(ChunkerVanillaItemType.LAPIS_LAZULI, "mcl_core:lapis") // Chunker 名是 LAPIS_LAZULI
+        put(ChunkerVanillaItemType.QUARTZ, "mcl_nether:quartz")      // 修正: 对应 Chunker 的 QUARTZ
         put(ChunkerVanillaItemType.AMETHYST_SHARD, "mcl_amethyst:amethyst_shard")
         put(ChunkerVanillaItemType.RAW_IRON, "mcl_raw_ores:raw_iron")
         put(ChunkerVanillaItemType.RAW_GOLD, "mcl_raw_ores:raw_gold")
@@ -153,7 +148,7 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.DRAGON_BREATH, "mcl_potions:dragon_breath")
         put(ChunkerVanillaItemType.FERMENTED_SPIDER_EYE, "mcl_potions:fermented_spider_eye")
 
-        // 工具系列
+        // 工具系列 (逻辑函数)
         registerToolSet("WOODEN", "wood")
         registerToolSet("STONE", "stone")
         registerToolSet("IRON", "iron")
@@ -177,14 +172,13 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.ELYTRA, "mcl_armor:elytra")
         put(ChunkerVanillaItemType.SHIELD, "mcl_shields:shield")
 
-        // 交通
+        // 交通与船
         put(ChunkerVanillaItemType.MINECART, "mcl_minecarts:minecart")
         put(ChunkerVanillaItemType.CHEST_MINECART, "mcl_minecarts:chest_minecart")
         put(ChunkerVanillaItemType.FURNACE_MINECART, "mcl_minecarts:furnace_minecart")
         put(ChunkerVanillaItemType.TNT_MINECART, "mcl_minecarts:tnt_minecart")
         put(ChunkerVanillaItemType.HOPPER_MINECART, "mcl_minecarts:hopper_minecart")
         
-        // 船
         put(ChunkerVanillaItemType.OAK_BOAT, "mcl_boats:boat_oak")
         put(ChunkerVanillaItemType.SPRUCE_BOAT, "mcl_boats:boat_spruce")
         put(ChunkerVanillaItemType.BIRCH_BOAT, "mcl_boats:boat_birch")
@@ -220,13 +214,12 @@ object MclItemRegistry {
             "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
         )
         for (d in dyes) {
-            val mclColor = d.lowercase()
-            put(enumValueOf("${d}_DYE"), "mcl_dyes:$mclColor")
+            put(enumValueOf("${d}_DYE"), "mcl_dyes:${d.lowercase()}")
         }
     }
 
     /**
-     * 获取 Minecraft 原始耐用度，用于计算 Wear 比例
+     * 获取 Minecraft 原始耐用度
      */
     private fun getVanillaMaxDurability(identifier: ChunkerItemStackIdentifier): Int {
         val type = identifier.itemStackType
