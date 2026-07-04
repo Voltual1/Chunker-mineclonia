@@ -129,23 +129,23 @@ class MapPreviewViewModel : ViewModel() {
 
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
-                        // 修正 Java 空安全限制：去除 ChunkerLevel 的可空标识，并引入安全防护
-                        override fun convertLevel(level: ChunkerLevel): Task<WorldConversionHandler> {
-                            val safeLevel = level ?: ChunkerLevel(null)
+                        override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
+                            // 针对 Java 平台重载及 Kotlin 可空性：使用无参构造函数防 Null
+                            val safeLevel = level ?: ChunkerLevel()
                             val worldWriter = previewWriter.writeLevel(safeLevel)
                             val worldHandler = object : WorldConversionHandler {
-                                override fun convertWorld(world: ChunkerWorld): Task<ColumnConversionHandler> {
-                                    val safeWorld = world ?: ChunkerWorld(null)
+                                override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
+                                    val safeWorld = world ?: ChunkerWorld()
                                     val columnWriter = worldWriter.writeWorld(safeWorld)
                                     val columnHandler = object : ColumnConversionHandler {
-                                        override fun convertColumn(column: ChunkerColumn): Task<Void> {
+                                        override fun convertColumn(column: ChunkerColumn?): Task<Void> {
                                             if (column != null) {
                                                 columnWriter.writeColumn(column)
                                             }
                                             return FutureTask(CompletableFuture.completedFuture(null))
                                         }
 
-                                        override fun flushRegion(regionCoordPair: RegionCoordPair): Task<Void> {
+                                        override fun flushRegion(regionCoordPair: RegionCoordPair?): Task<Void> {
                                             if (regionCoordPair != null) {
                                                 columnWriter.flushRegion(regionCoordPair)
                                             }
@@ -160,7 +160,7 @@ class MapPreviewViewModel : ViewModel() {
                                     return FutureTask(CompletableFuture.completedFuture(columnHandler))
                                 }
 
-                                override fun flushWorld(world: ChunkerWorld) {
+                                override fun flushWorld(world: ChunkerWorld?) {
                                     worldWriter.flushWorld(world)
                                 }
 
