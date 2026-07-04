@@ -491,8 +491,17 @@ private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
 
         // 1. 打开并初始化目标主数据库
         destDb = SQLiteDatabase.openOrCreateDatabase(finalDbFile.absolutePath, null)
-        destDb.execSQL("PRAGMA synchronous = OFF;")
-        destDb.execSQL("PRAGMA journal_mode = MEMORY;")
+        
+        // 安全执行 PRAGMA 语句，避免 execSQL 抛出查询异常
+        val pragmaSyncCursor = destDb.rawQuery("PRAGMA synchronous = OFF;", null)
+        pragmaSyncCursor?.moveToFirst()
+        pragmaSyncCursor?.close()
+
+        val pragmaJournalCursor = destDb.rawQuery("PRAGMA journal_mode = MEMORY;", null)
+        pragmaJournalCursor?.moveToFirst()
+        pragmaJournalCursor?.close()
+
+        // CREATE TABLE 是标准的非查询语句，可以使用 execSQL
         destDb.execSQL(
             """
             CREATE TABLE IF NOT EXISTS `blocks` (
@@ -515,7 +524,7 @@ private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
             val posIdx = cursor.getColumnIndex("pos")
             val dataIdx = cursor.getColumnIndex("data")
 
-            // 5. 编译预编译语句，加速批量插入
+            // 5. 编译预编译语句
             destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
 
             var count = 0
@@ -529,7 +538,6 @@ private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
                 destInsertStmt.executeInsert()
 
                 count++
-                // 每 500 条数据小提交并重开事务，平衡内存与磁盘写入
                 if (count >= 500) {
                     destDb.setTransactionSuccessful()
                     destDb.endTransaction()
