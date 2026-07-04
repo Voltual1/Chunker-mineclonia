@@ -212,7 +212,6 @@ fun NbtNodeItem(
             .padding(start = indentation),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // 渲染不同的 Tag 类型图标
         val icon = when (tag.type) {
             TagType.COMPOUND -> Icons.Default.Folder
             TagType.LIST -> Icons.Default.List
@@ -228,7 +227,7 @@ fun NbtNodeItem(
 
         Icon(
             imageVector = icon,
-            contentDescription = tag.type.name,
+            contentDescription = tag.type.tagClass?.simpleName ?: "Tag",
             tint = MaterialTheme.colorScheme.primary,
             modifier = Modifier.size(28.dp)
         )
@@ -236,7 +235,6 @@ fun NbtNodeItem(
         Spacer(modifier = Modifier.width(12.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            // 渲染属性键名
             Text(
                 text = node.key.ifEmpty { "Root" },
                 fontWeight = FontWeight.Bold,
@@ -244,12 +242,10 @@ fun NbtNodeItem(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // 渲染数据编辑器
             Spacer(modifier = Modifier.height(4.dp))
             NbtValueEditor(node = node, onValueChange = onValueChange)
         }
 
-        // 展开/收起指示器
         if (node.isContainer) {
             Icon(
                 imageVector = if (node.isExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
@@ -408,7 +404,7 @@ fun NbtNodeContextMenu(
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("复制")
@@ -416,7 +412,7 @@ fun NbtNodeContextMenu(
                 }
                 if (hasClipboard) {
                     TextButton(onClick = onPasteOverwrite, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                             Icon(Icons.Default.ContentPaste, contentDescription = null)
                             Spacer(modifier = Modifier.width(12.dp))
                             Text("覆盖粘贴")
@@ -424,7 +420,7 @@ fun NbtNodeContextMenu(
                     }
                     if (node.isContainer) {
                         TextButton(onClick = onPasteSubTag, modifier = Modifier.fillMaxWidth()) {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                                 Icon(Icons.Default.ContentPasteGo, contentDescription = null)
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text("粘贴为子节点")
@@ -433,7 +429,7 @@ fun NbtNodeContextMenu(
                     }
                 }
                 TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth()) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         Icon(Icons.Default.Edit, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("重命名")
@@ -441,7 +437,7 @@ fun NbtNodeContextMenu(
                 }
                 if (node.isContainer) {
                     TextButton(onClick = onAddSubTag, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                             Icon(Icons.Default.Add, contentDescription = null)
                             Spacer(modifier = Modifier.width(12.dp))
                             Text("添加子标签")
@@ -453,7 +449,7 @@ fun NbtNodeContextMenu(
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         Icon(Icons.Default.Delete, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
                         Text("删除")
@@ -533,7 +529,7 @@ fun AddSubTagDialog(
                     onExpandedChange = { expanded = !expanded }
                 ) {
                     OutlinedTextField(
-                        value = selectedType.tagClass.simpleName ?: "Unknown",
+                        value = selectedType.tagClass?.simpleName ?: "Unknown",
                         onValueChange = {},
                         readOnly = true,
                         label = { Text("选择标签类型") },
@@ -548,7 +544,7 @@ fun AddSubTagDialog(
                     ) {
                         types.forEach { type ->
                             DropdownMenuItem(
-                                text = { Text(type.tagClass.simpleName ?: "Unknown") },
+                                text = { Text(type.tagClass?.simpleName ?: "Unknown") },
                                 onClick = {
                                     selectedType = type
                                     expanded = false
