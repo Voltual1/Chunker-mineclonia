@@ -1,61 +1,16 @@
 package me.voltual.mcl.mapping
 
 import me.voltual.mcl.core.MclBlockEntityData
-import me.voltual.mcl.core.MclConverterManager
 import me.voltual.mcl.core.MclInventory
 import me.voltual.mcl.core.MclItemStack
-
+import me.voltual.mcl.mapping.MclItemRegistry
 
 import com.google.gson.JsonElement
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
-import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack
-import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerItemStackIdentifier
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
-import java.util.logging.Logger
-
-/**
- * 物品转换器，负责将 Chunker 的物品转换为 Mineclonia 的物品名
- */
-object MclItemRegistry {
-    private val logger = Logger.getLogger("MclItemRegistry")
-
-    /**
-     * 将 Chunker 的物品标识符转换为 Mineclonia 的节点/物品名称
-     */
-    fun getItemName(identifier: ChunkerItemStackIdentifier): String {
-        val type = identifier.itemStackType
-        return when (type) {
-            is ChunkerVanillaItemType -> "mcl_core:${type.name.lowercase()}"
-            is ChunkerVanillaBlockType -> "mcl_core:${type.name.lowercase()}"
-            else -> {
-                // 增加详细控制台红色输出，帮助调试未实现的物品映射类型
-                System.err.println("\u001B[31m[Item Debug] Missing item mapping for identifier: $identifier (Type: ${type::class.java.name})\u001B[0m")
-                "mcl_core:cobble"
-            }
-        }
-    }
-
-    /**
-     * 将 ChunkerItemStack 转换为 MclItemStack
-     */
-    fun fromChunker(itemStack: ChunkerItemStack?): MclItemStack {
-        if (itemStack == null || itemStack.identifier.isAir) {
-            return MclItemStack("", 0)
-        }
-        val name = getItemName(itemStack.identifier)
-        
-        // 使用 Kotlin 的空安全语法处理 Chunker 的属性
-        val amount = itemStack.get(ChunkerItemProperty.AMOUNT) ?: 1
-        val durability = itemStack.get(ChunkerItemProperty.DURABILITY) ?: 0
-        
-        return MclItemStack(name, amount, durability)
-    }
-}
+import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType
 
 /**
  * 方块实体转换注册表
@@ -114,7 +69,7 @@ object MclBlockEntityRegistry {
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
         val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
-        val dstItem = MclItemRegistry.fromChunker(furnace.items[2])
+        val dstItem = mclItemFromChunkerOrEmpty(furnace.items[2])
 
         return MclBlockEntityData(
             fields = mapOf(
@@ -193,5 +148,10 @@ object MclBlockEntityRegistry {
             if (obj.has("text")) return obj.get("text").asString
         }
         return ""
+    }
+
+    private fun mclItemFromChunkerOrEmpty(chunkerItem: com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack?): MclItemStack {
+        if (chunkerItem == null) return MclItemStack("", 0)
+        return MclItemRegistry.fromChunker(chunkerItem)
     }
 }
