@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
 import androidx.navigation3.runtime.*
+import me.voltual.vb.ui.map.MapPreviewScreen
 import androidx.navigation3.scene.DialogSceneStrategy
 import androidx.navigation3.ui.NavDisplay
 import me.voltual.vb.core.ui.animation.*
@@ -98,6 +99,13 @@ fun BBQNavDisplay(
                             LogScreen(
                                 viewModel = viewModel,
                                 snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        
+                        is MapPreviewDest -> {
+                            MapPreviewScreen(
+                                initialFolderUri = key.folderUri,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }

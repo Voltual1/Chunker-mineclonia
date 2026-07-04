@@ -15,13 +15,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DeleteSweep
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Share
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.LockOpen
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -69,6 +63,7 @@ fun NavigationDrawerItems(
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页", IconSource.Vector(IcMenuHome), Home),
+            DrawerItem("map_preview", "地图预览", IconSource.Vector(Icons.Default.Map), MapPreviewDest()),
             DrawerItem("pack_converter", "材质包转换", IconSource.Vector(Icons.Default.Build), PackConverterDest),
             DrawerItem("decoder", "存档还原", IconSource.Vector(healing), DecoderDest),
             DrawerItem("logs", "日志", IconSource.Vector(WorkLog), LogViewer),
@@ -102,7 +97,10 @@ fun NavigationDrawerItems(
 
     LaunchedEffect(currentTopLevelRoute) {
         currentTopLevelRoute?.let { currentRoute ->
-            val matchedItem = orderedItems.find { it.route == currentRoute }
+            // 匹配 MapPreviewDest 需要忽略参数差异
+            val matchedItem = orderedItems.find { 
+                it.route::class == currentRoute::class 
+            }
             if (matchedItem != null && matchedItem.id != selectedItemId) {
                 selectedItemId = matchedItem.id
             }
