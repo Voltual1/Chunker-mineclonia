@@ -1,11 +1,9 @@
 package me.voltual.mcl.core
 
-import me.voltual.mcl.mapping.MclBlockEntityRegistry
-import me.voltual.mcl.mapping.MclMappingRegistry
-
-
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier
+import me.voltual.mcl.mapping.MclMappingRegistry
+import me.voltual.mcl.mapping.MclBlockEntityRegistry
 import java.io.File
 import java.util.logging.Logger
 
@@ -50,13 +48,14 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            // 按照 Minetest 标准 ZYX 顺序进行循环，并反转 Z 轴以匹配左/右手坐标系转换
-            for (localZ in 0 until 16) {
-                for (localY in 0 until 16) {
+            // 完全对齐 C++ 内部的 YZX 局部循环顺序
+            for (localY in 0 until 16) {
+                for (localZ in 0 until 16) {
                     for (localX in 0 until 16) {
-                        val mcX = localX
+                        // Minecraft X 轴在转换到 Minetest 时需要被反转
+                        val mcX = 15 - localX 
                         val mcY = localY
-                        val mcZ = 15 - localZ // 局部 Z 轴反转
+                        val mcZ = localZ
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
                         
@@ -69,18 +68,16 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
                             node.setLight(bl, sl)
                         } else {
-                            // 默认光照：如果是地下则全黑，地上则全亮
-                            node.param1 = if (y < -124) 0x00.toByte() else 0x0F.toByte()
+                            node.param1 = if (y < 4) 0x00.toByte() else 0x0F.toByte()
                         }
                         
                         mclNodes.add(node)
                         
-                        // 处理方块实体 (Block Entity)
+                        // 处理方块实体
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
-                                // 保持元数据索引为 YZX 格式，供 Serializer 转换
-                                val blockIdx = (mcY shl 8) or (localZ shl 4) or mcX
+                                val blockIdx = (localY shl 8) or (localZ shl 4) or localX
                                 metadata[blockIdx] = data
                             }
                         }
@@ -88,14 +85,16 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
                 }
             }
 
-            // 自然坐标转换逻辑：X轴不反转，Z轴反转（-chunkZ - 1）以对齐南北朝向
-            val mclPos = MclPos(chunkX, y - 4, -chunkZ - 1)
+            // 对齐 C++ 的全局坐标变换：
+            // Minecraft 的 X 轴在区域里是反向的 (-chunkX - 1)
+            // Minetest 的 Y 轴偏移 -4 以对齐海平面 (Y=64 -> Y=0)
+            val mclPos = MclPos(-chunkX - 1, y - 4, chunkZ)
             
-            // 序列化为 Minetest Blob
+            // 序列化
             val serializedData = MclBlockSerializer.serialize(
                 mclNodes, 
                 metadata, 
-                isUnderground = y < 0
+                isUnderground = (y - 4) < 0
             )
             
             // 写入数据库
@@ -103,9 +102,6 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
         }
     }
 
-    /**
-     * 提交所有更改
-     */
     fun flush() {
         saver.commit()
     }
