@@ -1,11 +1,9 @@
 package me.voltual.mcl.mapping.modules
 
-import me.voltual.mcl.mapping.MclMappingDsl
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
 import me.voltual.mcl.mapping.MclMappingModule
 import me.voltual.mcl.mapping.MclMappingRegistry
-
-
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
+import me.voltual.mcl.mapping.MclMappingDsl
 
 object MclWoodMapping : MclMappingModule {
     override fun register() {
@@ -57,47 +55,52 @@ object MclWoodMapping : MclMappingModule {
         val dsl = MclMappingDsl
 
         // 原木 (Log)
-        registry.register(enumValueOf("${chunkerPrefix}_LOG"), dsl.log("$modName:tree_$mclName"))
+        safeRegister(registry, "${chunkerPrefix}_LOG") { dsl.log("$modName:tree_$mclName") }
         // 木块 (Wood / Bark)
-        registry.register(enumValueOf("${chunkerPrefix}_WOOD"), dsl.log("$modName:bark_$mclName"))
+        safeRegister(registry, "${chunkerPrefix}_WOOD") { dsl.log("$modName:bark_$mclName") }
         // 去皮原木 (Stripped Log)
-        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_LOG"), dsl.log("$modName:stripped_$mclName"))
+        safeRegister(registry, "STRIPPED_${chunkerPrefix}_LOG") { dsl.log("$modName:stripped_$mclName") }
         // 去皮木块 (Stripped Wood)
-        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_WOOD"), dsl.log("$modName:bark_stripped_$mclName"))
+        safeRegister(registry, "STRIPPED_${chunkerPrefix}_WOOD") { dsl.log("$modName:bark_stripped_$mclName") }
 
         // 木板 (Planks)
-        registry.register(enumValueOf("${chunkerPrefix}_PLANKS"), dsl.simple("mcl_trees:wood_$mclName"))
+        safeRegister(registry, "${chunkerPrefix}_PLANKS") { dsl.simple("mcl_trees:wood_$mclName") }
 
         // 楼梯 & 台阶
-        registry.register(enumValueOf("${chunkerPrefix}_STAIRS"), dsl.stair("mcl_stairs:stair_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_SLAB"), dsl.slab(
-            "mcl_stairs:slab_$mclName", 
-            "mcl_stairs:slab_${mclName}_top", 
-            "mcl_stairs:slab_${mclName}_double"
-        ))
+        safeRegister(registry, "${chunkerPrefix}_STAIRS") { dsl.stair("mcl_stairs:stair_$mclName") }
+        safeRegister(registry, "${chunkerPrefix}_SLAB") {
+            dsl.slab(
+                "mcl_stairs:slab_$mclName", 
+                "mcl_stairs:slab_${mclName}_top", 
+                "mcl_stairs:slab_${mclName}_double"
+            )
+        }
 
         // 栅栏 & 栅栏门
-        registry.register(enumValueOf("${chunkerPrefix}_FENCE"), dsl.simple("mcl_fences:${mclName}_fence"))
-        registry.register(enumValueOf("${chunkerPrefix}_FENCE_GATE"), dsl.gate("mcl_fences:${mclName}_fence_gate"))
+        safeRegister(registry, "${chunkerPrefix}_FENCE") { dsl.simple("mcl_fences:${mclName}_fence") }
+        safeRegister(registry, "${chunkerPrefix}_FENCE_GATE") { dsl.gate("mcl_fences:${mclName}_fence_gate") }
 
         // 门 & 活板门
-        registry.register(enumValueOf("${chunkerPrefix}_DOOR"), dsl.door("mcl_doors:door_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_TRAPDOOR"), dsl.trapdoor("mcl_doors:trapdoor_$mclName"))
+        safeRegister(registry, "${chunkerPrefix}_DOOR") { dsl.door("mcl_doors:door_$mclName") }
+        safeRegister(registry, "${chunkerPrefix}_TRAPDOOR") { dsl.trapdoor("mcl_doors:trapdoor_$mclName") }
 
         // 按钮 & 压力板
-        registry.register(enumValueOf("${chunkerPrefix}_BUTTON"), dsl.button(mclName))
-        registry.register(enumValueOf("${chunkerPrefix}_PRESSURE_PLATE"), dsl.pressurePlate(mclName))
+        safeRegister(registry, "${chunkerPrefix}_BUTTON") { dsl.button(mclName) }
+        safeRegister(registry, "${chunkerPrefix}_PRESSURE_PLATE") { dsl.pressurePlate(mclName) }
 
         // 告示牌
-        registry.register(enumValueOf("${chunkerPrefix}_SIGN"), dsl.simple("mcl_signs:standing_sign_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_WALL_SIGN"), dsl.directional("mcl_signs:wall_sign_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_HANGING_SIGN"), dsl.simple("mcl_signs:hanging_sign_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_WALL_HANGING_SIGN"), dsl.directional("mcl_signs:hanging_sign_${mclName}_wall"))
+        safeRegister(registry, "${chunkerPrefix}_SIGN") { dsl.simple("mcl_signs:standing_sign_$mclName") }
+        safeRegister(registry, "${chunkerPrefix}_WALL_SIGN") { dsl.directional("mcl_signs:wall_sign_$mclName") }
+        safeRegister(registry, "${chunkerPrefix}_HANGING_SIGN") { dsl.simple("mcl_signs:hanging_sign_$mclName") }
+        safeRegister(registry, "${chunkerPrefix}_WALL_HANGING_SIGN") { dsl.directional("mcl_signs:hanging_sign_${mclName}_wall") }
 
         // 树叶 & 树苗
         if (hasLeaves) {
-            registry.register(enumValueOf("${chunkerPrefix}_LEAVES"), dsl.simple("$modName:leaves_$mclName"))
-            registry.register(enumValueOf("${chunkerPrefix}_SAPLING"), dsl.simple("mcl_trees:sapling_$mclName"))
+            safeRegister(registry, "${chunkerPrefix}_LEAVES") { dsl.simple("$modName:leaves_$mclName") }
+            
+            // 解决 Chunker 的 MANGROVE_SAPLING 缺失问题
+            val saplingEnumName = if (chunkerPrefix == "MANGROVE") "MANGROVE_PROPAGULE" else "${chunkerPrefix}_SAPLING"
+            safeRegister(registry, saplingEnumName) { dsl.simple("mcl_trees:sapling_$mclName") }
         }
     }
 
@@ -145,5 +148,21 @@ object MclWoodMapping : MclMappingModule {
         registry.register(enumValueOf("${chunkerPrefix}_WALL_SIGN"), dsl.directional("mcl_signs:wall_sign_$mclName"))
         registry.register(enumValueOf("${chunkerPrefix}_HANGING_SIGN"), dsl.simple("mcl_signs:hanging_sign_$mclName"))
         registry.register(enumValueOf("${chunkerPrefix}_WALL_HANGING_SIGN"), dsl.directional("mcl_signs:hanging_sign_${mclName}_wall"))
+    }
+
+    /**
+     * 安全注册辅助方法：捕获由于 Chunker 版本差异导致的不存在的枚举项崩溃
+     */
+    private inline fun safeRegister(
+        registry: MclMappingRegistry, 
+        enumName: String, 
+        mapperBuilder: () -> me.voltual.mcl.mapping.BlockMapper
+    ) {
+        try {
+            val enumType = enumValueOf<ChunkerVanillaBlockType>(enumName)
+            registry.register(enumType, mapperBuilder())
+        } catch (_: IllegalArgumentException) {
+            // Chunker 库中当前运行版本没有这一项，优雅忽略
+        }
     }
 }
