@@ -162,7 +162,7 @@ dependencies {
     implementation(project(":cli"))
     implementation(project(":converter"))
     implementation(project(":pack-schema-api"))
-    implementation(project(":mcl"))
+//    implementation(project(":mcl"))
     implementation(project(":MinecloniaDecoder"))    
     implementation(files("libs/android-awt.aar"))
     implementation(project(":terminal-emulator"))

@@ -41,7 +41,6 @@ class HomeViewModel : ViewModel() {
 
     val availableFormats: List<String> by lazy {
         val formats = mutableListOf<String>()
-        formats.add("MINECLONIA")
         try {
             val writeableTypes = EncodingType.getWriteableTypes()
             for (type in writeableTypes) {
@@ -57,7 +56,6 @@ class HomeViewModel : ViewModel() {
         }
         if (formats.size <= 1) {
             listOf(
-                "MINECLONIA",
                 "JAVA_1_21",
                 "JAVA_1_20_5",
                 "JAVA_1_19_4",

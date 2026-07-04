@@ -86,7 +86,7 @@ class ChunkerViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
-            // CAN Change: Pass null as shellPath to start in pure log rendering mode
+            //  Pass null as shellPath to start in pure log rendering mode
             val newSession = TerminalSession(
                 null,
                 context.filesDir.absolutePath,

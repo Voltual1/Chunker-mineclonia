@@ -6,7 +6,7 @@ import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
-import me.voltual.mcl.writer.MclLevelWriter
+// import me.voltual.mcl.writer.MclLevelWriter 
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
@@ -104,11 +104,19 @@ class ConversionWorker(
         memoryMonitorThread.isDaemon = true
         memoryMonitorThread.start()
 
-        val isMineclonia = format == "MINECLONIA"
-        val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
-        val targetVersionString = if (isMineclonia) "1.12.2" else format.substringAfter("_").replace("_", ".")
-        val encodingType = if (isMineclonia) null else EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
+        // --- MCL 逻辑注释区 ---
+        // val isMineclonia = format == "MINECLONIA"
+        // val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
+        // val targetVersionString = if (isMineclonia) "1.12.2" else format.substringAfter("_").replace("_", ".")
+        // val encodingType = if (isMineclonia) null else EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
+        // val outputVersion = Version.fromString(targetVersionString)
+        
+        // 移除 MCL 后的标准格式解析
+        val targetTypeName = format.substringBefore("_")
+        val targetVersionString = format.substringAfter("_").replace("_", ".")
+        val encodingType = EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
         val outputVersion = Version.fromString(targetVersionString)
+        // ---------------------
 
         val worldId = calculateWorldIdentity(inputPathFile)
         val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
@@ -153,7 +161,7 @@ class ConversionWorker(
                     lastSavedProgressIndex = lastSavedProgressIndex,
                     threadCount = threadCount,
                     processMaps = processMaps,
-                    isMineclonia = isMineclonia,
+                    // isMineclonia = isMineclonia, // 注释掉
                     encodingType = encodingType,
                     outputVersion = outputVersion,
                     targetTypeName = targetTypeName,
@@ -168,7 +176,7 @@ class ConversionWorker(
                     lastSavedProgressIndex = lastSavedProgressIndex,
                     threadCount = threadCount,
                     processMaps = processMaps,
-                    isMineclonia = isMineclonia,
+                    // isMineclonia = isMineclonia, // 注释掉
                     encodingType = encodingType,
                     outputVersion = outputVersion,
                     targetTypeName = targetTypeName,
@@ -211,7 +219,7 @@ class ConversionWorker(
         lastSavedProgressIndex: Int,
         threadCount: Int,
         processMaps: Boolean,
-        isMineclonia: Boolean,
+        // isMineclonia: Boolean, // 注释掉
         encodingType: EncodingType?,
         outputVersion: Version,
         targetTypeName: String,
@@ -266,11 +274,17 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
+            // --- MCL Writer 逻辑注释 ---
+            /*
             val sliceWriterOpt = if (isMineclonia) {
                 java.util.Optional.of(MclLevelWriter(sliceOutputDir))
             } else {
                 encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
+            */
+            val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
+            // --------------------------
+            
             if (!sliceWriterOpt.isPresent) {
                 throw IllegalStateException("Failed to create writer.")
             }
@@ -303,7 +317,7 @@ class ConversionWorker(
         lastSavedProgressIndex: Int,
         threadCount: Int,
         processMaps: Boolean,
-        isMineclonia: Boolean,
+        // isMineclonia: Boolean, // 注释掉
         encodingType: EncodingType?,
         outputVersion: Version,
         targetTypeName: String,
@@ -395,11 +409,17 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
 
+            // --- MCL Writer 逻辑注释 ---
+            /*
             val sliceWriterOpt = if (isMineclonia) {
                 java.util.Optional.of(MclLevelWriter(sliceOutputDir))
             } else {
                 encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
             }
+            */
+            val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
+            // --------------------------
+            
             if (!sliceWriterOpt.isPresent) {
                 throw IllegalStateException("Failed to create writer.")
             }
@@ -477,92 +497,84 @@ class ConversionWorker(
     }
 
     /**
-     * 合并 SQLite3 map.sqlite 数据库
+     * 合并 SQLite3 map.sqlite 数据库 (MCL/Minetest 专有，已不再被 mergeOutputSlice 调用)
      */
-private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
-    var destDb: SQLiteDatabase? = null
-    var sliceDb: SQLiteDatabase? = null
-    var cursor: android.database.Cursor? = null
-    var destInsertStmt: SQLiteStatement? = null
+    private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
+        var destDb: SQLiteDatabase? = null
+        var sliceDb: SQLiteDatabase? = null
+        var cursor: android.database.Cursor? = null
+        var destInsertStmt: SQLiteStatement? = null
 
-    try {
-        // 确保目标父目录存在
-        finalDbFile.parentFile?.mkdirs()
+        try {
+            finalDbFile.parentFile?.mkdirs()
 
-        // 1. 打开并初始化目标主数据库
-        destDb = SQLiteDatabase.openOrCreateDatabase(finalDbFile.absolutePath, null)
-        
-        // 安全执行 PRAGMA 语句，避免 execSQL 抛出查询异常
-        val pragmaSyncCursor = destDb.rawQuery("PRAGMA synchronous = OFF;", null)
-        pragmaSyncCursor?.moveToFirst()
-        pragmaSyncCursor?.close()
+            destDb = SQLiteDatabase.openOrCreateDatabase(finalDbFile.absolutePath, null)
+            
+            val pragmaSyncCursor = destDb.rawQuery("PRAGMA synchronous = OFF;", null)
+            pragmaSyncCursor?.moveToFirst()
+            pragmaSyncCursor?.close()
 
-        val pragmaJournalCursor = destDb.rawQuery("PRAGMA journal_mode = MEMORY;", null)
-        pragmaJournalCursor?.moveToFirst()
-        pragmaJournalCursor?.close()
+            val pragmaJournalCursor = destDb.rawQuery("PRAGMA journal_mode = MEMORY;", null)
+            pragmaJournalCursor?.moveToFirst()
+            pragmaJournalCursor?.close()
 
-        // CREATE TABLE 是标准的非查询语句，可以使用 execSQL
-        destDb.execSQL(
-            """
-            CREATE TABLE IF NOT EXISTS `blocks` (
-                `pos` INT PRIMARY KEY,
-                `data` BLOB
-            );
-            """.trimIndent()
-        )
+            destDb.execSQL(
+                """
+                CREATE TABLE IF NOT EXISTS `blocks` (
+                    `pos` INT PRIMARY KEY,
+                    `data` BLOB
+                );
+                """.trimIndent()
+            )
 
-        // 2. 打开分片源数据库
-        sliceDb = SQLiteDatabase.openOrCreateDatabase(sliceDbFile.absolutePath, null)
+            sliceDb = SQLiteDatabase.openOrCreateDatabase(sliceDbFile.absolutePath, null)
 
-        // 3. 开始主事务
-        destDb.beginTransaction()
+            destDb.beginTransaction()
 
-        // 4. 查询源分片的所有 blocks
-        cursor = sliceDb.rawQuery("SELECT `pos`, `data` FROM `blocks`", null)
+            cursor = sliceDb.rawQuery("SELECT `pos`, `data` FROM `blocks`", null)
 
-        if (cursor != null) {
-            val posIdx = cursor.getColumnIndex("pos")
-            val dataIdx = cursor.getColumnIndex("data")
+            if (cursor != null) {
+                val posIdx = cursor.getColumnIndex("pos")
+                val dataIdx = cursor.getColumnIndex("data")
 
-            // 5. 编译预编译语句
-            destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
+                destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
 
-            var count = 0
-            while (cursor.moveToNext()) {
-                val pos = cursor.getLong(posIdx)
-                val data = cursor.getBlob(dataIdx)
+                var count = 0
+                while (cursor.moveToNext()) {
+                    val pos = cursor.getLong(posIdx)
+                    val data = cursor.getBlob(dataIdx)
 
-                destInsertStmt.clearBindings()
-                destInsertStmt.bindLong(1, pos)
-                destInsertStmt.bindBlob(2, data)
-                destInsertStmt.executeInsert()
+                    destInsertStmt.clearBindings()
+                    destInsertStmt.bindLong(1, pos)
+                    destInsertStmt.bindBlob(2, data)
+                    destInsertStmt.executeInsert()
 
-                count++
-                if (count >= 500) {
-                    destDb.setTransactionSuccessful()
-                    destDb.endTransaction()
-                    destDb.beginTransaction()
-                    count = 0
+                    count++
+                    if (count >= 500) {
+                        destDb.setTransactionSuccessful()
+                        destDb.endTransaction()
+                        destDb.beginTransaction()
+                        count = 0
+                    }
                 }
+
+                destDb.setTransactionSuccessful()
+                destDb.endTransaction()
             }
 
-            // 提交剩余的所有事务
-            destDb.setTransactionSuccessful()
-            destDb.endTransaction()
+        } catch (e: Exception) {
+            System.err.println("\u001B[31m[Merge Error] Failed to merge Minetest databases: ${e.message}\u001B[0m")
+            e.printStackTrace()
+        } finally {
+            try { destInsertStmt?.close() } catch (_: Exception) {}
+            try { cursor?.close() } catch (_: Exception) {}
+            try { sliceDb?.close() } catch (_: Exception) {}
+            try { destDb?.close() } catch (_: Exception) {}
         }
-
-    } catch (e: Exception) {
-        System.err.println("\u001B[31m[Merge Error] Failed to merge Minetest databases: ${e.message}\u001B[0m")
-        e.printStackTrace()
-    } finally {
-        try { destInsertStmt?.close() } catch (_: Exception) {}
-        try { cursor?.close() } catch (_: Exception) {}
-        try { sliceDb?.close() } catch (_: Exception) {}
-        try { destDb?.close() } catch (_: Exception) {}
     }
-}
 
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
+        /*
         if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
             val sliceMapDb = File(sliceOutputDir, "map.sqlite")
             if (sliceMapDb.exists()) {
@@ -577,7 +589,9 @@ private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
                     copyFile(worldMt, finalWorldMt)
                 }
             }
-        } else if (targetFormat.contains("JAVA", ignoreCase = true)) {
+        } else 
+        */
+        if (targetFormat.contains("JAVA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
                 val srcFolder = File(sliceOutputDir, folderName)
