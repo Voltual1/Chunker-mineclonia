@@ -44,3 +44,9 @@ data class TerminalExec(
 
 /** 存档解码还原界面 */
 @Serializable data object DecoderDest : AppDestination
+
+/** NBT 编辑器目标，接收需要编辑的本地 NBT 文件路径（例如 level.dat 路径） */
+@Serializable data class NbtEditorDest(
+    val filePath: String,
+    val title: String = "NBT 编辑器"
+) : AppDestination

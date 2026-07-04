@@ -126,9 +126,10 @@ class NbtEditorViewModel : ViewModel() {
         return clipboardTag != null
     }
 
-    /**
+        /**
      * 粘贴并覆盖当前节点
      */
+    @Suppress("UNCHECKED_CAST")
     fun pasteOverwrite(node: NbtUiNode): Boolean {
         val copiedTag = clipboardTag?.clone() ?: return false
         val parent = node.parent
@@ -150,9 +151,10 @@ class NbtEditorViewModel : ViewModel() {
                     refreshTree()
                     return true
                 }
-                is ListTag<Tag<Any>, Any> -> {
-                    val list = parent.value ?: return false
-                    val index = list.indexOf(node.tag)
+                is ListTag<*, *> -> {
+                    // 使用星投影规避运行期类型擦除，在内部转换为具体类型
+                    val list = parent.value as? MutableList<Tag<Any>> ?: return false
+                    val index = list.indexOf(node.tag as Tag<Any>)
                     if (index != -1) {
                         list[index] = copiedTag as Tag<Any>
                         editableNbt?.markModified()
@@ -238,6 +240,8 @@ class NbtEditorViewModel : ViewModel() {
         }
         return false
     }
+
+    
 
     /**
      * 新建并插入子标签

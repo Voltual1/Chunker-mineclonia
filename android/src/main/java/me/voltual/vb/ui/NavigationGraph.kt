@@ -35,7 +35,10 @@ import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
 import me.voltual.vb.ui.decoder.DecoderScreen
-import me.voltual.vb.data.ConversionProgressDataStore
+import me.voltual.vb.ui.nbt.NbtEditorScreen
+import me.voltual.vb.ui.nbt.CompoundEditableNbt
+import com.hivemc.chunker.nbt.tags.Tag
+import java.io.File
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -142,6 +145,33 @@ fun BBQNavDisplay(
 
                         is DecoderDest -> {
                             DecoderScreen(
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        is NbtEditorDest -> {
+                            val file = File(key.filePath)
+                            val editableNbt = remember(key.filePath) {
+                                val rootTag = if (file.exists()) {
+                                    Tag.readPossibleGZipJavaNBT(file) ?: com.hivemc.chunker.nbt.tags.collection.CompoundTag()
+                                } else {
+                                    com.hivemc.chunker.nbt.tags.collection.CompoundTag()
+                                }
+                                CompoundEditableNbt(rootTag, key.title) { updatedRoot ->
+                                    try {
+                                        Tag.writeGZipJavaNBT(file, updatedRoot)
+                                        true
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        false
+                                    }
+                                }
+                            }
+
+                            NbtEditorScreen(
+                                editableNbt = editableNbt,
+                                onBack = onBack,
                                 snackbarHostState = snackbarHostState,
                                 modifier = Modifier.fillMaxSize()
                             )
