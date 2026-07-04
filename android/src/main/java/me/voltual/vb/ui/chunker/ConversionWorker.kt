@@ -255,7 +255,7 @@ class ConversionWorker(
             sliceConverter.setProcessEntities(true)
             sliceConverter.setProcessBlockEntities(true)
             sliceConverter.setProcessBiomes(true)
-            sliceConverter.setProcessLighting(false) // 针对移动端优化，不计算光照
+            sliceConverter.setProcessLighting(false)
             sliceConverter.setProcessColumnPreTransform(false)
             sliceConverter.setThreadCount(threadCount)
             sliceConverter.setProcessMaps(processMaps)
@@ -474,15 +474,82 @@ class ConversionWorker(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
+    /**
+     * 合并 SQLite3 map.sqlite 数据库
+     */
+    private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
+        var srcConn: java.sql.Connection? = null
+        var destConn: java.sql.Connection? = null
+        var srcStmt: java.sql.Statement? = null
+        var destStmt: java.sql.PreparedStatement? = null
+        var resultSet: java.sql.ResultSet? = null
+
+        try {
+            finalDbFile.parentFile?.mkdirs()
+            val finalDbExists = finalDbFile.exists()
+
+            destConn = java.sql.DriverManager.getConnection("jdbc:sqlite:${finalDbFile.absolutePath}")
+            destConn.autoCommit = false
+            destStmt = destConn.prepareStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
+
+            if (!finalDbExists) {
+                val initStmt = destConn.createStatement()
+                initStmt.execute("PRAGMA synchronous = OFF;")
+                initStmt.execute("PRAGMA journal_mode = MEMORY;")
+                initStmt.execute(
+                    """
+                    CREATE TABLE IF NOT EXISTS `blocks` (
+                        `pos` INT PRIMARY KEY,
+                        `data` BLOB
+                    );
+                    """.trimIndent()
+                )
+                initStmt.close()
+            }
+
+            srcConn = java.sql.DriverManager.getConnection("jdbc:sqlite:${sliceDbFile.absolutePath}")
+            srcStmt = srcConn.createStatement()
+            resultSet = srcStmt.executeQuery("SELECT `pos`, `data` FROM `blocks`")
+
+            var batchCount = 0
+            while (resultSet.next()) {
+                val pos = resultSet.getLong("pos")
+                val data = resultSet.getBytes("data")
+                
+                destStmt.setLong(1, pos)
+                destStmt.setBytes(2, data)
+                destStmt.addBatch()
+                
+                batchCount++
+                if (batchCount >= 500) {
+                    destStmt.executeBatch()
+                    batchCount = 0
+                }
+            }
+
+            if (batchCount > 0) {
+                destStmt.executeBatch()
+            }
+            destConn.commit()
+
+        } catch (e: Exception) {
+            System.err.println("\u001B[31m[Merge Error] Failed to merge slice sqlite database: ${e.message}\u001B[0m")
+            e.printStackTrace()
+        } finally {
+            try { resultSet?.close() } catch (_: Exception) {}
+            try { srcStmt?.close() } catch (_: Exception) {}
+            try { srcConn?.close() } catch (_: Exception) {}
+            try { destStmt?.close() } catch (_: Exception) {}
+            try { destConn?.close() } catch (_: Exception) {}
+        }
+    }
+
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
         if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
-            // 处理 Mineclonia (Minetest) 特有的文件合并逻辑
-            val mapDb = File(sliceOutputDir, "map.sqlite")
-            if (mapDb.exists()) {
-                // Minetest 的 map.sqlite 是单一数据库文件，分片模式下 MclSqliteSaver 使用 INSERT OR REPLACE
-                // 因此可以直接将分片产生的 map.sqlite 移动（或合并）到最终目录
+            val sliceMapDb = File(sliceOutputDir, "map.sqlite")
+            if (sliceMapDb.exists()) {
                 val finalMapDb = File(finalOutputDir, "map.sqlite")
-                copyFile(mapDb, finalMapDb)
+                mergeSqliteDatabase(sliceMapDb, finalMapDb)
             }
 
             val worldMt = File(sliceOutputDir, "world.mt")
