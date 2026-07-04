@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发 and/或 修改 it。
+//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
 // 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
@@ -72,7 +72,6 @@ class MapPreviewViewModel : ViewModel() {
                     return@withContext
                 }
 
-                // 完备实现 Chunker Converter 接口
                 val converterStub = object : Converter {
                     override fun shouldLevelDBCompaction(): Boolean = false
                     override fun shouldProcessMaps(): Boolean = false
@@ -130,20 +129,23 @@ class MapPreviewViewModel : ViewModel() {
 
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
-                        override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                            val worldWriter = previewWriter.writeLevel(level)
+                        // 修正 Java 空安全限制：去除 ChunkerLevel 的可空标识，并引入安全防护
+                        override fun convertLevel(level: ChunkerLevel): Task<WorldConversionHandler> {
+                            val safeLevel = level ?: ChunkerLevel(null)
+                            val worldWriter = previewWriter.writeLevel(safeLevel)
                             val worldHandler = object : WorldConversionHandler {
-                                override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
-                                    val columnWriter = worldWriter.writeWorld(world)
+                                override fun convertWorld(world: ChunkerWorld): Task<ColumnConversionHandler> {
+                                    val safeWorld = world ?: ChunkerWorld(null)
+                                    val columnWriter = worldWriter.writeWorld(safeWorld)
                                     val columnHandler = object : ColumnConversionHandler {
-                                        override fun convertColumn(column: ChunkerColumn?): Task<Void> {
+                                        override fun convertColumn(column: ChunkerColumn): Task<Void> {
                                             if (column != null) {
                                                 columnWriter.writeColumn(column)
                                             }
                                             return FutureTask(CompletableFuture.completedFuture(null))
                                         }
 
-                                        override fun flushRegion(regionCoordPair: RegionCoordPair?): Task<Void> {
+                                        override fun flushRegion(regionCoordPair: RegionCoordPair): Task<Void> {
                                             if (regionCoordPair != null) {
                                                 columnWriter.flushRegion(regionCoordPair)
                                             }
@@ -158,7 +160,7 @@ class MapPreviewViewModel : ViewModel() {
                                     return FutureTask(CompletableFuture.completedFuture(columnHandler))
                                 }
 
-                                override fun flushWorld(world: ChunkerWorld?) {
+                                override fun flushWorld(world: ChunkerWorld) {
                                     worldWriter.flushWorld(world)
                                 }
 
