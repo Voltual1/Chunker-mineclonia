@@ -21,6 +21,8 @@ import java.util.UUID
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
+import android.database.sqlite.SQLiteDatabase
+import android.database.sqlite.SQLiteStatement
 import kotlinx.coroutines.CancellationException
 
 class ConversionWorker(
@@ -477,72 +479,80 @@ class ConversionWorker(
     /**
      * 合并 SQLite3 map.sqlite 数据库
      */
-    private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
-        var srcConn: java.sql.Connection? = null
-        var destConn: java.sql.Connection? = null
-        var srcStmt: java.sql.Statement? = null
-        var destStmt: java.sql.PreparedStatement? = null
-        var resultSet: java.sql.ResultSet? = null
+private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
+    var destDb: SQLiteDatabase? = null
+    var sliceDb: SQLiteDatabase? = null
+    var cursor: android.database.Cursor? = null
+    var destInsertStmt: SQLiteStatement? = null
 
-        try {
-            finalDbFile.parentFile?.mkdirs()
-            val finalDbExists = finalDbFile.exists()
+    try {
+        // 确保目标父目录存在
+        finalDbFile.parentFile?.mkdirs()
 
-            destConn = java.sql.DriverManager.getConnection("jdbc:sqlite:${finalDbFile.absolutePath}")
-            destConn.autoCommit = false
-            destStmt = destConn.prepareStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
+        // 1. 打开并初始化目标主数据库
+        destDb = SQLiteDatabase.openOrCreateDatabase(finalDbFile.absolutePath, null)
+        destDb.execSQL("PRAGMA synchronous = OFF;")
+        destDb.execSQL("PRAGMA journal_mode = MEMORY;")
+        destDb.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS `blocks` (
+                `pos` INT PRIMARY KEY,
+                `data` BLOB
+            );
+            """.trimIndent()
+        )
 
-            if (!finalDbExists) {
-                val initStmt = destConn.createStatement()
-                initStmt.execute("PRAGMA synchronous = OFF;")
-                initStmt.execute("PRAGMA journal_mode = MEMORY;")
-                initStmt.execute(
-                    """
-                    CREATE TABLE IF NOT EXISTS `blocks` (
-                        `pos` INT PRIMARY KEY,
-                        `data` BLOB
-                    );
-                    """.trimIndent()
-                )
-                initStmt.close()
-            }
+        // 2. 打开分片源数据库
+        sliceDb = SQLiteDatabase.openOrCreateDatabase(sliceDbFile.absolutePath, null)
 
-            srcConn = java.sql.DriverManager.getConnection("jdbc:sqlite:${sliceDbFile.absolutePath}")
-            srcStmt = srcConn.createStatement()
-            resultSet = srcStmt.executeQuery("SELECT `pos`, `data` FROM `blocks`")
+        // 3. 开始主事务
+        destDb.beginTransaction()
 
-            var batchCount = 0
-            while (resultSet.next()) {
-                val pos = resultSet.getLong("pos")
-                val data = resultSet.getBytes("data")
-                
-                destStmt.setLong(1, pos)
-                destStmt.setBytes(2, data)
-                destStmt.addBatch()
-                
-                batchCount++
-                if (batchCount >= 500) {
-                    destStmt.executeBatch()
-                    batchCount = 0
+        // 4. 查询源分片的所有 blocks
+        cursor = sliceDb.rawQuery("SELECT `pos`, `data` FROM `blocks`", null)
+
+        if (cursor != null) {
+            val posIdx = cursor.getColumnIndex("pos")
+            val dataIdx = cursor.getColumnIndex("data")
+
+            // 5. 编译预编译语句，加速批量插入
+            destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
+
+            var count = 0
+            while (cursor.moveToNext()) {
+                val pos = cursor.getLong(posIdx)
+                val data = cursor.getBlob(dataIdx)
+
+                destInsertStmt.clearBindings()
+                destInsertStmt.bindLong(1, pos)
+                destInsertStmt.bindBlob(2, data)
+                destInsertStmt.executeInsert()
+
+                count++
+                // 每 500 条数据小提交并重开事务，平衡内存与磁盘写入
+                if (count >= 500) {
+                    destDb.setTransactionSuccessful()
+                    destDb.endTransaction()
+                    destDb.beginTransaction()
+                    count = 0
                 }
             }
 
-            if (batchCount > 0) {
-                destStmt.executeBatch()
-            }
-            destConn.commit()
-
-        } catch (e: Exception) {
-            System.err.println("\u001B[31m[Merge Error] Failed to merge slice sqlite database: ${e.message}\u001B[0m")
-            e.printStackTrace()
-        } finally {
-            try { resultSet?.close() } catch (_: Exception) {}
-            try { srcStmt?.close() } catch (_: Exception) {}
-            try { srcConn?.close() } catch (_: Exception) {}
-            try { destStmt?.close() } catch (_: Exception) {}
-            try { destConn?.close() } catch (_: Exception) {}
+            // 提交剩余的所有事务
+            destDb.setTransactionSuccessful()
+            destDb.endTransaction()
         }
+
+    } catch (e: Exception) {
+        System.err.println("\u001B[31m[Merge Error] Failed to merge Minetest databases: ${e.message}\u001B[0m")
+        e.printStackTrace()
+    } finally {
+        try { destInsertStmt?.close() } catch (_: Exception) {}
+        try { cursor?.close() } catch (_: Exception) {}
+        try { sliceDb?.close() } catch (_: Exception) {}
+        try { destDb?.close() } catch (_: Exception) {}
     }
+}
 
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
         if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
