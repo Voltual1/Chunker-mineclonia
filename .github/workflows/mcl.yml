@@ -1,13 +1,8 @@
 name: MCL-Build
 
 on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
-  release:
-    types: [ published ]
-
+  workflow_dispatch:
+  
 permissions:
   contents: write
 
