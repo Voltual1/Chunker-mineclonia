@@ -1,8 +1,6 @@
 package me.voltual.mcl.mapping
 
 import me.voltual.mcl.core.MclNode
-
-
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.*
 
@@ -194,48 +192,57 @@ object MclMappingDsl {
         MclNode(nodeName, param2 = power.ordinal.toByte())
     }
 
-    // 15. 红石粉导线映射
+    // 15. 红石粉导线映射 （修正后）
     fun redstoneWire() = BlockMapper { id ->
-        val east = id.getState(VanillaBlockStates.REDSTONE_EAST) ?: RedstoneConnection.NONE
-        val west = id.getState(VanillaBlockStates.REDSTONE_WEST) ?: RedstoneConnection.NONE
         val north = id.getState(VanillaBlockStates.REDSTONE_NORTH) ?: RedstoneConnection.NONE
+        val east = id.getState(VanillaBlockStates.REDSTONE_EAST) ?: RedstoneConnection.NONE
         val south = id.getState(VanillaBlockStates.REDSTONE_SOUTH) ?: RedstoneConnection.NONE
+        val west = id.getState(VanillaBlockStates.REDSTONE_WEST) ?: RedstoneConnection.NONE
         val power = id.getState(VanillaBlockStates.POWER) ?: Power._0
 
         var wireflags = 0
+        // 北 (-Z) -> 0x01
         if (north != RedstoneConnection.NONE) {
-            wireflags = wireflags or 0x1
+            wireflags = wireflags or 0x01
             if (north == RedstoneConnection.UP) wireflags = wireflags or 0x10
         }
-        if (east != RedstoneConnection.NONE) {
-            wireflags = wireflags or 0x2
-            if (east == RedstoneConnection.UP) wireflags = wireflags or 0x20
+        // 西 (-X) -> 0x02
+        if (west != RedstoneConnection.NONE) {
+            wireflags = wireflags or 0x02
+            if (west == RedstoneConnection.UP) wireflags = wireflags or 0x20
         }
+        // 南 (+Z) -> 0x04
         if (south != RedstoneConnection.NONE) {
-            wireflags = wireflags or 0x4
+            wireflags = wireflags or 0x04
             if (south == RedstoneConnection.UP) wireflags = wireflags or 0x40
         }
-        if (west != RedstoneConnection.NONE) {
-            wireflags = wireflags or 0x8
-            if (west == RedstoneConnection.UP) wireflags = wireflags or 0x80
+        // 东 (+X) -> 0x08
+        if (east != RedstoneConnection.NONE) {
+            wireflags = wireflags or 0x08
+            if (east == RedstoneConnection.UP) wireflags = wireflags or 0x80
         }
-        val nodeName = if (wireflags == 0) "mcl_redstone:redstone" else "mcl_redstone:wire_" + String.format("%02x", wireflags)
+
+        val nodeName = if (wireflags == 0) "mcl_redstone:redstone" 
+                       else "mcl_redstone:wire_" + wireflags.toString(16).padStart(2, '0')
+        
+        // param2 的低 4 位是电力等级 (0-15)
         MclNode(nodeName, param2 = power.ordinal.toByte())
     }
 
-    // 16. 活塞映射
+    // 16. 活塞映射 （修正后）
     fun piston(sticky: Boolean) = BlockMapper { id ->
         val extended = id.getState(VanillaBlockStates.EXTENDED) ?: Bool.FALSE
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.NORTH
         val base = if (sticky) "mcl_pistons:piston_sticky" else "mcl_pistons:piston"
         val state = if (extended == Bool.TRUE) "_on" else "_off"
+        
         val param2 = when (facing) {
-            FacingDirection.DOWN -> 15
-            FacingDirection.UP -> 1
             FacingDirection.NORTH -> 0
             FacingDirection.EAST -> 1
             FacingDirection.SOUTH -> 2
             FacingDirection.WEST -> 3
+            FacingDirection.DOWN -> 20
+            FacingDirection.UP -> 4 // Minetest facedir 对轴向旋转的特殊定义
         }.toByte()
         MclNode("$base$state", param2 = param2)
     }
