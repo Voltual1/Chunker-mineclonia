@@ -54,7 +54,9 @@ class MapPreviewViewModel : ViewModel() {
                             })
                             if (block != null) {
                                 hasContent = true
-                                val rgb = block.value.rgbColor
+                                // 显式调用 Java 的 value() 方法获取 ChunkerBlockIdentifier 实例，
+                                // 随后调用 blockType 上的 getRGBColor() 以正确获取颜色值
+                                val rgb = block.value().rgbColor
                                 argb[(z shl 4) or x] = if (rgb == 0) 0 else (0xFF000000.toInt() or rgb)
                             }
                         }
