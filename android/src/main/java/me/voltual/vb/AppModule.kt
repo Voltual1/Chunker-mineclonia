@@ -23,6 +23,7 @@ import me.voltual.vb.core.ftp.FtpServerManager
 import me.voltual.vb.ui.packconverter.PackConverterViewModel
 import me.voltual.vb.ui.decoder.DecoderViewModel
 import me.voltual.vb.ui.nbt.NbtEditorViewModel
+import me.voltual.vb.ui.map.MapPreviewViewModel
 
 val USER_AGREEMENT_STORE_QUALIFIER = named("user_agreement_store")
 val UPDATE_SETTINGS_STORE_QUALIFIER = named("update_settings_store")
@@ -40,7 +41,8 @@ val appModule = module {
     viewModel { ChunkerSettingsViewModel(get()) }
     viewModel { PackConverterViewModel(androidContext()) }
     viewModel { DecoderViewModel(androidContext()) }
-    viewModel { NbtEditorViewModel() } // 注入 NbtEditorViewModel 实例
+    viewModel { NbtEditorViewModel() }
+    viewModel { MapPreviewViewModel() } // 注册地图预览 ViewModel
    
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }
