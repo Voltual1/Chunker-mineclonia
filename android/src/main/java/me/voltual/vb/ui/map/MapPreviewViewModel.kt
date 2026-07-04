@@ -29,12 +29,19 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
+import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry
+import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
+import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
+import com.hivemc.chunker.scheduling.task.FutureTask
 import com.hivemc.chunker.scheduling.task.Task
 import com.anggrayudi.storage.file.toRawFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 
 class MapPreviewViewModel : ViewModel() {
@@ -48,9 +55,6 @@ class MapPreviewViewModel : ViewModel() {
     var statusMessage by mutableStateOf("")
         private set
 
-    /**
-     * 打开本地存档并解析生成渲染图
-     */
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile) {
         viewModelScope.launch {
             isLoading = true
@@ -68,15 +72,32 @@ class MapPreviewViewModel : ViewModel() {
                     return@withContext
                 }
 
-                // 创建 Chunker 转换器存根 Stub
+                // 完备实现 Chunker Converter 接口
                 val converterStub = object : Converter {
-                    override fun shouldProcessIncompleteChunks(): Boolean = false
-                    override fun getUnmappedBlockHandler(): Any? = null
-                    override fun getUnmappedItemHandler(): Any? = null
-                    override fun logMissingMapping(p0: String?, p1: String?) {}
+                    override fun shouldLevelDBCompaction(): Boolean = false
+                    override fun shouldProcessMaps(): Boolean = false
+                    override fun shouldProcessItems(): Boolean = false
+                    override fun shouldProcessEntities(): Boolean = false
+                    override fun shouldProcessBlockEntities(): Boolean = false
+                    override fun shouldProcessLootTables(): Boolean = false
+                    override fun shouldProcessBiomes(): Boolean = false
+                    override fun shouldProcessHeightMap(): Boolean = false
+                    override fun shouldProcessColumnPreTransform(): Boolean = false
+                    override fun shouldProcessLighting(): Boolean = false
+                    override fun shouldProcessDimension(dimension: Dimension?): Boolean = true
+                    override fun shouldProcessRegion(dimension: Dimension?, regionPair: RegionCoordPair?): Boolean = true
+                    override fun shouldProcessColumn(dimension: Dimension?, columnPair: ChunkCoordPair?): Boolean = true
+                    override fun shouldAllowNBTCopying(): Boolean = false
+                    override fun shouldAllowCustomIdentifiers(): Boolean = false
+                    override fun getBlockMappings(): MappingsFileResolvers? = null
+                    override fun getDimensionRegistry(): DimensionRegistry = DimensionRegistry()
+                    override fun shouldDiscardEmptyChunks(): Boolean = true
+                    override fun shouldPreventYBiomeBlending(): Boolean = false
+                    override fun getNewDimension(dimension: Dimension?): Optional<Dimension> = Optional.ofNullable(dimension)
+                    override fun getNewBiome(biome: ChunkerBiome?): ChunkerBiome? = biome
+                    override fun level(): Optional<ChunkerLevel> = Optional.empty()
                 }
 
-                // 探测 LevelReader
                 val readerOpt = EncodingType.findReader(worldDirectory, converterStub)
                 if (!readerOpt.isPresent) {
                     withContext(Dispatchers.Main) {
@@ -91,7 +112,6 @@ class MapPreviewViewModel : ViewModel() {
                     statusMessage = "检测到 ${levelReader.encodingType.name} 格式 (版本: ${levelReader.version})"
                 }
 
-                // 自定义预览写入管线，将生成的每一列像素注入我们 ViewModel 维护的 regionRGBAData 中
                 val previewWriter = ComposeMapPreviewWriter(
                     onColumnRendered = { region, chunk, argb ->
                         val chunksInRegion = regionRGBAData.computeIfAbsent(region) { ConcurrentHashMap() }
@@ -108,33 +128,45 @@ class MapPreviewViewModel : ViewModel() {
                     }
                 )
 
-                // 启动 Chunker 数据转换传输管线
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
-                        override fun readLevel(chunkerLevel: ChunkerLevel): WorldConversionHandler {
-                            val worldWriter = previewWriter.writeLevel(chunkerLevel)
-                            return object : WorldConversionHandler {
-                                override fun readWorld(chunkerWorld: ChunkerWorld): ColumnConversionHandler {
-                                    val columnWriter = worldWriter.writeWorld(chunkerWorld)
-                                    return object : ColumnConversionHandler {
-                                        override fun readColumn(chunkerColumn: ChunkerColumn) {
-                                            columnWriter.writeColumn(chunkerColumn)
+                        override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
+                            val worldWriter = previewWriter.writeLevel(level)
+                            val worldHandler = object : WorldConversionHandler {
+                                override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
+                                    val columnWriter = worldWriter.writeWorld(world)
+                                    val columnHandler = object : ColumnConversionHandler {
+                                        override fun convertColumn(column: ChunkerColumn?): Task<Void> {
+                                            if (column != null) {
+                                                columnWriter.writeColumn(column)
+                                            }
+                                            return FutureTask(CompletableFuture.completedFuture(null))
                                         }
 
-                                        override fun flushColumns() {
+                                        override fun flushRegion(regionCoordPair: RegionCoordPair?): Task<Void> {
+                                            if (regionCoordPair != null) {
+                                                columnWriter.flushRegion(regionCoordPair)
+                                            }
+                                            return FutureTask(CompletableFuture.completedFuture(null))
+                                        }
+
+                                        override fun flushColumns(): Task<Void> {
                                             columnWriter.flushColumns()
+                                            return FutureTask(CompletableFuture.completedFuture(null))
                                         }
                                     }
+                                    return FutureTask(CompletableFuture.completedFuture(columnHandler))
                                 }
 
-                                override fun flushWorld(p0: ChunkerWorld?) {
-                                    worldWriter.flushWorld(p0)
+                                override fun flushWorld(world: ChunkerWorld?) {
+                                    worldWriter.flushWorld(world)
                                 }
 
                                 override fun flushWorlds() {
                                     worldWriter.flushWorlds()
                                 }
                             }
+                            return FutureTask(CompletableFuture.completedFuture(worldHandler))
                         }
 
                         override fun flushLevel() {

@@ -18,16 +18,15 @@ import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
-import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
+import com.hivemc.chunker.scheduling.task.FutureTask
 import com.hivemc.chunker.scheduling.task.Task
+import java.util.concurrent.CompletableFuture
 import java.util.function.Predicate
 
 /**
- * 桥接 Chunker 写入管线的自定义 LevelWriter。
- * 当 Chunker 读取世界数据并写入该 PreviewWriter 时，我们会拦截每一列的最高高度方块像素，
- * 并通过 [onColumnRendered] 实时回调给 ViewModel。
+ * 拦截 Chunker 转换器流式读取到的区块，提取最高方块像素色值并传回给 UI。
  */
 class ComposeMapPreviewWriter(
     private val onColumnRendered: (RegionCoordPair, ChunkCoordPair, IntArray) -> Unit,
@@ -63,7 +62,8 @@ class ComposeMapPreviewWriter(
                             )
                         }
 
-                        return Task.completed(null)
+                        // 返回已完成的 FutureTask 实例以驱动 Chunker 的后续任务链
+                        return FutureTask(CompletableFuture.completedFuture(null))
                     }
 
                     override fun flushRegion(regionCoordPair: RegionCoordPair) {

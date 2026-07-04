@@ -46,8 +46,7 @@ fun MapPreviewScreen(
     // SimpleStorage 文件夹选择器
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         currentUri = folder.uri.toString()
-        // 这里后续可以触发真正的 Chunker 加载逻辑
-        // viewModel.loadAndRenderPreviewFromUri(context, folder)
+        viewModel.loadAndRenderWorld(context, folder) // 触发 Chunker 加载并分析世界 NBT 像素
     }
 
     Scaffold(
