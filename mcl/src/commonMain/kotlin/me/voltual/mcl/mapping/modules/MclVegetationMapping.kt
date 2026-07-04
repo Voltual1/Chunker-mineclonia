@@ -38,13 +38,7 @@ object MclVegetationMapping : MclMappingModule {
             MclNode(nodeName)
         })
 
-        // 甜菜根
-        registry.register(ChunkerVanillaBlockType.BEETROOTQS, BlockMapper { id -> // 修正 Chunker 里的拼写 BEETROOTS 在 1.21中是 BEETROOTQS/BEETROOTS
-            val age = id.getState(VanillaBlockStates.AGE_3) ?: Age_3._0
-            val nodeName = if (age == Age_3._3) "mcl_farming:beetroot" else "mcl_farming:beetroot_${age.ordinal}"
-            MclNode(nodeName)
-        })
-        // 冗余注册兼容 Chunker 不同版本的命名
+        // 甜菜根 (修正: Chunker 源码中名为 BEETROOTS)
         registry.register(ChunkerVanillaBlockType.BEETROOTS, BlockMapper { id ->
             val age = id.getState(VanillaBlockStates.AGE_3) ?: Age_3._0
             val nodeName = if (age == Age_3._3) "mcl_farming:beetroot" else "mcl_farming:beetroot_${age.ordinal}"
@@ -70,16 +64,15 @@ object MclVegetationMapping : MclMappingModule {
             MclNode("mcl_cocoas:cocoa_${age.ordinal + 1}", param2 = param2)
         })
 
-        // 瓜藤系列 (南瓜与西瓜)
+        // 瓜藤系列
         registry.register(ChunkerVanillaBlockType.PUMPKIN_STEM, dsl.simple("mcl_farming:pumpkintige_unconnect"))
-        registry.register(ChunkerVanillaBlockType.ATTACHED_PUMPKIN_STEM, dsl.simple("mcl_farming:pumpkintige_unconnect")) // 由 LBM 自动重连
+        registry.register(ChunkerVanillaBlockType.ATTACHED_PUMPKIN_STEM, dsl.simple("mcl_farming:pumpkintige_unconnect"))
         registry.register(ChunkerVanillaBlockType.MELON_STEM, dsl.simple("mcl_farming:melontige_unconnect"))
         registry.register(ChunkerVanillaBlockType.ATTACHED_MELON_STEM, dsl.simple("mcl_farming:melontige_unconnect"))
 
         // ==========================================
         // 2. 天然花卉与地表装饰 (mcl_flowers)
         // ==========================================
-        // 单层花卉
         registry.register(ChunkerVanillaBlockType.DANDELION, dsl.simple("mcl_flowers:dandelion"))
         registry.register(ChunkerVanillaBlockType.POPPY, dsl.simple("mcl_flowers:poppy"))
         registry.register(ChunkerVanillaBlockType.BLUE_ORCHID, dsl.simple("mcl_flowers:blue_orchid"))
@@ -90,13 +83,11 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.WITHER_ROSE, dsl.simple("mcl_flowers:wither_rose"))
         registry.register(ChunkerVanillaBlockType.LILY_OF_THE_VALLEY, dsl.simple("mcl_flowers:lily_of_the_valley"))
 
-        // 郁金香
         registry.register(ChunkerVanillaBlockType.RED_TULIP, dsl.simple("mcl_flowers:tulip_red"))
         registry.register(ChunkerVanillaBlockType.ORANGE_TULIP, dsl.simple("mcl_flowers:tulip_orange"))
         registry.register(ChunkerVanillaBlockType.WHITE_TULIP, dsl.simple("mcl_flowers:tulip_white"))
         registry.register(ChunkerVanillaBlockType.PINK_TULIP, dsl.simple("mcl_flowers:tulip_pink"))
 
-        // 双层高大植物
         registry.register(ChunkerVanillaBlockType.SUNFLOWER, dsl.doublePlant("sunflower"))
         registry.register(ChunkerVanillaBlockType.LILAC, dsl.doublePlant("lilac"))
         registry.register(ChunkerVanillaBlockType.ROSE_BUSH, dsl.doublePlant("rose_bush"))
@@ -104,13 +95,11 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.TALL_GRASS, dsl.doublePlant("double_grass"))
         registry.register(ChunkerVanillaBlockType.LARGE_FERN, dsl.doublePlant("double_fern"))
 
-        // 草与低矮植被
         registry.register(ChunkerVanillaBlockType.SHORT_GRASS, dsl.simple("mcl_flowers:tallgrass"))
         registry.register(ChunkerVanillaBlockType.FERN, dsl.simple("mcl_flowers:fern"))
         registry.register(ChunkerVanillaBlockType.DEAD_BUSH, dsl.simple("mcl_flowers:dry_shrub"))
         registry.register(ChunkerVanillaBlockType.LILY_PAD, dsl.simple("mcl_flowers:waterlily"))
         
-        // 1.20+ 新樱花林落花
         registry.register(ChunkerVanillaBlockType.PINK_PETALS, BlockMapper { id ->
             val count = id.getState(VanillaBlockStates.FLOWER_AMOUNT) ?: Flowers._1
             val num = count.ordinal + 1
@@ -120,7 +109,6 @@ object MclVegetationMapping : MclMappingModule {
         // ==========================================
         // 3. 洞穴与奇幻生态 (mcl_lush_caves & mcl_crimson)
         // ==========================================
-        // 苔藓与杜鹃
         registry.register(ChunkerVanillaBlockType.MOSS_BLOCK, dsl.simple("mcl_lush_caves:moss"))
         registry.register(ChunkerVanillaBlockType.MOSS_CARPET, dsl.simple("mcl_lush_caves:moss_carpet"))
         registry.register(ChunkerVanillaBlockType.AZALEA, dsl.simple("mcl_lush_caves:azalea"))
@@ -128,18 +116,22 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.ROOTED_DIRT, dsl.simple("mcl_lush_caves:rooted_dirt"))
         registry.register(ChunkerVanillaBlockType.HANGING_ROOTS, dsl.simple("mcl_lush_caves:hanging_roots"))
 
-        // 孢子花与洞穴藤蔓
         registry.register(ChunkerVanillaBlockType.SPORE_BLOSSOM, dsl.simple("mcl_lush_caves:spore_blossom"))
-        registry.register(ChunkerVanillaBlockType.CAVE_VINES, dsl.simple("mcl_lush_caves:cave_vines"))
-        registry.register(ChunkerVanillaBlockType.CAVE_VINES_BODY, dsl.simple("mcl_lush_caves:cave_vines")) // 统一连接
-        registry.register(ChunkerVanillaBlockType.CAVE_VINES_HEAD, dsl.simple("mcl_lush_caves:cave_vines"))
+        
+        // 修正: 映射具体的 Body 和 Head 到 Mineclonia 的 cave_vines
+        registry.register(ChunkerVanillaBlockType.CAVE_VINES_BODY, BlockMapper { id ->
+            val berries = id.getState(VanillaBlockStates.BERRIES) == Bool.TRUE
+            MclNode(if (berries) "mcl_lush_caves:cave_vines_lit" else "mcl_lush_caves:cave_vines")
+        })
+        registry.register(ChunkerVanillaBlockType.CAVE_VINES_HEAD, BlockMapper { id ->
+            val berries = id.getState(VanillaBlockStates.BERRIES) == Bool.TRUE
+            MclNode(if (berries) "mcl_lush_caves:cave_vines_lit" else "mcl_lush_caves:cave_vines")
+        })
 
-        // 垂滴叶
         registry.register(ChunkerVanillaBlockType.BIG_DRIPLEAF, dsl.bigDripleaf())
         registry.register(ChunkerVanillaBlockType.BIG_DRIPLEAF_STEM, dsl.simple("mcl_lush_caves:dripleaf_big_stem"))
         registry.register(ChunkerVanillaBlockType.SMALL_DRIPLEAF, dsl.smallDripleaf())
 
-        // 下界森林植被
         registry.register(ChunkerVanillaBlockType.CRIMSON_FUNGUS, dsl.simple("mcl_crimson:crimson_fungus"))
         registry.register(ChunkerVanillaBlockType.WARPED_FUNGUS, dsl.simple("mcl_crimson:warped_fungus"))
         registry.register(ChunkerVanillaBlockType.CRIMSON_ROOTS, dsl.simple("mcl_crimson:crimson_roots"))
@@ -147,7 +139,6 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.NETHER_SPROUTS, dsl.simple("mcl_crimson:nether_sprouts"))
         registry.register(ChunkerVanillaBlockType.SHROOMLIGHT, dsl.simple("mcl_crimson:shroomlight"))
         
-        // 下界藤蔓
         registry.register(ChunkerVanillaBlockType.WEEPING_VINES, dsl.simple("mcl_crimson:weeping_vines"))
         registry.register(ChunkerVanillaBlockType.WEEPING_VINES_PLANT, dsl.simple("mcl_crimson:weeping_vines"))
         registry.register(ChunkerVanillaBlockType.TWISTING_VINES, dsl.simple("mcl_crimson:twisting_vines"))
