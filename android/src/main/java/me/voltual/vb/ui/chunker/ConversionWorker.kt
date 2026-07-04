@@ -6,7 +6,7 @@ import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
-import me.voltual.mcl.MclLevelWriter
+import me.voltual.mcl.writer.MclLevelWriter
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
