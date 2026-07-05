@@ -43,7 +43,6 @@ import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
-import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.floor
 
@@ -63,7 +62,6 @@ fun MapPreviewScreen(
 
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
 
-    // 初始化载入外部路径到 ViewModel
     LaunchedEffect(initialFolderUri) {
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
             viewModel.worldDirUri = initialFolderUri
@@ -134,6 +132,7 @@ fun MapPreviewScreen(
                             regionBitmaps = composeBitmaps,
                             viewportWidth = constraints.maxWidth.toFloat(),
                             viewportHeight = constraints.maxHeight.toFloat(),
+                            viewModel = viewModel, // 传入 VM 代理视口状态
                             onChunkTap = { chunkPair ->
                                 selectedChunk = chunkPair
                             }
@@ -161,40 +160,37 @@ fun MapPreviewScreen(
     }
 }
 
-// InteractiveMapCanvas, ChunkActionMenu 和 ActionMenuItem 逻辑保持不变（见之前回复）
 @Composable
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
     viewportWidth: Float,
     viewportHeight: Float,
+    viewModel: MapPreviewViewModel,
     onChunkTap: (ChunkCoordPair) -> Unit
 ) {
-    var scale by remember { mutableStateOf(1f) }
-    var offset by remember { mutableStateOf(Offset.Zero) }
-    var isCentered by remember { mutableStateOf(false) }
-
-    LaunchedEffect(regionBitmaps, isCentered) {
-        if (regionBitmaps.isNotEmpty() && !isCentered) {
+    // 监听和计算地图初始中心和缩放
+    LaunchedEffect(regionBitmaps, viewModel.isMapCentered) {
+        if (regionBitmaps.isNotEmpty() && !viewModel.isMapCentered) {
             val minX = regionBitmaps.keys.minOf { it.regionX() }
             val maxX = regionBitmaps.keys.maxOf { it.regionX() }
             val minZ = regionBitmaps.keys.minOf { it.regionZ() }
-            val maxZ = regionBitmaps.keys.minOf { it.regionZ() }
+            val maxZ = regionBitmaps.keys.maxOf { it.regionZ() }
 
             val mapWidth = (maxX - minX + 1) * 512f
             val mapHeight = (maxZ - minZ + 1) * 512f
 
             val scaleX = viewportWidth / mapWidth
             val scaleY = viewportHeight / mapHeight
-            scale = minOf(scaleX, scaleY).coerceIn(0.05f, 2f)
+            viewModel.mapScale = minOf(scaleX, scaleY).coerceIn(0.05f, 2f)
 
             val boundsCenterX = minX * 512f + mapWidth / 2f
             val boundsCenterZ = minZ * 512f + mapHeight / 2f
 
-            offset = Offset(
-                viewportWidth / 2f - boundsCenterX * scale,
-                viewportHeight / 2f - boundsCenterZ * scale
+            viewModel.mapOffset = Offset(
+                viewportWidth / 2f - boundsCenterX * viewModel.mapScale,
+                viewportHeight / 2f - boundsCenterZ * viewModel.mapScale
             )
-            isCentered = true
+            viewModel.isMapCentered = true
         }
     }
 
@@ -205,8 +201,8 @@ fun InteractiveMapCanvas(
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { tapOffset ->
-                            val worldX = (tapOffset.x - offset.x) / scale
-                            val worldZ = (tapOffset.y - offset.y) / scale
+                            val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                            val worldZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
                             val chunkX = floor(worldX / 16f).toInt()
                             val chunkZ = floor(worldZ / 16f).toInt()
                             onChunkTap(ChunkCoordPair(chunkX, chunkZ))
@@ -215,15 +211,15 @@ fun InteractiveMapCanvas(
                 }
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
-                        val oldScale = scale
-                        scale = (scale * zoom).coerceIn(0.01f, 50f)
-                        offset = (offset + pan - centroid) * (scale / oldScale) + centroid
+                        val oldScale = viewModel.mapScale
+                        viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
+                        viewModel.mapOffset = (viewModel.mapOffset + pan - centroid) * (viewModel.mapScale / oldScale) + centroid
                     }
                 }
         ) {
             withTransform({
-                translate(offset.x, offset.y)
-                scale(scale, scale, pivot = Offset.Zero)
+                translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
+                scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
             }) {
                 regionBitmaps.forEach { (region, bitmap) ->
                     drawImage(
@@ -235,7 +231,7 @@ fun InteractiveMapCanvas(
         }
 
         FloatingActionButton(
-            onClick = { isCentered = false },
+            onClick = { viewModel.isMapCentered = false },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(24.dp),

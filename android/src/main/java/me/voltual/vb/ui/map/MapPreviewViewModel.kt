@@ -15,6 +15,7 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -63,11 +64,17 @@ class MapPreviewViewModel : ViewModel() {
     var isBedrock by mutableStateOf(false)
         private set
 
-    // 将物理世界 Uri 和路径提升到 ViewModel 层面进行状态持久化保护
     var worldDirUri by mutableStateOf("")
     
     var isLoaded by mutableStateOf(false)
         private set
+
+    // ==========================================
+    // 视口状态提升：防止页面重建导致地图缩放与位移丢失
+    // ==========================================
+    var mapScale by mutableStateOf(1f)
+    var mapOffset by mutableStateOf(Offset.Zero)
+    var isMapCentered by mutableStateOf(false)
 
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
@@ -85,6 +92,11 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             isLoading = true
             isLoaded = false
+            // 重新选择世界时才清空视口数据，以便触发自适应居中
+            isMapCentered = false
+            mapScale = 1f
+            mapOffset = Offset.Zero
+            
             regionBitmaps.clear()
             regionRGBAData.clear()
             statusMessage = "正在迁移世界存档至高速缓存以防读写受阻..."
@@ -107,7 +119,6 @@ class MapPreviewViewModel : ViewModel() {
                 val countDownLatch = java.util.concurrent.CountDownLatch(1)
                 var copyError = false
 
-                // 核心修复：开启协程利用 Dispatchers.IO 离线收集复制流，彻底杜绝主线程 ANR
                 viewModelScope.launch(Dispatchers.IO) {
                     docFolder.copyFolderTo(
                         context = context,
