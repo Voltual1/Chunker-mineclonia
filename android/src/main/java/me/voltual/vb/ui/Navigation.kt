@@ -55,3 +55,12 @@ data class TerminalExec(
 @Serializable data class MapPreviewDest(
     val folderUri: String = ""
 ) : AppDestination
+
+/** 针对单一区块的 NBT 编辑器目标 */
+@Serializable data class ChunkNbtEditorDest(
+    val worldDirUri: String,
+    val chunkX: Int,
+    val chunkZ: Int,
+    val isEntity: Boolean,
+    val isBedrock: Boolean
+) : AppDestination

@@ -40,6 +40,9 @@ import me.voltual.vb.ui.nbt.NbtEditorScreen
 import me.voltual.vb.ui.nbt.CompoundEditableNbt
 import com.hivemc.chunker.nbt.tags.Tag
 import java.io.File
+import me.voltual.vb.ui.nbt.ChunkEditableNbt
+import com.anggrayudi.storage.file.toRawFile
+import com.anggrayudi.storage.file.DocumentFileCompat
 import org.koin.compose.viewmodel.koinViewModel
 
 @Composable
@@ -176,6 +179,29 @@ fun BBQNavDisplay(
                                         false
                                     }
                                 }
+                            }
+
+                            NbtEditorScreen(
+                                editableNbt = editableNbt,
+                                onBack = onBack,
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        
+                        is ChunkNbtEditorDest -> {
+                            val context = LocalContext.current
+                            val editableNbt = remember(key) {
+                                val uri = android.net.Uri.parse(key.worldDirUri)
+                                val docFile = DocumentFileCompat.fromUri(context, uri)
+                                val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
+                                ChunkEditableNbt(
+                                    worldDir = rawFile,
+                                    chunkX = key.chunkX,
+                                    chunkZ = key.chunkZ,
+                                    isEntity = key.isEntity,
+                                    isBedrock = key.isBedrock
+                                )
                             }
 
                             NbtEditorScreen(

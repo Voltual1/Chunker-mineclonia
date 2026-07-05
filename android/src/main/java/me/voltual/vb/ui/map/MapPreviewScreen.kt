@@ -140,14 +140,13 @@ fun MapPreviewScreen(
             onAction = { action, chunkPair ->
                 selectedChunk = null
                 coroutineScope.launch {
+                    val navigator = me.voltual.vb.ui.LocalNavigator.current
                     when (action) {
                         "entities" -> {
-                            snackbarHostState.showSnackbar("正准备加载区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 的实体 NBT...")
-                            viewModel.openChunkNbt(chunkPair, isEntity = true)
+                            viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
                         }
                         "block_entities" -> {
-                            snackbarHostState.showSnackbar("正准备加载区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 的方块实体 NBT...")
-                            viewModel.openChunkNbt(chunkPair, isEntity = false)
+                            viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
                         }
                     }
                 }

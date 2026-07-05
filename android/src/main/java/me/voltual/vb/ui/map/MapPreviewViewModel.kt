@@ -55,6 +55,11 @@ class MapPreviewViewModel : ViewModel() {
     var statusMessage by mutableStateOf("")
         private set
         
+    var isBedrock by mutableStateOf(false)
+        private set
+    var worldDirUri by mutableStateOf("")
+        private set        
+        
     /**
      * 响应用户点击，请求打开指定区块的 NBT
      * @param chunk 目标区块坐标
@@ -76,6 +81,8 @@ class MapPreviewViewModel : ViewModel() {
 
             withContext(Dispatchers.Default) {
                 val worldDirectory = docFolder.toRawFile(context)
+                worldDirUri = docFolder.uri.toString()
+                isBedrock = levelReader.encodingType
                 if (worldDirectory == null || !worldDirectory.exists()) {
                     withContext(Dispatchers.Main) {
                         statusMessage = "无法访问存档路径！"
@@ -218,6 +225,21 @@ class MapPreviewViewModel : ViewModel() {
                     e.printStackTrace()
                 }
             }
+            
+            /**
+     * 响应用户点击，通过 Navigator 跳转到区块 NBT 编辑界面
+     */
+    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
+        navigator.navigate(
+            me.voltual.vb.ui.ChunkNbtEditorDest(
+                worldDirUri = worldDirUri,
+                chunkX = chunk.chunkX(),
+                chunkZ = chunk.chunkZ(),
+                isEntity = isEntity,
+                isBedrock = isBedrock
+            )
+        )
+    }
 
             isLoading = false
             statusMessage = "预览加载完成！(共 ${regionBitmaps.size} 个区域)"
