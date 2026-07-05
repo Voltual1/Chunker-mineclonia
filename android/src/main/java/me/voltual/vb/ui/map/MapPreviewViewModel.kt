@@ -37,12 +37,16 @@ import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
 import com.hivemc.chunker.scheduling.task.FutureTask
 import com.hivemc.chunker.scheduling.task.Task
 import com.anggrayudi.storage.file.toRawFile
+import com.anggrayudi.storage.file.copyFolderTo
+import com.anggrayudi.storage.result.SingleFolderResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Predicate
 
 class MapPreviewViewModel : ViewModel() {
 
@@ -119,12 +123,12 @@ class MapPreviewViewModel : ViewModel() {
                                 action.confirmResolution(ConflictResolution.REPLACE)
                             }
                         }
-                    ).collect { result ->
+                    ).collect { result: SingleFolderResult ->
                         when (result) {
-                            is com.anggrayudi.storage.result.SingleFolderResult.Completed -> {
+                            is SingleFolderResult.Completed -> {
                                 countDownLatch.countDown()
                             }
-                            is com.anggrayudi.storage.result.SingleFolderResult.Error -> {
+                            is SingleFolderResult.Error -> {
                                 copyError = true
                                 countDownLatch.countDown()
                             }
