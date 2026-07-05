@@ -22,10 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.*
-import me.voltual.vb.ui.LocalNavigator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -45,7 +45,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
 import me.voltual.vb.ui.LocalTopAppBarController
-import me.voltual.vb.ui.TopAppBarAction
+import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.floor
 
@@ -60,11 +60,11 @@ fun MapPreviewScreen(
     val context = LocalContext.current
     val navigator = LocalNavigator.current
     val topAppBarController = LocalTopAppBarController.current
-    val coroutineScope = rememberCoroutineScope()
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
 
+    // 统一的文件选择器逻辑
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         viewModel.worldDirUri = folder.uri.toString()
         composeBitmaps.clear()
@@ -72,31 +72,16 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
-    // 初始化载入外部路径
+    // 初始化载入
     LaunchedEffect(initialFolderUri) {
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
             viewModel.worldDirUri = initialFolderUri
-            viewModel.loadAndRenderWorld(context, com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)!!)
+            val doc = com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)
+            if (doc != null) viewModel.loadAndRenderWorld(context, doc)
         }
     }
 
-    // 动态控制顶部 Actions：只有已成功载入世界且不处于加载状态时，才在 TopAppBar 显示“打开文件夹”
-    LaunchedEffect(viewModel.worldDirUri, viewModel.isLoading) {
-        if (viewModel.worldDirUri.isNotEmpty() && !viewModel.isLoading) {
-            topAppBarController.updateActions(
-                listOf(
-                    TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
-                        description = "打开存档",
-                        onClick = { folderPicker.launch() }
-                    )
-                )
-            )
-        } else {
-            topAppBarController.clear()
-        }
-    }
-
+    // 同步渲染 ImageBitmap
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
             if (!composeBitmaps.containsKey(region)) {
@@ -107,21 +92,43 @@ fun MapPreviewScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold { padding ->
-            BoxWithConstraints(
+            Box(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(padding)
                     .background(Color(0xFF202020))
             ) {
                 if (viewModel.worldDirUri.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Button(onClick = { folderPicker.launch() }) {
-                            Icon(Icons.Default.FolderOpen, null)
+                    // 简约的空状态：中心提示并放置统一按钮
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Map,
+                            contentDescription = null,
+                            modifier = Modifier.size(100.dp),
+                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "尚未选取存档世界",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Button(
+                            onClick = { folderPicker.launch() },
+                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                        ) {
+                            Icon(Icons.Default.FolderOpen, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("选择 Minecraft 存档文件夹")
+                            Text("选取存档目录")
                         }
                     }
                 } else {
+                    // 已选存档后的 UI 展示
                     if (viewModel.isLoading) {
                         Column(
                             modifier = Modifier
@@ -131,7 +138,7 @@ fun MapPreviewScreen(
                                 .padding(horizontal = 16.dp, vertical = 8.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            CircularProgressIndicator(modifier = Modifier.fillMaxWidth(0.5f))
+                            CircularProgressIndicator(modifier = Modifier.size(24.dp))
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(viewModel.statusMessage, fontSize = 12.sp)
                         }
@@ -140,8 +147,8 @@ fun MapPreviewScreen(
                     if (composeBitmaps.isNotEmpty()) {
                         InteractiveMapCanvas(
                             regionBitmaps = composeBitmaps,
-                            viewportWidth = constraints.maxWidth.toFloat(),
-                            viewportHeight = constraints.maxHeight.toFloat(),
+                            viewportWidth = 2000f, // 占位，会在计算时自动适配父容器
+                            viewportHeight = 2000f,
                             viewModel = viewModel,
                             onChunkTap = { chunkPair ->
                                 selectedChunk = chunkPair
@@ -152,106 +159,109 @@ fun MapPreviewScreen(
             }
         }
 
+        // 居中操作菜单
         ChunkActionMenu(
             chunk = selectedChunk,
             onDismiss = { selectedChunk = null },
             onAction = { action, chunkPair ->
                 selectedChunk = null
                 when (action) {
-                    "entities" -> {
-                        viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
-                    }
-                    "block_entities" -> {
-                        viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
-                    }
+                    "entities" -> viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
+                    "block_entities" -> viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
                 }
             }
         )
     }
 }
 
+// 这里的 InteractiveMapCanvas 需要获取真实的 Constraints
 @Composable
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
-    viewportWidth: Float,
+    viewportWidth: Float, // 这里的参数现在由 BoxWithConstraints 提供更佳
     viewportHeight: Float,
     viewModel: MapPreviewViewModel,
     onChunkTap: (ChunkCoordPair) -> Unit
 ) {
-    // 监听和计算地图初始中心和缩放
-    LaunchedEffect(regionBitmaps, viewModel.isMapCentered) {
-        if (regionBitmaps.isNotEmpty() && !viewModel.isMapCentered) {
-            val minX = regionBitmaps.keys.minOf { it.regionX() }
-            val maxX = regionBitmaps.keys.maxOf { it.regionX() }
-            val minZ = regionBitmaps.keys.minOf { it.regionZ() }
-            val maxZ = regionBitmaps.keys.maxOf { it.regionZ() }
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val vWidth = constraints.maxWidth.toFloat()
+        val vHeight = constraints.maxHeight.toFloat()
 
-            val mapWidth = (maxX - minX + 1) * 512f
-            val mapHeight = (maxZ - minZ + 1) * 512f
+        LaunchedEffect(regionBitmaps, viewModel.isMapCentered) {
+            if (regionBitmaps.isNotEmpty() && !viewModel.isMapCentered) {
+                val minX = regionBitmaps.keys.minOf { it.regionX() }
+                val maxX = regionBitmaps.keys.maxOf { it.regionX() }
+                val minZ = regionBitmaps.keys.minOf { it.regionZ() }
+                val maxZ = regionBitmaps.keys.maxOf { it.regionZ() }
 
-            val scaleX = viewportWidth / mapWidth
-            val scaleY = viewportHeight / mapHeight
-            viewModel.mapScale = minOf(scaleX, scaleY).coerceIn(0.05f, 2f)
+                val mapWidth = (maxX - minX + 1) * 512f
+                val mapHeight = (maxZ - minZ + 1) * 512f
 
-            val boundsCenterX = minX * 512f + mapWidth / 2f
-            val boundsCenterZ = minZ * 512f + mapHeight / 2f
+                val scaleX = vWidth / mapWidth
+                val scaleY = vHeight / mapHeight
+                viewModel.mapScale = minOf(scaleX, scaleY).coerceIn(0.05f, 2f)
 
-            viewModel.mapOffset = Offset(
-                viewportWidth / 2f - boundsCenterX * viewModel.mapScale,
-                viewportHeight / 2f - boundsCenterZ * viewModel.mapScale
-            )
-            viewModel.isMapCentered = true
-        }
-    }
+                val boundsCenterX = minX * 512f + mapWidth / 2f
+                val boundsCenterZ = minZ * 512f + mapHeight / 2f
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures(
-                        onTap = { tapOffset ->
-                            val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
-                            val worldZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                            val chunkX = floor(worldX / 16f).toInt()
-                            val chunkZ = floor(worldZ / 16f).toInt()
-                            onChunkTap(ChunkCoordPair(chunkX, chunkZ))
-                        }
-                    )
-                }
-                .pointerInput(Unit) {
-                    detectTransformGestures { centroid, pan, zoom, _ ->
-                        val oldScale = viewModel.mapScale
-                        viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
-                        viewModel.mapOffset = (viewModel.mapOffset + pan - centroid) * (viewModel.mapScale / oldScale) + centroid
-                    }
-                }
-        ) {
-            withTransform({
-                translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
-                scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
-            }) {
-                regionBitmaps.forEach { (region, bitmap) ->
-                    drawImage(
-                        image = bitmap,
-                        topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
-                    )
-                }
+                viewModel.mapOffset = Offset(
+                    vWidth / 2f - boundsCenterX * viewModel.mapScale,
+                    vHeight / 2f - boundsCenterZ * viewModel.mapScale
+                )
+                viewModel.isMapCentered = true
             }
         }
 
-        FloatingActionButton(
-            onClick = { viewModel.isMapCentered = false },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(24.dp),
-            containerColor = MaterialTheme.colorScheme.primary
-        ) {
-            Icon(Icons.Default.CenterFocusStrong, contentDescription = "居中地图")
+        Box(modifier = Modifier.fillMaxSize()) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTapGestures(
+                            onTap = { tapOffset ->
+                                val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                                val worldZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
+                                val chunkX = floor(worldX / 16f).toInt()
+                                val chunkZ = floor(worldZ / 16f).toInt()
+                                onChunkTap(ChunkCoordPair(chunkX, chunkZ))
+                            }
+                        )
+                    }
+                    .pointerInput(Unit) {
+                        detectTransformGestures { centroid, pan, zoom, _ ->
+                            val oldScale = viewModel.mapScale
+                            viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
+                            viewModel.mapOffset = (viewModel.mapOffset + pan - centroid) * (viewModel.mapScale / oldScale) + centroid
+                        }
+                    }
+            ) {
+                withTransform({
+                    translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
+                    scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
+                }) {
+                    regionBitmaps.forEach { (region, bitmap) ->
+                        drawImage(
+                            image = bitmap,
+                            topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
+                        )
+                    }
+                }
+            }
+
+            FloatingActionButton(
+                onClick = { viewModel.isMapCentered = false },
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(24.dp),
+                containerColor = MaterialTheme.colorScheme.primary
+            ) {
+                Icon(Icons.Default.CenterFocusStrong, contentDescription = "居中")
+            }
         }
     }
 }
 
+// ChunkActionMenu 和 ActionMenuItem 逻辑保持不变...
 @Composable
 fun ChunkActionMenu(
     chunk: ChunkCoordPair?,
