@@ -97,13 +97,6 @@ fun MapPreviewScreen(
         }
     }
 
-    // 离开地图预览界面时，清理 TopAppBar 的控制状态
-    DisposableEffect(Unit) {
-        onDispose {
-            topAppBarController.clear()
-        }
-    }
-
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
             if (!composeBitmaps.containsKey(region)) {
