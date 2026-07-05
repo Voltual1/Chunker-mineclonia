@@ -20,11 +20,8 @@
 
 package me.voltual.vb.ui.nbt
 
-import androidx.compose.animation.*
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -69,6 +66,9 @@ fun NbtEditorScreen(
     var showRenameDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showAddTagDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
 
+    // 编辑数值对话框状态
+    var editingValueNode by remember { mutableStateOf<NbtUiNode?>(null) }
+
     LaunchedEffect(isModified, viewModel.editableNbt) {
         topAppBarController.updateActions(
             if (isModified) {
@@ -94,54 +94,52 @@ fun NbtEditorScreen(
         }
     }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(hostState = snackbarHostState) }
-    ) { innerPadding ->
-        Column(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(Color(0xFF0F172A))
-        ) {
-            val rootTag = (editableNbt as? ChunkEditableNbt)?.let {
-                // 通过反射安全获取内部 rootTag 实例
-                val prop = it::class.java.getDeclaredField("rootTag")
-                prop.isAccessible = true
-                prop.get(it) as? CompoundTag
+    // 彻底废除内部 Scaffold，直接使用基础布局容器，响应外部全局 SnackbarHost
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color(0xFF0F172A))
+    ) {
+        val rootTag = (editableNbt as? ChunkEditableNbt)?.let {
+            val prop = it::class.java.getDeclaredField("rootTag")
+            prop.isAccessible = true
+            prop.get(it) as? CompoundTag
+        }
+        
+        if (rootTag == null || rootTag.size() == 0) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("当前区块无 NBT 属性", color = Color(0xFF94A3B8))
             }
+        } else {
+            val verticalScrollState = rememberScrollState()
+            val horizontalScrollState = rememberScrollState()
             
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                if (rootTag == null || rootTag.size() == 0) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("当前区块无 NBT 属性", color = Color(0xFF94A3B8))
+            // 组装双向滚动面板：使 NBT 语法树完美右展，不发生拥挤与自动换行
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(verticalScrollState)
+                    .horizontalScroll(horizontalScrollState)
+                    .padding(16.dp)
+            ) {
+                NbtTreeViewer(
+                    rootTag = rootTag,
+                    expandedPaths = expandedPaths,
+                    onToggleNode = { path ->
+                        expandedPaths = if (expandedPaths.contains(path)) {
+                            expandedPaths - path
+                        } else {
+                            expandedPaths + path
+                        }
+                    },
+                    onNodeLongClick = { node ->
+                        activeMenuNode = node
                     }
-                } else {
-                    val scrollState = rememberScrollState()
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(scrollState)
-                            .padding(16.dp)
-                    ) {
-                        NbtTreeViewer(
-                            rootTag = rootTag,
-                            expandedPaths = expandedPaths,
-                            onToggleNode = { path ->
-                                expandedPaths = if (expandedPaths.contains(path)) {
-                                    expandedPaths - path
-                                } else {
-                                    expandedPaths + path
-                                }
-                            },
-                            onNodeLongClick = { node ->
-                                activeMenuNode = node
-                            }
-                        )
-                    }
-                }
+                )
             }
         }
 
+        // 长按 NBT 节点动作菜单
         activeMenuNode?.let { node ->
             NbtNodeContextMenu(
                 node = node,
@@ -175,6 +173,22 @@ fun NbtEditorScreen(
                 onAddSubTag = {
                     showAddTagDialogNode = node
                     activeMenuNode = null
+                },
+                onEditValue = {
+                    editingValueNode = node
+                    activeMenuNode = null
+                }
+            )
+        }
+
+        // 修改原子数值对话框
+        editingValueNode?.let { node ->
+            EditValueDialog(
+                node = node,
+                onDismiss = { editingValueNode = null },
+                onConfirm = { newValue ->
+                    viewModel.updateTagValue(node, newValue)
+                    editingValueNode = null
                 }
             )
         }
@@ -213,13 +227,28 @@ fun NbtNodeContextMenu(
     onPasteSubTag: () -> Unit,
     onDelete: () -> Unit,
     onRename: () -> Unit,
-    onAddSubTag: () -> Unit
+    onAddSubTag: () -> Unit,
+    onEditValue: () -> Unit
 ) {
+    val isContainer = node.tag.type == TagType.COMPOUND || node.tag.type == TagType.LIST
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(text = "操作: ${node.key.ifEmpty { "Root" }}") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
+                if (!isContainer) {
+                    TextButton(onClick = onEditValue, modifier = Modifier.fillMaxWidth()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Start,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("修改数值")
+                        }
+                    }
+                }
                 TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -263,9 +292,9 @@ fun NbtNodeContextMenu(
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Edit, contentDescription = null)
+                        Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("重命名")
+                        Text("重命名键名")
                     }
                 }
                 if (node.isContainer) {
@@ -299,6 +328,73 @@ fun NbtNodeContextMenu(
             }
         },
         confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@Composable
+fun EditValueDialog(
+    node: NbtUiNode,
+    onDismiss: () -> Unit,
+    onConfirm: (Any) -> Unit
+) {
+    var textValue by remember { mutableStateOf(node.tag.boxedValue?.toString() ?: "") }
+    var checked by remember { mutableStateOf(if (node.tag.boxedValue is Byte) (node.tag.boxedValue == 1.toByte()) else false) }
+    val isBoolean = node.key.startsWith("is") || node.key.startsWith("has")
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("修改数值 (${node.tag.type.tagClass?.simpleName})") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (node.tag.type == TagType.BYTE && isBoolean) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("布尔值状态")
+                        Switch(checked = checked, onCheckedChange = { checked = it })
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = textValue,
+                        onValueChange = { textValue = it },
+                        label = { Text("值") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (node.tag.type == TagType.BYTE && isBoolean) {
+                        onConfirm(if (checked) 1.toByte() else 0.toByte())
+                    } else {
+                        // 依据 Chunker 对应的数据节点类型，对输入的 text 进行安全的数据类型转换
+                        val converted: Any? = when (node.tag.type) {
+                            TagType.BYTE -> textValue.toByteOrNull()
+                            TagType.SHORT -> textValue.toShortOrNull()
+                            TagType.INT -> textValue.toIntOrNull()
+                            TagType.LONG -> textValue.toLongOrNull()
+                            TagType.FLOAT -> textValue.toFloatOrNull()
+                            TagType.DOUBLE -> textValue.toDoubleOrNull()
+                            TagType.STRING -> textValue
+                            else -> null
+                        }
+                        if (converted != null) {
+                            onConfirm(converted)
+                        }
+                    }
+                }
+            ) {
+                Text("确认")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) { Text("取消") }
         }
     )
