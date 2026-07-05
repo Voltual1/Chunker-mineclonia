@@ -57,19 +57,23 @@ class MapPreviewViewModel : ViewModel() {
         
     var isBedrock by mutableStateOf(false)
         private set
+
     var worldDirUri by mutableStateOf("")
         private set        
         
     /**
-     * 响应用户点击，请求打开指定区块的 NBT
-     * @param chunk 目标区块坐标
-     * @param isEntity true 为普通实体(Entity)，false 为方块实体(BlockEntity)
+     * 响应用户点击，通过 Navigator 跳转到区块 NBT 编辑界面
      */
-    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean) {
-        // TODO: 利用 Chunker 的 MCAReader (Java) 或 LevelDBReader (Bedrock) 
-        // 针对性地在磁盘中根据区块坐标提取 NBT 数据。
-        // 读取到 NBTCompound 后，通过 Navigator 传递给 NbtEditorDest(nbt数据/路径) 即可。
-        println("Requesting NBT editing for chunk: ${chunk.chunkX()}, ${chunk.chunkZ()} | isEntity: $isEntity")
+    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
+        navigator.navigate(
+            me.voltual.vb.ui.ChunkNbtEditorDest(
+                worldDirUri = worldDirUri,
+                chunkX = chunk.chunkX(),
+                chunkZ = chunk.chunkZ(),
+                isEntity = isEntity,
+                isBedrock = isBedrock
+            )
+        )
     }
 
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile) {
@@ -82,7 +86,7 @@ class MapPreviewViewModel : ViewModel() {
             withContext(Dispatchers.Default) {
                 val worldDirectory = docFolder.toRawFile(context)
                 worldDirUri = docFolder.uri.toString()
-                isBedrock = levelReader.encodingType
+
                 if (worldDirectory == null || !worldDirectory.exists()) {
                     withContext(Dispatchers.Main) {
                         statusMessage = "无法访问存档路径！"
@@ -126,6 +130,9 @@ class MapPreviewViewModel : ViewModel() {
                 }
 
                 val levelReader = readerOpt.get()
+                // 正确设置格式类型
+                isBedrock = levelReader.encodingType == EncodingType.BEDROCK
+                
                 withContext(Dispatchers.Main) {
                     statusMessage = "检测到 ${levelReader.encodingType.name} 格式 (版本: ${levelReader.version})"
                 }
@@ -146,7 +153,6 @@ class MapPreviewViewModel : ViewModel() {
                     }
                 )
 
-                // 创建 Chunker 任务环境上下文
                 val exceptionHandler = java.util.function.Consumer<Throwable> { it.printStackTrace() }
                 val environment = Task.environment(
                     "Map Preview Generation",
@@ -214,32 +220,15 @@ class MapPreviewViewModel : ViewModel() {
                         statusMessage = "解析出错: ${e.localizedMessage}"
                     }
                 } finally {
-                    // 关闭环境以拒绝新任务，但允许子任务继续处理
                     environment.close()
                 }
 
-                // 阻塞当前协程（Default调度器）等待所有的区块解析与图像生成异步任务结束
                 try {
                     environment.future().get()
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
-            
-            /**
-     * 响应用户点击，通过 Navigator 跳转到区块 NBT 编辑界面
-     */
-    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
-        navigator.navigate(
-            me.voltual.vb.ui.ChunkNbtEditorDest(
-                worldDirUri = worldDirUri,
-                chunkX = chunk.chunkX(),
-                chunkZ = chunk.chunkZ(),
-                isEntity = isEntity,
-                isBedrock = isBedrock
-            )
-        )
-    }
 
             isLoading = false
             statusMessage = "预览加载完成！(共 ${regionBitmaps.size} 个区域)"

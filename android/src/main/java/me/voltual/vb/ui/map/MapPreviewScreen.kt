@@ -43,6 +43,7 @@ import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
+import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.floor
 
@@ -50,11 +51,12 @@ import kotlin.math.floor
 @Composable
 fun MapPreviewScreen(
     initialFolderUri: String,
-    snackbarHostState: SnackbarHostState, // 接收由 NavigationGraph 传入的 HostState
+    snackbarHostState: SnackbarHostState,
     modifier: Modifier = Modifier,
     viewModel: MapPreviewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val navigator = LocalNavigator.current // 在 Composable 顶层获取 Navigator
     val coroutineScope = rememberCoroutineScope()
     var currentUri by remember { mutableStateOf(initialFolderUri) }
 
@@ -139,15 +141,13 @@ fun MapPreviewScreen(
             onDismiss = { selectedChunk = null },
             onAction = { action, chunkPair ->
                 selectedChunk = null
-                coroutineScope.launch {
-                    val navigator = me.voltual.vb.ui.LocalNavigator.current
-                    when (action) {
-                        "entities" -> {
-                            viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
-                        }
-                        "block_entities" -> {
-                            viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
-                        }
+                // 使用在顶层捕获的 navigator 变量
+                when (action) {
+                    "entities" -> {
+                        viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
+                    }
+                    "block_entities" -> {
+                        viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
                     }
                 }
             }
@@ -155,6 +155,7 @@ fun MapPreviewScreen(
     }
 }
 
+// InteractiveMapCanvas, ChunkActionMenu 和 ActionMenuItem 逻辑保持不变（见之前回复）
 @Composable
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
@@ -171,7 +172,7 @@ fun InteractiveMapCanvas(
             val minX = regionBitmaps.keys.minOf { it.regionX() }
             val maxX = regionBitmaps.keys.maxOf { it.regionX() }
             val minZ = regionBitmaps.keys.minOf { it.regionZ() }
-            val maxZ = regionBitmaps.keys.maxOf { it.regionZ() }
+            val maxZ = regionBitmaps.keys.minOf { it.regionZ() }
 
             val mapWidth = (maxX - minX + 1) * 512f
             val mapHeight = (maxZ - minZ + 1) * 512f
@@ -195,23 +196,17 @@ fun InteractiveMapCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
-                // 监听点击事件并逆向换算坐标
                 .pointerInput(Unit) {
                     detectTapGestures(
                         onTap = { tapOffset ->
-                            // 反推世界绝对像素坐标
                             val worldX = (tapOffset.x - offset.x) / scale
                             val worldZ = (tapOffset.y - offset.y) / scale
-                            
-                            // 每个 Chunk 是 16x16 像素
                             val chunkX = floor(worldX / 16f).toInt()
                             val chunkZ = floor(worldZ / 16f).toInt()
-                            
                             onChunkTap(ChunkCoordPair(chunkX, chunkZ))
                         }
                     )
                 }
-                // 监听双指缩放和拖拽
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
                         val oldScale = scale
@@ -245,9 +240,6 @@ fun InteractiveMapCanvas(
     }
 }
 
-/**
- * 屏幕中心悬浮操作菜单，参考 MT 管理器与 FileActionMenu 交互逻辑
- */
 @Composable
 fun ChunkActionMenu(
     chunk: ChunkCoordPair?,
