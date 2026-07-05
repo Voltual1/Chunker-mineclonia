@@ -106,77 +106,70 @@ class NbtEditorViewModel : ViewModel() {
         return clipboardTag != null
     }
 
-    @Suppress("UNCHECKED_CAST")
-fun pasteOverwrite(node: NbtUiNode): Boolean {
-    val copiedTag = clipboardTag?.clone() ?: return false
-    val parent = node.parent
+        @Suppress("UNCHECKED_CAST")
+    fun pasteOverwrite(node: NbtUiNode): Boolean {
+        val copiedTag = clipboardTag?.clone() ?: return false
+        val parent = node.parent
 
-    if (parent == null) {
-        editableNbt?.let { nbt ->
-            // 重构根 CompoundTag 内部的 Map，保留原有节点顺序
-            val root = (nbt as ChunkEditableNbt).let {
-                val prop = it::class.java.getDeclaredField("rootTag")
-                prop.isAccessible = true
-                prop.get(it) as CompoundTag
-            }
-            val originalMap = root.value ?: it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap()
-            val newMap = it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap<String, Tag<*>>(originalMap.size)
-            
-            originalMap.forEach { (k, v) ->
-                if (k == node.key) {
-                    newMap[clipboardKey.ifEmpty { node.key }] = copiedTag
-                } else {
-                    newMap[k] = v
+        if (parent == null) {
+            editableNbt?.let { nbt ->
+                val root = (nbt as ChunkEditableNbt).let {
+                    val prop = it::class.java.getDeclaredField("rootTag")
+                    prop.isAccessible = true
+                    prop.get(it) as CompoundTag
                 }
-            }
-            
-            val valProp = CompoundTag::class.java.getDeclaredField("value")
-            valProp.isAccessible = true
-            valProp.set(root, newMap)
-            
-            nbt.markModified()
-            treeVersion++
-            refreshTree()
-            return true
-        }
-    } else {
-        when (parent) {
-            is CompoundTag -> {
-                val originalMap = parent.value ?: it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap()
-                val newMap = it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap<String, Tag<*>>(originalMap.size)
+                val originalMap = root.value ?: return false
+                val backupList = originalMap.entries.toList()
+                originalMap.clear()
                 
-                originalMap.forEach { (k, v) ->
-                    if (k == node.key) {
-                        newMap[clipboardKey.ifEmpty { node.key }] = copiedTag
+                for (entry in backupList) {
+                    if (entry.key == node.key) {
+                        root.put(clipboardKey.ifEmpty { node.key }, copiedTag)
                     } else {
-                        newMap[k] = v
+                        root.put(entry.key, entry.value)
                     }
                 }
                 
-                val valProp = CompoundTag::class.java.getDeclaredField("value")
-                valProp.isAccessible = true
-                valProp.set(parent, newMap)
-                
-                editableNbt?.markModified()
+                nbt.markModified()
                 treeVersion++
                 refreshTree()
                 return true
             }
-            is ListTag<*, *> -> {
-                val list = parent.value as? MutableList<Tag<Any>> ?: return false
-                val index = list.indexOf(node.tag as Tag<Any>)
-                if (index != -1) {
-                    list[index] = copiedTag as Tag<Any>
+        } else {
+            when (parent) {
+                is CompoundTag -> {
+                    val originalMap = parent.value ?: return false
+                    val backupList = originalMap.entries.toList()
+                    originalMap.clear()
+                    
+                    for (entry in backupList) {
+                        if (entry.key == node.key) {
+                            parent.put(clipboardKey.ifEmpty { node.key }, copiedTag)
+                        } else {
+                            parent.put(entry.key, entry.value)
+                        }
+                    }
+                    
                     editableNbt?.markModified()
                     treeVersion++
                     refreshTree()
                     return true
                 }
+                is ListTag<*, *> -> {
+                    val list = parent.value as? MutableList<Tag<Any>> ?: return false
+                    val index = list.indexOf(node.tag as Tag<Any>)
+                    if (index != -1) {
+                        list[index] = copiedTag as Tag<Any>
+                        editableNbt?.markModified()
+                        treeVersion++
+                        refreshTree()
+                        return true
+                    }
+                }
             }
         }
+        return false
     }
-    return false
-}
 
     @Suppress("UNCHECKED_CAST")
     fun pasteSubTag(node: NbtUiNode): Boolean {
@@ -224,62 +217,61 @@ fun pasteOverwrite(node: NbtUiNode): Boolean {
         refreshTree()
     }
 
-    fun renameNode(node: NbtUiNode, newName: String): Boolean {
-    if (newName.isEmpty() || newName == node.key) return false
-    val parent = node.parent
+        fun renameNode(node: NbtUiNode, newName: String): Boolean {
+        if (newName.isEmpty() || newName == node.key) return false
+        val parent = node.parent
 
-    if (parent == null) {
-        editableNbt?.let { nbt ->
-            val root = (nbt as ChunkEditableNbt).let {
-                val prop = it::class.java.getDeclaredField("rootTag")
-                prop.isAccessible = true
-                prop.get(it) as CompoundTag
+        if (parent == null) {
+            editableNbt?.let { nbt ->
+                val root = (nbt as ChunkEditableNbt).let {
+                    val prop = it::class.java.getDeclaredField("rootTag")
+                    prop.isAccessible = true
+                    prop.get(it) as CompoundTag
+                }
+                
+                val originalMap = root.value
+                if (originalMap == null || originalMap.containsKey(newName)) return false
+                
+                // 备份并按序重建
+                val backupList = originalMap.entries.toList()
+                originalMap.clear()
+                
+                for (entry in backupList) {
+                    if (entry.key == node.key) {
+                        root.put(newName, node.tag)
+                    } else {
+                        root.put(entry.key, entry.value)
+                    }
+                }
+                
+                nbt.markModified()
+                treeVersion++
+                refreshTree()
+                return true
             }
-            val originalMap = root.value ?: it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap()
-            if (originalMap.containsKey(newName)) return false
+        } else if (parent is CompoundTag) {
+            val originalMap = parent.value
+            if (originalMap == null || originalMap.containsKey(newName)) return false
             
-            val newMap = it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap<String, Tag<*>>(originalMap.size)
-            originalMap.forEach { (k, v) ->
-                if (k == node.key) {
-                    newMap[newName] = node.tag
+            // 备份并按序重建子层级的 Map，完美规避子层级反射失效问题
+            val backupList = originalMap.entries.toList()
+            originalMap.clear()
+            
+            for (entry in backupList) {
+                if (entry.key == node.key) {
+                    parent.put(newName, node.tag)
                 } else {
-                    newMap[k] = v
+                    parent.put(entry.key, entry.value)
                 }
             }
             
-            val valProp = CompoundTag::class.java.getDeclaredField("value")
-            valProp.isAccessible = true
-            valProp.set(root, newMap)
-            
-            nbt.markModified()
+            editableNbt?.markModified()
             treeVersion++
             refreshTree()
             return true
         }
-    } else if (parent is CompoundTag) {
-        val originalMap = parent.value ?: it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap()
-        if (originalMap.containsKey(newName)) return false
-        
-        val newMap = it.unimi.dsi.fastutil.objects.Object2ObjectLinkedOpenHashMap<String, Tag<*>>(originalMap.size)
-        originalMap.forEach { (k, v) ->
-            if (k == node.key) {
-                newMap[newName] = node.tag
-            } else {
-                newMap[k] = v
-            }
-        }
-        
-        val valProp = CompoundTag::class.java.getDeclaredField("value")
-        valProp.isAccessible = true
-        valProp.set(parent, newMap)
-        
-        editableNbt?.markModified()
-        treeVersion++
-        refreshTree()
-        return true
+        return false
     }
-    return false
-}
 
     @Suppress("UNCHECKED_CAST")
     fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>) : Boolean {
