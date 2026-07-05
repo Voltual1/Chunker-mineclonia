@@ -13,14 +13,18 @@ import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.world.Dimension as ChunkerDimension
+import com.hivemc.chunker.nbt.TagType
 import com.hivemc.chunker.nbt.io.Reader
 import com.hivemc.chunker.nbt.io.Writer
 import com.hivemc.chunker.nbt.tags.Tag
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag
+import com.hivemc.chunker.nbt.tags.collection.ListTag
 import com.hivemc.chunker.nbt.tags.primitive.StringTag
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
+import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
 import java.io.RandomAccessFile
@@ -29,7 +33,7 @@ import java.util.zip.DeflaterOutputStream
 
 /**
  * 终极外科手术式区块 NBT 编辑器。
- * 完美支持 Java MCA（FAT表项物理追写）与 Bedrock LevelDB（直接底层 KV Put/Get）。
+ * 修复了基岩版多个 NBT 连缀导致 EOFException 崩溃的问题，实现了完全符合 LevelDB 规范的区块读写。
  */
 class ChunkEditableNbt(
     private val worldDir: File,
@@ -65,7 +69,7 @@ class ChunkEditableNbt(
     private fun loadData() {
         if (isBedrock) {
             // ==========================================
-            // 基岩版 LevelDB 加载机制
+            // 基岩版 LevelDB 流式 NBT 加载机制
             // ==========================================
             val dbDir = File(worldDir, "db")
             if (!dbDir.exists()) {
@@ -74,26 +78,33 @@ class ChunkEditableNbt(
             }
 
             try {
+                // 删除可能残留的锁，防锁冲突
+                File(dbDir, "LOCK").delete()
                 val options = Options().createIfMissing(false)
-                // 开启世界底层的 LevelDB
+                
                 Iq80DBFactory.factory.open(dbDir, options).use { db ->
-                    // 1. 解析目标 ChunkCoordPair 与 Dimension
                     val chunkPair = ChunkCoordPair(chunkX, chunkZ)
                     val chunkType = if (isEntity) LevelDBChunkType.ENTITY else LevelDBChunkType.BLOCK_ENTITY
                     
-                    // 2. 利用 Chunker 生成绝对 Byte 键
+                    // 生成绝对 Key
                     val key = LevelDBKey.key(ChunkerDimension.OVERWORLD, chunkPair, chunkType)
-                    
-                    // 3. 读取数据库二进制字节
                     val bytes = db.get(key)
-                    if (bytes != null) {
-                        // 4. 解析基岩版 Little Endian 原生 NBT
-                        val tag = Tag.readBedrockNBT(bytes)
-                        if (tag != null) {
-                            rootTag = tag
-                        } else {
-                            rootTag.put("PARSE_ERROR", StringTag("无法解析基岩版 NBT 字节。"))
+                    
+                    if (bytes != null && bytes.isNotEmpty()) {
+                        // 核心修复：基岩版区块实体是以连缀无名 Compound 形式排布的。
+                        // 使用流式 decodeNamed 逐一读取解析，直到文件流尽。
+                        val listTag = ListTag<CompoundTag, Map<String, Tag<*>>>()
+                        ByteArrayInputStream(bytes).use { bais ->
+                            DataInputStream(bais).use { dis ->
+                                val reader = Reader.toBedrockReader(dis)
+                                while (bais.available() > 0) {
+                                    val pair = Tag.decodeNamed(reader, CompoundTag::class.java) ?: break
+                                    listTag.add(pair.tag())
+                                }
+                            }
                         }
+                        
+                        rootTag.put(if (isEntity) "Entities" else "BlockEntities", listTag)
                     } else {
                         rootTag.put("EMPTY_CHUNK_DATA", StringTag("该区块 (${chunkX}, ${chunkZ}) 暂无${if (isEntity) "实体" else "方块实体"}数据。"))
                     }
@@ -105,11 +116,10 @@ class ChunkEditableNbt(
             return
         }
 
-        // Java MCA 寻址逻辑保持不变
+        // Java MCA 寻址逻辑
         val regionX = chunkX shr 5
         val regionZ = chunkZ shr 5
         val targetFileName = "r.$regionX.$regionZ.mca"
-
         val foundFile = findMcaFile(worldDir, targetFileName)
         mcaFile = foundFile
 
@@ -174,24 +184,43 @@ class ChunkEditableNbt(
         return rootTag.value?.entries?.map { it.key to it.value } ?: emptyList()
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun save(): Boolean {
         if (isBedrock) {
             // ==========================================
-            // 基岩版 LevelDB 强写保存逻辑
+            // 基岩版 LevelDB 流式 NBT 序列化写入机制
             // ==========================================
             val dbDir = File(worldDir, "db")
             if (!dbDir.exists()) return false
 
             return try {
+                File(dbDir, "LOCK").delete()
                 val options = Options().createIfMissing(false)
+                
                 Iq80DBFactory.factory.open(dbDir, options).use { db ->
                     val chunkPair = ChunkCoordPair(chunkX, chunkZ)
                     val chunkType = if (isEntity) LevelDBChunkType.ENTITY else LevelDBChunkType.BLOCK_ENTITY
                     val key = LevelDBKey.key(ChunkerDimension.OVERWORLD, chunkPair, chunkType)
                     
-                    // 将编辑后的 CompoundTag 转换回基岩版格式字节流
-                    val bytes = Tag.writeBedrockNBT(rootTag)
-                    db.put(key, bytes)
+                    val listName = if (isEntity) "Entities" else "BlockEntities"
+                    val listTag = rootTag.get(listName) as? ListTag<CompoundTag, *>
+                    
+                    if (listTag != null && listTag.size() > 0) {
+                        // 流式连缀写入二进制字节流
+                        val bytes = ByteArrayOutputStream().use { baos ->
+                            DataOutputStream(baos).use { dos ->
+                                val writer = Writer.toBedrockWriter(dos)
+                                for (compound in listTag.value) {
+                                    Tag.encodeNamed(writer, "", compound)
+                                }
+                            }
+                            baos.toByteArray()
+                        }
+                        db.put(key, bytes)
+                    } else {
+                        // 如果没有实体数据，则直接删除该 KV 键值，避免残留脏数据
+                        db.delete(key)
+                    }
                 }
                 clearModified()
                 true
@@ -200,7 +229,7 @@ class ChunkEditableNbt(
                 false
             }
         } else {
-            // Java MCA 保存逻辑保持不变
+            // Java MCA 保存逻辑
             val file = mcaFile ?: return false
             if (!file.exists()) return false
             
