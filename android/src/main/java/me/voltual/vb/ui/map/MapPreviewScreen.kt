@@ -64,8 +64,6 @@ fun MapPreviewScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
-    
-    // 用独立的状态控制菜单的弹出与数据保留，防止 NBT 导航前和取消时的数据闪烁置空
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
 
@@ -77,6 +75,7 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
+    // 初始化载入
     LaunchedEffect(initialFolderUri) {
         viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
@@ -85,45 +84,44 @@ fun MapPreviewScreen(
         }
     }
 
-    LaunchedEffect(viewModel.worldDirUri, viewModel.showGrid, viewModel.isLoading) {
-        if (viewModel.worldDirUri.isNotEmpty() && !viewModel.isLoading) {
-            topAppBarController.updateActions(
-                listOf(
-                    TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
-                        description = "网格线",
-                        onClick = { viewModel.showGrid = !viewModel.showGrid }
-                    ),
-                    TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.IosShare, contentDescription = "导出世界", tint = tint) },
-                        description = "导出世界",
-                        onClick = {
-                            coroutineScope.launch {
+    // 常驻注入 TopAppBar Actions，仅在状态变化时更新 UI 表现（如 tint）
+    // 依赖 Navigator 的清理机制，此处不再使用 DisposableEffect
+    LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri) {
+        topAppBarController.updateActions(
+            listOf(
+                TopAppBarAction(
+                    icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
+                    description = "网格线",
+                    onClick = { viewModel.showGrid = !viewModel.showGrid }
+                ),
+                TopAppBarAction(
+                    icon = { tint -> Icon(Icons.Default.IosShare, contentDescription = "导出世界", tint = tint) },
+                    description = "导出世界",
+                    onClick = {
+                        coroutineScope.launch {
+                            val uri = viewModel.worldDirUri
+                            if (uri.isNotEmpty()) {
                                 snackbarHostState.showSnackbar("正在打包导出当前世界...")
-                                val file = File(viewModel.worldDirUri)
+                                val file = File(uri)
                                 if (file.exists()) {
                                     val success = WorldExporter.exportWorld(context, file)
-                                    if (success) {
-                                        snackbarHostState.showSnackbar("导出成功！已保存至 Downloads 文件夹")
-                                    } else {
-                                        snackbarHostState.showSnackbar("打包压缩失败")
-                                    }
+                                    snackbarHostState.showSnackbar(if (success) "导出成功！已保存至 Downloads 文件夹" else "打包压缩失败")
                                 } else {
                                     snackbarHostState.showSnackbar("物理文件不可访问")
                                 }
+                            } else {
+                                snackbarHostState.showSnackbar("请先选取一个存档世界")
                             }
                         }
-                    ),
-                    TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
-                        description = "打开存档",
-                        onClick = { folderPicker.launch() }
-                    )
+                    }
+                ),
+                TopAppBarAction(
+                    icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
+                    description = "打开存档",
+                    onClick = { folderPicker.launch() }
                 )
             )
-        } else {
-            topAppBarController.clear()
-        }
+        )
     }
 
     LaunchedEffect(viewModel.regionBitmaps.size) {
@@ -199,12 +197,10 @@ fun MapPreviewScreen(
                     if (composeBitmaps.isNotEmpty()) {
                         InteractiveMapCanvas(
                             regionBitmaps = composeBitmaps,
-                            viewportWidth = 2000f,
-                            viewportHeight = 2000f,
                             viewModel = viewModel,
                             onChunkTap = { chunkPair ->
                                 selectedChunk = chunkPair
-                                showActionMenu = true // 点击时唤出菜单
+                                showActionMenu = true
                             }
                         )
                     }
@@ -215,7 +211,7 @@ fun MapPreviewScreen(
         ChunkActionMenu(
             visible = showActionMenu,
             chunk = selectedChunk,
-            onDismiss = { showActionMenu = false }, // 关闭时仅收回菜单，保留 selectedChunk，淡出动画不发生闪烁
+            onDismiss = { showActionMenu = false },
             onAction = { action, chunkPair ->
                 showActionMenu = false
                 when (action) {
@@ -230,8 +226,6 @@ fun MapPreviewScreen(
 @Composable
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
-    viewportWidth: Float,
-    viewportHeight: Float,
     viewModel: MapPreviewViewModel,
     onChunkTap: (ChunkCoordPair) -> Unit
 ) {
@@ -297,9 +291,7 @@ fun InteractiveMapCanvas(
                             topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
                         )
                         
-                        // 网格线绘制逻辑修复：根据 16x16 进行 Chunk 区块级别的细密格线绘制
                         if (viewModel.showGrid) {
-                            // 绘制 512x512 Region 强实线边界
                             drawRect(
                                 color = Color.White.copy(alpha = 0.4f),
                                 topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f),
@@ -307,19 +299,16 @@ fun InteractiveMapCanvas(
                                 style = Stroke(width = 2.0f)
                             )
                             
-                            // 绘制内部的 32x32 个 16 像素 Chunk 网格细线
                             val startX = region.regionX() * 512f
                             val startZ = region.regionZ() * 512f
                             for (c in 1 until 32) {
                                 val offsetDist = c * 16f
-                                // 垂直线
                                 drawLine(
                                     color = Color.White.copy(alpha = 0.15f),
                                     start = Offset(startX + offsetDist, startZ),
                                     end = Offset(startX + offsetDist, startZ + 512f),
                                     strokeWidth = 0.8f
                                 )
-                                // 水平线
                                 drawLine(
                                     color = Color.White.copy(alpha = 0.15f),
                                     start = Offset(startX, startZ + offsetDist),
