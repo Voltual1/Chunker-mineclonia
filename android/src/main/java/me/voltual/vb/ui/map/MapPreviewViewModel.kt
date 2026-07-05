@@ -131,7 +131,6 @@ class MapPreviewViewModel : ViewModel() {
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
                         override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                            // 使用带有默认内部设置的 ChunkerLevel 构造函数，防止 Chunker 管道调用时抛出 NullPointerException
                             val safeLevel = level ?: ChunkerLevel(
                                 ChunkerLevelSettings(),
                                 null,
@@ -142,7 +141,6 @@ class MapPreviewViewModel : ViewModel() {
                             val worldWriter = previewWriter.writeLevel(safeLevel)
                             val worldHandler = object : WorldConversionHandler {
                                 override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
-                                    // 仅做防御性非空断言，若 Chunker 传入 null，世界维度定位本就失败，抛出异常阻断是符合逻辑的
                                     val safeWorld = world ?: throw NullPointerException("ChunkerWorld cannot be null")
                                     val columnWriter = worldWriter.writeWorld(safeWorld)
                                     val columnHandler = object : ColumnConversionHandler {
@@ -177,10 +175,6 @@ class MapPreviewViewModel : ViewModel() {
                                 }
                             }
                             return FutureTask(CompletableFuture.completedFuture(worldHandler))
-                        }
-
-                        override fun convertLevel(p0: ChunkerLevel?): Task<WorldConversionHandler> {
-                            return convertLevel(p0)
                         }
 
                         override fun flushLevel() {
