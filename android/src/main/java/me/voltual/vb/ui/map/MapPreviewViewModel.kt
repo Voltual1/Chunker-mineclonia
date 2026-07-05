@@ -69,12 +69,24 @@ class MapPreviewViewModel : ViewModel() {
     var isLoaded by mutableStateOf(false)
         private set
 
-    // ==========================================
-    // 视口状态提升：防止页面重建导致地图缩放与位移丢失
-    // ==========================================
+    // 视口状态
     var mapScale by mutableStateOf(1f)
     var mapOffset by mutableStateOf(Offset.Zero)
     var isMapCentered by mutableStateOf(false)
+
+    // 控制网格线绘制
+    var showGrid by mutableStateOf(false)
+
+    // 检测中转站 (FTP) 目录下是否有已有存档
+    var hasExistingFtpInput by mutableStateOf(false)
+        private set
+
+    fun checkExistingFtpInput(context: Context) {
+        val externalDir = context.getExternalFilesDir(null)
+        val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
+        val inputDir = File(worldsDir, "world_input")
+        hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
+    }
 
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
@@ -88,82 +100,89 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    fun loadAndRenderWorld(context: Context, docFolder: DocumentFile) {
+    /**
+     * 核心改进：若直接读取 FTP，我们不需要执行慢速的 SimpleStorage SAF 拷贝，直接将 world_input 作为路径即可！
+     */
+    fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch {
             isLoading = true
             isLoaded = false
-            // 重新选择世界时才清空视口数据，以便触发自适应居中
             isMapCentered = false
             mapScale = 1f
             mapOffset = Offset.Zero
-            
             regionBitmaps.clear()
             regionRGBAData.clear()
-            statusMessage = "正在迁移世界存档至高速缓存以防读写受阻..."
 
             withContext(Dispatchers.Default) {
                 val externalDir = context.getExternalFilesDir(null)
-                val worldsDir = if (externalDir != null) {
-                    File(externalDir, "worlds")
+                val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
+                
+                val finalWorldDirectory = if (useFtpInput) {
+                    statusMessage = "正在直接读取中转站 (FTP) 存档数据..."
+                    val ftpInputDir = File(worldsDir, "world_input")
+                    worldDirUri = ftpInputDir.absolutePath
+                    ftpInputDir
                 } else {
-                    File(context.filesDir, "worlds")
-                }
-                val localInputPath = File(worldsDir, "world_input")
-                
-                if (localInputPath.exists()) {
-                    localInputPath.deleteRecursively()
-                }
-                localInputPath.mkdirs()
-                
-                val targetParentDoc = DocumentFile.fromFile(worldsDir)
-                val countDownLatch = java.util.concurrent.CountDownLatch(1)
-                var copyError = false
-
-                viewModelScope.launch(Dispatchers.IO) {
-                    docFolder.copyFolderTo(
-                        context = context,
-                        targetParentFolder = targetParentDoc,
-                        skipEmptyFiles = false,
-                        newFolderNameInTargetPath = "world_input",
-                        onConflict = object : com.anggrayudi.storage.callback.SingleFolderConflictCallback(viewModelScope) {
-                            override fun onParentConflict(
-                                destinationFolder: DocumentFile,
-                                action: ParentFolderConflictAction,
-                                canMerge: Boolean
-                            ) {
-                                action.confirmResolution(ConflictResolution.REPLACE)
-                            }
-                        }
-                    ).flowOn(Dispatchers.IO).collect { result: SingleFolderResult ->
-                        when (result) {
-                            is SingleFolderResult.Completed -> {
-                                countDownLatch.countDown()
-                            }
-                            is SingleFolderResult.Error -> {
-                                copyError = true
-                                countDownLatch.countDown()
-                            }
-                            else -> {}
-                        }
-                    }
-                }
-
-                countDownLatch.await()
-
-                if (copyError) {
-                    withContext(Dispatchers.Main) {
-                        statusMessage = "存档移动至高速缓存失败"
+                    if (docFolder == null) {
                         isLoading = false
+                        return@withContext
                     }
-                    return@withContext
+                    statusMessage = "正在迁移世界存档至高速预览缓存以防读写受阻..."
+                    // 修改点 1：地图预览专享 world_preview 目录，绝不污染 world_input
+                    val localPreviewPath = File(worldsDir, "world_preview")
+                    if (localPreviewPath.exists()) {
+                        localPreviewPath.deleteRecursively()
+                    }
+                    localPreviewPath.mkdirs()
+
+                    val targetParentDoc = DocumentFile.fromFile(worldsDir)
+                    val countDownLatch = java.util.concurrent.CountDownLatch(1)
+                    var copyError = false
+
+                    viewModelScope.launch(Dispatchers.IO) {
+                        docFolder.copyFolderTo(
+                            context = context,
+                            targetParentFolder = targetParentDoc,
+                            skipEmptyFiles = false,
+                            newFolderNameInTargetPath = "world_preview",
+                            onConflict = object : com.anggrayudi.storage.callback.SingleFolderConflictCallback(viewModelScope) {
+                                override fun onParentConflict(
+                                    destinationFolder: DocumentFile,
+                                    action: ParentFolderConflictAction,
+                                    canMerge: Boolean
+                                ) {
+                                    action.confirmResolution(ConflictResolution.REPLACE)
+                                }
+                            }
+                        ).flowOn(Dispatchers.IO).collect { result: SingleFolderResult ->
+                            when (result) {
+                                is SingleFolderResult.Completed -> countDownLatch.countDown()
+                                is SingleFolderResult.Error -> {
+                                    copyError = true
+                                    countDownLatch.countDown()
+                                }
+                                else -> {}
+                            }
+                        }
+                    }
+
+                    countDownLatch.await()
+
+                    if (copyError) {
+                        withContext(Dispatchers.Main) {
+                            statusMessage = "存档移动至缓存失败"
+                            isLoading = false
+                        }
+                        return@withContext
+                    }
+
+                    worldDirUri = localPreviewPath.absolutePath
+                    localPreviewPath
                 }
 
-                val worldDirectory = localInputPath
-                worldDirUri = localInputPath.absolutePath
-
-                if (!worldDirectory.exists()) {
+                if (!finalWorldDirectory.exists()) {
                     withContext(Dispatchers.Main) {
-                        statusMessage = "高速缓存目录异常！"
+                        statusMessage = "世界物理路径不存在！"
                         isLoading = false
                     }
                     return@withContext
@@ -194,7 +213,7 @@ class MapPreviewViewModel : ViewModel() {
                     override fun level(): Optional<ChunkerLevel> = Optional.empty()
                 }
 
-                val readerOpt = EncodingType.findReader(worldDirectory, converterStub)
+                val readerOpt = EncodingType.findReader(finalWorldDirectory, converterStub)
                 if (!readerOpt.isPresent) {
                     withContext(Dispatchers.Main) {
                         statusMessage = "未检测到支持的 Java 或 Bedrock 格式！"

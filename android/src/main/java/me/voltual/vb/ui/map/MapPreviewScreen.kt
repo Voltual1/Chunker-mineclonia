@@ -20,19 +20,17 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CenterFocusStrong
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Map
-import androidx.compose.material.icons.filled.Pets
-import androidx.compose.material.icons.filled.Widgets
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -44,9 +42,12 @@ import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
+import me.voltual.vb.core.utils.WorldExporter
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.LocalNavigator
+import me.voltual.vb.ui.TopAppBarAction
 import org.koin.compose.viewmodel.koinViewModel
+import java.io.File
 import kotlin.math.floor
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -60,11 +61,11 @@ fun MapPreviewScreen(
     val context = LocalContext.current
     val navigator = LocalNavigator.current
     val topAppBarController = LocalTopAppBarController.current
+    val coroutineScope = rememberCoroutineScope()
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
 
-    // 统一的文件选择器逻辑
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         viewModel.worldDirUri = folder.uri.toString()
         composeBitmaps.clear()
@@ -74,14 +75,51 @@ fun MapPreviewScreen(
 
     // 初始化载入
     LaunchedEffect(initialFolderUri) {
+        viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
-            viewModel.worldDirUri = initialFolderUri
             val doc = com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)
             if (doc != null) viewModel.loadAndRenderWorld(context, doc)
         }
     }
 
-    // 同步渲染 ImageBitmap
+    // 动态在 TopAppBar 注入“启用网格框”与“导出当前世界”选项
+    LaunchedEffect(viewModel.worldDirUri, viewModel.showGrid, viewModel.isLoading) {
+        if (viewModel.worldDirUri.isNotEmpty() && !viewModel.isLoading) {
+            topAppBarController.updateActions(
+                listOf(
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
+                        description = "网格线",
+                        onClick = { viewModel.showGrid = !viewModel.showGrid }
+                    ),
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.IosShare, contentDescription = "导出世界", tint = tint) },
+                        description = "导出世界",
+                        onClick = {
+                            coroutineScope.launch {
+                                snackbarHostState.showSnackbar("正在打包导出当前世界...")
+                                val file = File(viewModel.worldDirUri)
+                                if (file.exists()) {
+                                    WorldExporter.exportWorld(context, file)
+                                    snackbarHostState.showSnackbar("导出成功！已保存至共享文件夹")
+                                } else {
+                                    snackbarHostState.showSnackbar("物理文件不可访问")
+                                }
+                            }
+                        }
+                    ),
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
+                        description = "打开存档",
+                        onClick = { folderPicker.launch() }
+                    )
+                )
+            )
+        } else {
+            topAppBarController.clear()
+        }
+    }
+
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
             if (!composeBitmaps.containsKey(region)) {
@@ -99,7 +137,6 @@ fun MapPreviewScreen(
                     .background(Color(0xFF202020))
             ) {
                 if (viewModel.worldDirUri.isEmpty()) {
-                    // 简约的空状态：中心提示并放置统一按钮
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -118,17 +155,27 @@ fun MapPreviewScreen(
                             color = MaterialTheme.colorScheme.outline
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(
-                            onClick = { folderPicker.launch() },
-                            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-                        ) {
-                            Icon(Icons.Default.FolderOpen, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("选取存档目录")
+                        
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Button(onClick = { folderPicker.launch() }) {
+                                Icon(Icons.Default.FolderOpen, null)
+                                Spacer(Modifier.width(8.dp))
+                                Text("选取存档目录")
+                            }
+
+                            // 导出中转站快捷入口
+                            if (viewModel.hasExistingFtpInput) {
+                                FilledTonalButton(onClick = {
+                                    viewModel.loadAndRenderWorld(context, null, useFtpInput = true)
+                                }) {
+                                    Icon(Icons.Default.Wifi, null)
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("直接预览中转站")
+                                }
+                            }
                         }
                     }
                 } else {
-                    // 已选存档后的 UI 展示
                     if (viewModel.isLoading) {
                         Column(
                             modifier = Modifier
@@ -147,7 +194,7 @@ fun MapPreviewScreen(
                     if (composeBitmaps.isNotEmpty()) {
                         InteractiveMapCanvas(
                             regionBitmaps = composeBitmaps,
-                            viewportWidth = 2000f, // 占位，会在计算时自动适配父容器
+                            viewportWidth = 2000f,
                             viewportHeight = 2000f,
                             viewModel = viewModel,
                             onChunkTap = { chunkPair ->
@@ -159,7 +206,6 @@ fun MapPreviewScreen(
             }
         }
 
-        // 居中操作菜单
         ChunkActionMenu(
             chunk = selectedChunk,
             onDismiss = { selectedChunk = null },
@@ -174,11 +220,10 @@ fun MapPreviewScreen(
     }
 }
 
-// 这里的 InteractiveMapCanvas 需要获取真实的 Constraints
 @Composable
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
-    viewportWidth: Float, // 这里的参数现在由 BoxWithConstraints 提供更佳
+    viewportWidth: Float,
     viewportHeight: Float,
     viewModel: MapPreviewViewModel,
     onChunkTap: (ChunkCoordPair) -> Unit
@@ -244,6 +289,16 @@ fun InteractiveMapCanvas(
                             image = bitmap,
                             topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
                         )
+                        
+                        // 绘制 512x512 区域网格框
+                        if (viewModel.showGrid) {
+                            drawRect(
+                                color = Color.White.copy(alpha = 0.3f),
+                                topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f),
+                                size = Size(512f, 512f),
+                                style = Stroke(width = 1.5f)
+                            )
+                        }
                     }
                 }
             }
@@ -261,7 +316,6 @@ fun InteractiveMapCanvas(
     }
 }
 
-// ChunkActionMenu 和 ActionMenuItem 逻辑保持不变...
 @Composable
 fun ChunkActionMenu(
     chunk: ChunkCoordPair?,
