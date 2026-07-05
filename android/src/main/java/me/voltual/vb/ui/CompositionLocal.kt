@@ -23,9 +23,6 @@ val LocalNavigator = compositionLocalOf<Navigator> { error("No Navigator provide
 /** 当前 NavigationState 实例 */
 val LocalNavigationState = compositionLocalOf<NavigationState> { error("No NavigationState provided") }
 
-/** 全局 SnackbarHostState */
-val LocalSnackbarHostState = compositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
-
 class TopAppBarAction(
   val icon: @Composable (tint: Color) -> Unit,
   val description: String,

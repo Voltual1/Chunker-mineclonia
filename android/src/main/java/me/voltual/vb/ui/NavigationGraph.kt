@@ -104,11 +104,12 @@ fun BBQNavDisplay(
                         }
                         
                         is MapPreviewDest -> {
-                            MapPreviewScreen(
-                                initialFolderUri = key.folderUri,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+    MapPreviewScreen(
+        initialFolderUri = key.folderUri,
+        snackbarHostState = snackbarHostState,
+        modifier = Modifier.fillMaxSize()
+    )
+}
 
                         is Export -> {
                             ExportScreen(modifier = Modifier.fillMaxSize())

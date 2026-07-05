@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发 and/或 修改 it。
+//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
 // 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
@@ -43,7 +43,6 @@ import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
-import me.voltual.vb.ui.LocalSnackbarHostState
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.floor
 
@@ -51,17 +50,16 @@ import kotlin.math.floor
 @Composable
 fun MapPreviewScreen(
     initialFolderUri: String,
+    snackbarHostState: SnackbarHostState, // 接收由 NavigationGraph 传入的 HostState
     modifier: Modifier = Modifier,
     viewModel: MapPreviewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val snackbarHostState = LocalSnackbarHostState.current
     val coroutineScope = rememberCoroutineScope()
     var currentUri by remember { mutableStateOf(initialFolderUri) }
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
 
-    // 选中区块的状态
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
 
     LaunchedEffect(viewModel.regionBitmaps.size) {
@@ -136,7 +134,6 @@ fun MapPreviewScreen(
             }
         }
 
-        // 中心悬浮区块操作菜单
         ChunkActionMenu(
             chunk = selectedChunk,
             onDismiss = { selectedChunk = null },
