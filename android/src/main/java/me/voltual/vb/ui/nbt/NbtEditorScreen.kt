@@ -89,13 +89,7 @@ fun NbtEditorScreen(
         )
         topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
     }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            topAppBarController.clear()
-        }
-    }
-
+    
     Box(
         modifier = modifier
             .fillMaxSize()

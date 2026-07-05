@@ -44,9 +44,9 @@ class TopAppBarController {
   }
 
   fun clear() {
+    actions = emptyList()
+    customTitle = null
     titleContent = null
-    customTitle = null    
-    actions = emptyList()    
   }
 }
 
