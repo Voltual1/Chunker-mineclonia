@@ -20,21 +20,27 @@
 
 package me.voltual.vb.ui.nbt
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hivemc.chunker.nbt.TagType
+import com.hivemc.chunker.nbt.tags.Tag
+import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 import kotlinx.coroutines.launch
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.TopAppBarAction
@@ -59,12 +65,10 @@ fun NbtEditorScreen(
     val isModified = viewModel.editableNbt?.isModified == true
     var expandedPaths by remember { mutableStateOf(setOf("root")) }
 
-    // 上下文与对话框状态
     var activeMenuNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showRenameDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showAddTagDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
 
-    // 利用 TopAppBarController 动态接管 Toolbar 标题及行为动作
     LaunchedEffect(isModified, viewModel.editableNbt) {
         topAppBarController.updateActions(
             if (isModified) {
@@ -84,7 +88,6 @@ fun NbtEditorScreen(
         topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
     }
 
-    // 销毁时清理自定义 Title
     DisposableEffect(Unit) {
         onDispose {
             topAppBarController.clear()
@@ -98,9 +101,9 @@ fun NbtEditorScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .background(Color(0xFF0F172A)) // 采用深色背景面板渲染高亮树
+                .background(Color(0xFF0F172A))
         ) {
-            val rootTag = (editableNbt as? ChunkEditableNbt)?.getTags() // 取出根 Compound
+            val rootTag = (editableNbt as? ChunkEditableNbt)?.getTags()
             
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (rootTag == null || rootTag.isEmpty()) {
@@ -115,10 +118,8 @@ fun NbtEditorScreen(
                             .verticalScroll(scrollState)
                             .padding(16.dp)
                     ) {
-                        // 组装高亮 NBT JSON 树
                         NbtTreeViewer(
                             rootTag = (editableNbt as ChunkEditableNbt).let { 
-                                // 获取到底层原始 Compound 节点进行语法树绘制
                                 val prop = it::class.java.getDeclaredField("rootTag")
                                 prop.isAccessible = true
                                 prop.get(it) as CompoundTag
@@ -140,7 +141,6 @@ fun NbtEditorScreen(
             }
         }
 
-        // 上下文动作及各项对话框渲染逻辑保持不变...
         activeMenuNode?.let { node ->
             NbtNodeContextMenu(
                 node = node,
@@ -200,4 +200,182 @@ fun NbtEditorScreen(
             )
         }
     }
+}
+
+@Composable
+fun NbtNodeContextMenu(
+    node: NbtUiNode,
+    hasClipboard: Boolean,
+    onDismiss: () -> Unit,
+    onCopy: () -> Unit,
+    onPasteOverwrite: () -> Unit,
+    onPasteSubTag: () -> Unit,
+    onDelete: () -> Unit,
+    onRename: () -> Unit,
+    onAddSubTag: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = "操作: ${node.key.ifEmpty { "Root" }}") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("复制")
+                    }
+                }
+                if (hasClipboard) {
+                    TextButton(onClick = onPasteOverwrite, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Icon(Icons.Default.ContentPaste, contentDescription = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("覆盖粘贴")
+                        }
+                    }
+                    if (node.isContainer) {
+                        TextButton(onClick = onPasteSubTag, modifier = Modifier.fillMaxWidth()) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                                Icon(Icons.Default.ContentPasteGo, contentDescription = null)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text("粘贴为子节点")
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth()) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                        Icon(Icons.Default.Edit, contentDescription = null)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("重命名")
+                    }
+                }
+                if (node.isContainer) {
+                    TextButton(onClick = onAddSubTag, modifier = Modifier.fillMaxWidth()) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("添加子标签")
+                        }
+                    }
+                }
+                TextButton(
+                    onClick = onDelete,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Alignment.Start) {
+                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("删除")
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@Composable
+fun RenameDialog(
+    initialName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var newName by remember { mutableStateOf(initialName) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("重命名 NBT 键") },
+        text = {
+            OutlinedTextField(
+                value = newName,
+                onValueChange = { newName = it },
+                label = { Text("新键名") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(newName) }) { Text("确认") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AddSubTagDialog(
+    isCompound: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: (String, TagType<*, *>) -> Unit
+) {
+    var name by remember { mutableStateOf("") }
+    var expanded by remember { mutableStateOf(false) }
+
+    val types = listOf(
+        TagType.BYTE, TagType.SHORT, TagType.INT, TagType.LONG,
+        TagType.FLOAT, TagType.DOUBLE, TagType.STRING,
+        TagType.COMPOUND, TagType.LIST
+    )
+    var selectedType by remember { mutableStateOf(types.first()) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("创建新 NBT 子标签") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                if (isCompound) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("键名 (Name)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded }
+                ) {
+                    OutlinedTextField(
+                        value = selectedType.tagClass?.simpleName ?: "Unknown",
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("选择标签类型") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        types.forEach { type ->
+                            DropdownMenuItem(
+                                text = { Text(type.tagClass?.simpleName ?: "Unknown") },
+                                onClick = {
+                                    selectedType = type
+                                    expanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(name, selectedType) }) { Text("创建") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
