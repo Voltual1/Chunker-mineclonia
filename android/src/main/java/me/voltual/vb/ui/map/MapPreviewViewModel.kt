@@ -130,12 +130,11 @@ class MapPreviewViewModel : ViewModel() {
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
                         override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                            // 针对 Java 平台重载及 Kotlin 可空性：使用无参构造函数防 Null
-                            val safeLevel = level ?: ChunkerLevel()
+                            val safeLevel = level ?: throw NullPointerException("ChunkerLevel cannot be null")
                             val worldWriter = previewWriter.writeLevel(safeLevel)
                             val worldHandler = object : WorldConversionHandler {
                                 override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
-                                    val safeWorld = world ?: ChunkerWorld()
+                                    val safeWorld = world ?: throw NullPointerException("ChunkerWorld cannot be null")
                                     val columnWriter = worldWriter.writeWorld(safeWorld)
                                     val columnHandler = object : ColumnConversionHandler {
                                         override fun convertColumn(column: ChunkerColumn?): Task<Void> {
