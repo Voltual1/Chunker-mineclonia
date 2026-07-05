@@ -20,8 +20,12 @@
 
 package me.voltual.vb.ui.nbt
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -65,8 +69,6 @@ fun NbtEditorScreen(
     var activeMenuNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showRenameDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showAddTagDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
-
-    // 编辑数值对话框状态
     var editingValueNode by remember { mutableStateOf<NbtUiNode?>(null) }
 
     LaunchedEffect(isModified, viewModel.editableNbt) {
@@ -94,7 +96,6 @@ fun NbtEditorScreen(
         }
     }
 
-    // 彻底废除内部 Scaffold，直接使用基础布局容器，响应外部全局 SnackbarHost
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -114,7 +115,6 @@ fun NbtEditorScreen(
             val verticalScrollState = rememberScrollState()
             val horizontalScrollState = rememberScrollState()
             
-            // 组装双向滚动面板：使 NBT 语法树完美右展，不发生拥挤与自动换行
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -123,25 +123,24 @@ fun NbtEditorScreen(
                     .padding(16.dp)
             ) {
                 key(viewModel.treeVersion) {
-                            NbtTreeViewer(
-                                rootTag = rootTag,
-                                expandedPaths = expandedPaths,
-                                onToggleNode = { path ->
-                                    expandedPaths = if (expandedPaths.contains(path)) {
-                                        expandedPaths - path
-                                    } else {
-                                        expandedPaths + path
-                                    }
-                                },
-                                onNodeLongClick = { node ->
-                                    activeMenuNode = node
-                                }
-                            )
+                    NbtTreeViewer(
+                        rootTag = rootTag,
+                        expandedPaths = expandedPaths,
+                        onToggleNode = { path ->
+                            expandedPaths = if (expandedPaths.contains(path)) {
+                                expandedPaths - path
+                            } else {
+                                expandedPaths + path
+                            }
+                        },
+                        onNodeLongClick = { node ->
+                            activeMenuNode = node
                         }
+                    )
+                }
             }
         }
 
-        // 长按 NBT 节点动作菜单
         activeMenuNode?.let { node ->
             NbtNodeContextMenu(
                 node = node,
@@ -183,7 +182,6 @@ fun NbtEditorScreen(
             )
         }
 
-        // 修改原子数值对话框
         editingValueNode?.let { node ->
             EditValueDialog(
                 node = node,
@@ -197,7 +195,7 @@ fun NbtEditorScreen(
 
         showRenameDialogNode?.let { node ->
             RenameDialog(
-                initialName = node.key,
+                initialName = node.key ?: "", // 修复：处理可空 key
                 onDismiss = { showRenameDialogNode = null },
                 onConfirm = { newName ->
                     viewModel.renameNode(node, newName)
@@ -235,7 +233,7 @@ fun NbtNodeContextMenu(
     val isContainer = node.tag.type == TagType.COMPOUND || node.tag.type == TagType.LIST
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "操作: ${node.key.ifEmpty { "Root" }}") },
+        title = { Text(text = "操作: ${node.key?.ifEmpty { "Root" } ?: "Root"}") }, // 修复：处理可空 key
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (!isContainer) {
@@ -343,7 +341,8 @@ fun EditValueDialog(
 ) {
     var textValue by remember { mutableStateOf(node.tag.boxedValue?.toString() ?: "") }
     var checked by remember { mutableStateOf(if (node.tag.boxedValue is Byte) (node.tag.boxedValue == 1.toByte()) else false) }
-    val isBoolean = node.key.startsWith("is") || node.key.startsWith("has")
+    // 修复：处理可空 key
+    val isBoolean = node.key?.startsWith("is") == true || node.key?.startsWith("has") == true
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -376,7 +375,6 @@ fun EditValueDialog(
                     if (node.tag.type == TagType.BYTE && isBoolean) {
                         onConfirm(if (checked) 1.toByte() else 0.toByte())
                     } else {
-                        // 依据 Chunker 对应的数据节点类型，对输入的 text 进行安全的数据类型转换
                         val converted: Any? = when (node.tag.type) {
                             TagType.BYTE -> textValue.toByteOrNull()
                             TagType.SHORT -> textValue.toShortOrNull()
