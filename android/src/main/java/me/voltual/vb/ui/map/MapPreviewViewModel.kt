@@ -54,6 +54,18 @@ class MapPreviewViewModel : ViewModel() {
 
     var statusMessage by mutableStateOf("")
         private set
+        
+    /**
+     * 响应用户点击，请求打开指定区块的 NBT
+     * @param chunk 目标区块坐标
+     * @param isEntity true 为普通实体(Entity)，false 为方块实体(BlockEntity)
+     */
+    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean) {
+        // TODO: 利用 Chunker 的 MCAReader (Java) 或 LevelDBReader (Bedrock) 
+        // 针对性地在磁盘中根据区块坐标提取 NBT 数据。
+        // 读取到 NBTCompound 后，通过 Navigator 传递给 NbtEditorDest(nbt数据/路径) 即可。
+        println("Requesting NBT editing for chunk: ${chunk.chunkX()}, ${chunk.chunkZ()} | isEntity: $isEntity")
+    }
 
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile) {
         viewModelScope.launch {

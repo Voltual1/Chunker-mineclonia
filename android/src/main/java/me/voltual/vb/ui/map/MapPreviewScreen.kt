@@ -9,13 +9,21 @@
 
 package me.voltual.vb.ui.map
 
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CenterFocusStrong
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -25,14 +33,19 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
+import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
-import me.voltual.vb.ui.LocalNavigator
+import kotlinx.coroutines.launch
+import me.voltual.vb.ui.LocalSnackbarHostState
 import org.koin.compose.viewmodel.koinViewModel
+import kotlin.math.floor
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,12 +55,15 @@ fun MapPreviewScreen(
     viewModel: MapPreviewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
+    val snackbarHostState = LocalSnackbarHostState.current
+    val coroutineScope = rememberCoroutineScope()
     var currentUri by remember { mutableStateOf(initialFolderUri) }
 
-    // 将 Android Bitmap 转换为 Compose 适用的 ImageBitmap 以利用硬件加速
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
 
-    // 监听 ViewModel 中生成的 Bitmap 并缓存为 Compose ImageBitmap
+    // 选中区块的状态
+    var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
+
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
             if (!composeBitmaps.containsKey(region)) {
@@ -59,62 +75,87 @@ fun MapPreviewScreen(
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         currentUri = folder.uri.toString()
         composeBitmaps.clear()
+        selectedChunk = null
         viewModel.loadAndRenderWorld(context, folder)
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("地图预览 (世界视图)") },
-                actions = {
-                    IconButton(onClick = { folderPicker.launch() }) {
-                        Icon(Icons.Default.FolderOpen, "打开存档")
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = { Text("地图预览 (世界视图)") },
+                    actions = {
+                        IconButton(onClick = { folderPicker.launch() }) {
+                            Icon(Icons.Default.FolderOpen, "打开存档")
+                        }
                     }
-                }
-            )
-        }
-    ) { padding ->
-        BoxWithConstraints(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(padding)
-                .background(Color(0xFF202020)) // 类似 Blocktopograph 的深色底板
-        ) {
-            if (currentUri.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Button(onClick = { folderPicker.launch() }) {
-                        Icon(Icons.Default.FolderOpen, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("选择 Minecraft 存档文件夹")
+                )
+            }
+        ) { padding ->
+            BoxWithConstraints(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .background(Color(0xFF202020))
+            ) {
+                if (currentUri.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Button(onClick = { folderPicker.launch() }) {
+                            Icon(Icons.Default.FolderOpen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("选择 Minecraft 存档文件夹")
+                        }
                     }
-                }
-            } else {
-                // UI 顶层加载指示器
-                if (viewModel.isLoading) {
-                    Column(
-                        modifier = Modifier
-                            .align(Alignment.TopCenter)
-                            .padding(top = 16.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), shape = MaterialTheme.shapes.medium)
-                            .padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator(modifier = Modifier.fillMaxWidth(0.5f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(viewModel.statusMessage, fontSize = 12.sp)
+                } else {
+                    if (viewModel.isLoading) {
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.TopCenter)
+                                .padding(top = 16.dp)
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.8f), shape = MaterialTheme.shapes.medium)
+                                .padding(horizontal = 16.dp, vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.fillMaxWidth(0.5f))
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(viewModel.statusMessage, fontSize = 12.sp)
+                        }
                     }
-                }
 
-                // 交互式 2D 地图画布
-                if (composeBitmaps.isNotEmpty()) {
-                    InteractiveMapCanvas(
-                        regionBitmaps = composeBitmaps,
-                        viewportWidth = constraints.maxWidth.toFloat(),
-                        viewportHeight = constraints.maxHeight.toFloat()
-                    )
+                    if (composeBitmaps.isNotEmpty()) {
+                        InteractiveMapCanvas(
+                            regionBitmaps = composeBitmaps,
+                            viewportWidth = constraints.maxWidth.toFloat(),
+                            viewportHeight = constraints.maxHeight.toFloat(),
+                            onChunkTap = { chunkPair ->
+                                selectedChunk = chunkPair
+                            }
+                        )
+                    }
                 }
             }
         }
+
+        // 中心悬浮区块操作菜单
+        ChunkActionMenu(
+            chunk = selectedChunk,
+            onDismiss = { selectedChunk = null },
+            onAction = { action, chunkPair ->
+                selectedChunk = null
+                coroutineScope.launch {
+                    when (action) {
+                        "entities" -> {
+                            snackbarHostState.showSnackbar("正准备加载区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 的实体 NBT...")
+                            viewModel.openChunkNbt(chunkPair, isEntity = true)
+                        }
+                        "block_entities" -> {
+                            snackbarHostState.showSnackbar("正准备加载区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 的方块实体 NBT...")
+                            viewModel.openChunkNbt(chunkPair, isEntity = false)
+                        }
+                    }
+                }
+            }
+        )
     }
 }
 
@@ -122,13 +163,13 @@ fun MapPreviewScreen(
 fun InteractiveMapCanvas(
     regionBitmaps: Map<RegionCoordPair, ImageBitmap>,
     viewportWidth: Float,
-    viewportHeight: Float
+    viewportHeight: Float,
+    onChunkTap: (ChunkCoordPair) -> Unit
 ) {
     var scale by remember { mutableStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var isCentered by remember { mutableStateOf(false) }
 
-    // 当有新区块加载进来、或是强制请求居中时，重新计算最佳视图与居中位置
     LaunchedEffect(regionBitmaps, isCentered) {
         if (regionBitmaps.isNotEmpty() && !isCentered) {
             val minX = regionBitmaps.keys.minOf { it.regionX() }
@@ -139,16 +180,13 @@ fun InteractiveMapCanvas(
             val mapWidth = (maxX - minX + 1) * 512f
             val mapHeight = (maxZ - minZ + 1) * 512f
 
-            // 计算适合屏幕的初始缩放比例
             val scaleX = viewportWidth / mapWidth
             val scaleY = viewportHeight / mapHeight
             scale = minOf(scaleX, scaleY).coerceIn(0.05f, 2f)
 
-            // 计算地图坐标系中的绝对中心点
             val boundsCenterX = minX * 512f + mapWidth / 2f
             val boundsCenterZ = minZ * 512f + mapHeight / 2f
 
-            // 将其平移至屏幕中心
             offset = Offset(
                 viewportWidth / 2f - boundsCenterX * scale,
                 viewportHeight / 2f - boundsCenterZ * scale
@@ -161,13 +199,27 @@ fun InteractiveMapCanvas(
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
+                // 监听点击事件并逆向换算坐标
+                .pointerInput(Unit) {
+                    detectTapGestures(
+                        onTap = { tapOffset ->
+                            // 反推世界绝对像素坐标
+                            val worldX = (tapOffset.x - offset.x) / scale
+                            val worldZ = (tapOffset.y - offset.y) / scale
+                            
+                            // 每个 Chunk 是 16x16 像素
+                            val chunkX = floor(worldX / 16f).toInt()
+                            val chunkZ = floor(worldZ / 16f).toInt()
+                            
+                            onChunkTap(ChunkCoordPair(chunkX, chunkZ))
+                        }
+                    )
+                }
+                // 监听双指缩放和拖拽
                 .pointerInput(Unit) {
                     detectTransformGestures { centroid, pan, zoom, _ ->
                         val oldScale = scale
-                        // 允许最大放大 50 倍，最小缩小到 1%
                         scale = (scale * zoom).coerceIn(0.01f, 50f)
-                        
-                        // 围绕手势捏合中心进行平滑缩放与平移
                         offset = (offset + pan - centroid) * (scale / oldScale) + centroid
                     }
                 }
@@ -176,7 +228,6 @@ fun InteractiveMapCanvas(
                 translate(offset.x, offset.y)
                 scale(scale, scale, pivot = Offset.Zero)
             }) {
-                // 遍历渲染所有的 Region 块到地图二维世界中！
                 regionBitmaps.forEach { (region, bitmap) ->
                     drawImage(
                         image = bitmap,
@@ -186,7 +237,6 @@ fun InteractiveMapCanvas(
             }
         }
 
-        // 复位居中按钮
         FloatingActionButton(
             onClick = { isCentered = false },
             modifier = Modifier
@@ -195,6 +245,97 @@ fun InteractiveMapCanvas(
             containerColor = MaterialTheme.colorScheme.primary
         ) {
             Icon(Icons.Default.CenterFocusStrong, contentDescription = "居中地图")
+        }
+    }
+}
+
+/**
+ * 屏幕中心悬浮操作菜单，参考 MT 管理器与 FileActionMenu 交互逻辑
+ */
+@Composable
+fun ChunkActionMenu(
+    chunk: ChunkCoordPair?,
+    onDismiss: () -> Unit,
+    onAction: (String, ChunkCoordPair) -> Unit
+) {
+    AnimatedVisibility(
+        visible = chunk != null,
+        enter = fadeIn(animationSpec = tween(200)) + scaleIn(transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center),
+        exit = fadeOut(animationSpec = tween(150)) + scaleOut(transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null
+                ) {
+                    onDismiss()
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Surface(
+                modifier = Modifier.width(280.dp).padding(16.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 3.dp,
+                shadowElevation = 8.dp,
+            ) {
+                Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                    Text(
+                        text = "区块 (${chunk?.chunkX()}, ${chunk?.chunkZ()})",
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                    )
+
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant,
+                    )
+
+                    ActionMenuItem(
+                        icon = Icons.Default.Pets,
+                        label = "查看区块实体 NBT"
+                    ) {
+                        chunk?.let { onAction("entities", it) }
+                    }
+
+                    ActionMenuItem(
+                        icon = Icons.Default.Widgets,
+                        label = "查看方块实体 NBT"
+                    ) {
+                        chunk?.let { onAction("block_entities", it) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ActionMenuItem(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Surface(modifier = Modifier.fillMaxWidth().clickable { onClick() }, color = Color.Transparent) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                modifier = Modifier.size(22.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
