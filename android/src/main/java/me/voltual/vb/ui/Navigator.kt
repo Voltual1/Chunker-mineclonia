@@ -18,8 +18,8 @@ class Navigator(
   private val topAppBarController: TopAppBarController? = null,
 ) {
   private fun forceCleanup() {
-    focusManager?.clearFocus(force = true) 
     topAppBarController?.clear()
+    focusManager?.clearFocus(force = true) 
   }
 
   fun logoutAndReset() {
