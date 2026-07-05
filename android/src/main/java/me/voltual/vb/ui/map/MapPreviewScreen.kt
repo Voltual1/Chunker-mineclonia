@@ -38,12 +38,13 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import me.voltual.vb.ui.LocalNavigator
 import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import kotlinx.coroutines.launch
+import me.voltual.vb.ui.LocalTopAppBarController
+import me.voltual.vb.ui.TopAppBarAction
 import org.koin.compose.viewmodel.koinViewModel
 import kotlin.math.floor
 
@@ -57,16 +58,48 @@ fun MapPreviewScreen(
 ) {
     val context = LocalContext.current
     val navigator = LocalNavigator.current
+    val topAppBarController = LocalTopAppBarController.current
     val coroutineScope = rememberCoroutineScope()
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
-
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
 
+    val folderPicker = rememberLauncherForFolderPicker { folder ->
+        viewModel.worldDirUri = folder.uri.toString()
+        composeBitmaps.clear()
+        selectedChunk = null
+        viewModel.loadAndRenderWorld(context, folder)
+    }
+
+    // 初始化载入外部路径
     LaunchedEffect(initialFolderUri) {
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
             viewModel.worldDirUri = initialFolderUri
             viewModel.loadAndRenderWorld(context, com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)!!)
+        }
+    }
+
+    // 动态控制顶部 Actions：只有已成功载入世界且不处于加载状态时，才在 TopAppBar 显示“打开文件夹”
+    LaunchedEffect(viewModel.worldDirUri, viewModel.isLoading) {
+        if (viewModel.worldDirUri.isNotEmpty() && !viewModel.isLoading) {
+            topAppBarController.updateActions(
+                listOf(
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
+                        description = "打开存档",
+                        onClick = { folderPicker.launch() }
+                    )
+                )
+            )
+        } else {
+            topAppBarController.clear()
+        }
+    }
+
+    // 离开地图预览界面时，清理 TopAppBar 的控制状态
+    DisposableEffect(Unit) {
+        onDispose {
+            topAppBarController.clear()
         }
     }
 
@@ -78,26 +111,8 @@ fun MapPreviewScreen(
         }
     }
 
-    val folderPicker = rememberLauncherForFolderPicker { folder ->
-        viewModel.worldDirUri = folder.uri.toString()
-        composeBitmaps.clear()
-        selectedChunk = null
-        viewModel.loadAndRenderWorld(context, folder)
-    }
-
     Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            topBar = {
-                TopAppBar(
-                    title = { Text("地图预览 (世界视图)") },
-                    actions = {
-                        IconButton(onClick = { folderPicker.launch() }) {
-                            Icon(Icons.Default.FolderOpen, "打开存档")
-                        }
-                    }
-                )
-            }
-        ) { padding ->
+        Scaffold { padding ->
             BoxWithConstraints(
                 modifier = modifier
                     .fillMaxSize()
@@ -133,7 +148,7 @@ fun MapPreviewScreen(
                             regionBitmaps = composeBitmaps,
                             viewportWidth = constraints.maxWidth.toFloat(),
                             viewportHeight = constraints.maxHeight.toFloat(),
-                            viewModel = viewModel, // 传入 VM 代理视口状态
+                            viewModel = viewModel,
                             onChunkTap = { chunkPair ->
                                 selectedChunk = chunkPair
                             }
