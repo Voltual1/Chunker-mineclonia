@@ -28,6 +28,7 @@ import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry
@@ -130,10 +131,18 @@ class MapPreviewViewModel : ViewModel() {
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
                         override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                            val safeLevel = level ?: throw NullPointerException("ChunkerLevel cannot be null")
+                            // 使用带有默认内部设置的 ChunkerLevel 构造函数，防止 Chunker 管道调用时抛出 NullPointerException
+                            val safeLevel = level ?: ChunkerLevel(
+                                ChunkerLevelSettings(),
+                                null,
+                                emptyList(),
+                                null,
+                                emptyList()
+                            )
                             val worldWriter = previewWriter.writeLevel(safeLevel)
                             val worldHandler = object : WorldConversionHandler {
                                 override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
+                                    // 仅做防御性非空断言，若 Chunker 传入 null，世界维度定位本就失败，抛出异常阻断是符合逻辑的
                                     val safeWorld = world ?: throw NullPointerException("ChunkerWorld cannot be null")
                                     val columnWriter = worldWriter.writeWorld(safeWorld)
                                     val columnHandler = object : ColumnConversionHandler {
@@ -168,6 +177,10 @@ class MapPreviewViewModel : ViewModel() {
                                 }
                             }
                             return FutureTask(CompletableFuture.completedFuture(worldHandler))
+                        }
+
+                        override fun convertLevel(p0: ChunkerLevel?): Task<WorldConversionHandler> {
+                            return convertLevel(p0)
                         }
 
                         override fun flushLevel() {
