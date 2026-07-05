@@ -40,7 +40,6 @@ import com.anggrayudi.storage.file.toRawFile
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
@@ -128,6 +127,15 @@ class MapPreviewViewModel : ViewModel() {
                     }
                 )
 
+                // 创建 Chunker 任务环境上下文
+                val exceptionHandler = java.util.function.Consumer<Throwable> { it.printStackTrace() }
+                val environment = Task.environment(
+                    "Map Preview Generation",
+                    maxOf(1, Runtime.getRuntime().availableProcessors() - 1),
+                    exceptionHandler,
+                    null
+                )
+
                 try {
                     levelReader.readLevel(object : LevelConversionHandler {
                         override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
@@ -146,7 +154,7 @@ class MapPreviewViewModel : ViewModel() {
                                     val columnHandler = object : ColumnConversionHandler {
                                         override fun convertColumn(column: ChunkerColumn?): Task<Void> {
                                             if (column != null) {
-                                                columnWriter.writeColumn(column)
+                                                return columnWriter.writeColumn(column)
                                             }
                                             return FutureTask(CompletableFuture.completedFuture(null))
                                         }
@@ -186,10 +194,21 @@ class MapPreviewViewModel : ViewModel() {
                     withContext(Dispatchers.Main) {
                         statusMessage = "解析出错: ${e.localizedMessage}"
                     }
+                } finally {
+                    // 关闭环境以拒绝新任务，但允许子任务继续处理
+                    environment.close()
+                }
+
+                // 阻塞当前协程（Default调度器）等待所有的区块解析与图像生成异步任务结束
+                try {
+                    environment.future().get()
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
 
             isLoading = false
+            statusMessage = "预览加载完成！(共 ${regionBitmaps.size} 个区域)"
         }
     }
 }
