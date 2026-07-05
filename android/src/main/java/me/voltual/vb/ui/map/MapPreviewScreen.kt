@@ -56,13 +56,20 @@ fun MapPreviewScreen(
     viewModel: MapPreviewViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val navigator = LocalNavigator.current // 在 Composable 顶层获取 Navigator
+    val navigator = LocalNavigator.current
     val coroutineScope = rememberCoroutineScope()
-    var currentUri by remember { mutableStateOf(initialFolderUri) }
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
 
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
+
+    // 初始化载入外部路径到 ViewModel
+    LaunchedEffect(initialFolderUri) {
+        if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
+            viewModel.worldDirUri = initialFolderUri
+            viewModel.loadAndRenderWorld(context, com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)!!)
+        }
+    }
 
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
@@ -73,7 +80,7 @@ fun MapPreviewScreen(
     }
 
     val folderPicker = rememberLauncherForFolderPicker { folder ->
-        currentUri = folder.uri.toString()
+        viewModel.worldDirUri = folder.uri.toString()
         composeBitmaps.clear()
         selectedChunk = null
         viewModel.loadAndRenderWorld(context, folder)
@@ -98,7 +105,7 @@ fun MapPreviewScreen(
                     .padding(padding)
                     .background(Color(0xFF202020))
             ) {
-                if (currentUri.isEmpty()) {
+                if (viewModel.worldDirUri.isEmpty()) {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Button(onClick = { folderPicker.launch() }) {
                             Icon(Icons.Default.FolderOpen, null)
@@ -141,7 +148,6 @@ fun MapPreviewScreen(
             onDismiss = { selectedChunk = null },
             onAction = { action, chunkPair ->
                 selectedChunk = null
-                // 使用在顶层捕获的 navigator 变量
                 when (action) {
                     "entities" -> {
                         viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)

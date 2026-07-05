@@ -40,6 +40,7 @@ import com.anggrayudi.storage.file.toRawFile
 import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -62,12 +63,12 @@ class MapPreviewViewModel : ViewModel() {
     var isBedrock by mutableStateOf(false)
         private set
 
+    // 将物理世界 Uri 和路径提升到 ViewModel 层面进行状态持久化保护
     var worldDirUri by mutableStateOf("")
-        private set        
-        
-    /**
-     * 响应用户点击，通过 Navigator 跳转到区块 NBT 编辑界面
-     */
+    
+    var isLoaded by mutableStateOf(false)
+        private set
+
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
             me.voltual.vb.ui.ChunkNbtEditorDest(
@@ -83,12 +84,12 @@ class MapPreviewViewModel : ViewModel() {
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile) {
         viewModelScope.launch {
             isLoading = true
+            isLoaded = false
             regionBitmaps.clear()
             regionRGBAData.clear()
             statusMessage = "正在迁移世界存档至高速缓存以防读写受阻..."
 
             withContext(Dispatchers.Default) {
-                // 1. 本地内部存储 worlds 路径准备
                 val externalDir = context.getExternalFilesDir(null)
                 val worldsDir = if (externalDir != null) {
                     File(externalDir, "worlds")
@@ -97,18 +98,17 @@ class MapPreviewViewModel : ViewModel() {
                 }
                 val localInputPath = File(worldsDir, "world_input")
                 
-                // 清理旧缓存并使用 SimpleStorage 复制
                 if (localInputPath.exists()) {
                     localInputPath.deleteRecursively()
                 }
                 localInputPath.mkdirs()
                 
-                // 执行内部零 SAF 限制的高速拷贝
                 val targetParentDoc = DocumentFile.fromFile(worldsDir)
                 val countDownLatch = java.util.concurrent.CountDownLatch(1)
                 var copyError = false
 
-                viewModelScope.launch(Dispatchers.Main) {
+                // 核心修复：开启协程利用 Dispatchers.IO 离线收集复制流，彻底杜绝主线程 ANR
+                viewModelScope.launch(Dispatchers.IO) {
                     docFolder.copyFolderTo(
                         context = context,
                         targetParentFolder = targetParentDoc,
@@ -123,7 +123,7 @@ class MapPreviewViewModel : ViewModel() {
                                 action.confirmResolution(ConflictResolution.REPLACE)
                             }
                         }
-                    ).collect { result: SingleFolderResult ->
+                    ).flowOn(Dispatchers.IO).collect { result: SingleFolderResult ->
                         when (result) {
                             is SingleFolderResult.Completed -> {
                                 countDownLatch.countDown()
@@ -137,7 +137,6 @@ class MapPreviewViewModel : ViewModel() {
                     }
                 }
 
-                // 阻断等待复制任务结束
                 countDownLatch.await()
 
                 if (copyError) {
@@ -148,7 +147,6 @@ class MapPreviewViewModel : ViewModel() {
                     return@withContext
                 }
 
-                // 2. 转换为内部物理绝对路径，彻底解脱 SAF
                 val worldDirectory = localInputPath
                 worldDirUri = localInputPath.absolutePath
 
@@ -295,6 +293,7 @@ class MapPreviewViewModel : ViewModel() {
             }
 
             isLoading = false
+            isLoaded = true
             statusMessage = "预览加载完成！(共 ${regionBitmaps.size} 个区域)"
         }
     }
