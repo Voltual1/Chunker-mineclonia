@@ -26,7 +26,6 @@ class NbtEditorViewModel : ViewModel() {
     var editableNbt: EditableNbt? by mutableStateOf(null)
         private set
 
-    // 引入树的响应式版本戳，每次数据修改递增以通知 Compose 重组渲染
     var treeVersion by mutableStateOf(0)
         private set
 
@@ -44,8 +43,9 @@ class NbtEditorViewModel : ViewModel() {
         val nbt = editableNbt ?: return
         visibleNodes.clear()
 
-        // 兼容可空的 key 传递
-        fun traverse(key: String?, tag: Tag<*>, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
+        // 增加空安全防御 tag: Tag<*>?
+        fun traverse(key: String?, tag: Tag<*>?, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
+            if (tag == null) return
             val node = NbtUiNode(key, tag, parent, depth, isListElement)
             visibleNodes.add(node)
 
@@ -76,9 +76,6 @@ class NbtEditorViewModel : ViewModel() {
         refreshTree()
     }
 
-    /**
-     * 更新值时增加 treeVersion 版本计数，迫使 Compose 重组界面
-     */
     fun updateTagValue(node: NbtUiNode, value: Any) {
         try {
             when (val tag = node.tag) {
@@ -91,7 +88,7 @@ class NbtEditorViewModel : ViewModel() {
                 is StringTag -> tag.setValue(value.toString())
             }
             editableNbt?.markModified()
-            treeVersion++ // 递增版本戳
+            treeVersion++
             refreshTree()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -120,14 +117,16 @@ class NbtEditorViewModel : ViewModel() {
                     prop.get(it) as CompoundTag
                 }
                 val originalMap = root.value ?: return false
-                val backupList = originalMap.entries.toList()
+                
+                // 修复：提取为完全解耦的 Pair，断开与 Fastutil 数组的链接
+                val backupList = originalMap.entries.map { it.key to it.value }
                 originalMap.clear()
                 
-                for (entry in backupList) {
-                    if (entry.key == (node.key ?: "")) {
+                for ((k, v) in backupList) {
+                    if (k == node.key) {
                         root.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
-                    } else {
-                        root.put(entry.key, entry.value)
+                    } else if (v != null) {
+                        root.put(k, v)
                     }
                 }
                 
@@ -140,14 +139,15 @@ class NbtEditorViewModel : ViewModel() {
             when (parent) {
                 is CompoundTag -> {
                     val originalMap = parent.value ?: return false
-                    val backupList = originalMap.entries.toList()
+                    
+                    val backupList = originalMap.entries.map { it.key to it.value }
                     originalMap.clear()
                     
-                    for (entry in backupList) {
-                        if (entry.key == (node.key ?: "")) {
+                    for ((k, v) in backupList) {
+                        if (k == node.key) {
                             parent.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
-                        } else {
-                            parent.put(entry.key, entry.value)
+                        } else if (v != null) {
+                            parent.put(k, v)
                         }
                     }
                     
@@ -219,7 +219,7 @@ class NbtEditorViewModel : ViewModel() {
     }
 
     fun renameNode(node: NbtUiNode, newName: String): Boolean {
-        if (newName.isEmpty() || newName == (node.key ?: "")) return false
+        if (newName.isEmpty() || newName == node.key) return false
         val parent = node.parent
 
         if (parent == null) {
@@ -233,15 +233,15 @@ class NbtEditorViewModel : ViewModel() {
                 val originalMap = root.value
                 if (originalMap == null || originalMap.containsKey(newName)) return false
                 
-                // 备份并按序重建
-                val backupList = originalMap.entries.toList()
+                // 修复：解耦为 Pair
+                val backupList = originalMap.entries.map { it.key to it.value }
                 originalMap.clear()
                 
-                for (entry in backupList) {
-                    if (entry.key == (node.key ?: "")) {
+                for ((k, v) in backupList) {
+                    if (k == node.key) {
                         root.put(newName, node.tag)
-                    } else {
-                        root.put(entry.key, entry.value)
+                    } else if (v != null) {
+                        root.put(k, v)
                     }
                 }
                 
@@ -254,15 +254,14 @@ class NbtEditorViewModel : ViewModel() {
             val originalMap = parent.value
             if (originalMap == null || originalMap.containsKey(newName)) return false
             
-            // 备份并按序重建子层级的 Map，完美规避子层级反射失效问题
-            val backupList = originalMap.entries.toList()
+            val backupList = originalMap.entries.map { it.key to it.value }
             originalMap.clear()
             
-            for (entry in backupList) {
-                if (entry.key == (node.key ?: "")) {
+            for ((k, v) in backupList) {
+                if (k == node.key) {
                     parent.put(newName, node.tag)
-                } else {
-                    parent.put(entry.key, entry.value)
+                } else if (v != null) {
+                    parent.put(k, v)
                 }
             }
             
@@ -275,7 +274,7 @@ class NbtEditorViewModel : ViewModel() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>) : Boolean {
+    fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>): Boolean {
         val constructor = type.constructor ?: return false
         val newTag = constructor.get()
 
