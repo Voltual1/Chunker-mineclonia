@@ -38,6 +38,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import me.voltual.vb.ui.LocalNavigator
 import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
