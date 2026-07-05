@@ -44,7 +44,8 @@ class NbtEditorViewModel : ViewModel() {
         val nbt = editableNbt ?: return
         visibleNodes.clear()
 
-        fun traverse(key: String, tag: Tag<*>, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
+        // 兼容可空的 key 传递
+        fun traverse(key: String?, tag: Tag<*>, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
             val node = NbtUiNode(key, tag, parent, depth, isListElement)
             visibleNodes.add(node)
 
@@ -99,14 +100,14 @@ class NbtEditorViewModel : ViewModel() {
 
     fun copyNode(node: NbtUiNode) {
         clipboardTag = node.tag.clone()
-        clipboardKey = node.key
+        clipboardKey = node.key ?: ""
     }
 
     fun hasClipboardData(): Boolean {
         return clipboardTag != null
     }
 
-        @Suppress("UNCHECKED_CAST")
+    @Suppress("UNCHECKED_CAST")
     fun pasteOverwrite(node: NbtUiNode): Boolean {
         val copiedTag = clipboardTag?.clone() ?: return false
         val parent = node.parent
@@ -123,8 +124,8 @@ class NbtEditorViewModel : ViewModel() {
                 originalMap.clear()
                 
                 for (entry in backupList) {
-                    if (entry.key == node.key) {
-                        root.put(clipboardKey.ifEmpty { node.key }, copiedTag)
+                    if (entry.key == (node.key ?: "")) {
+                        root.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
                     } else {
                         root.put(entry.key, entry.value)
                     }
@@ -143,8 +144,8 @@ class NbtEditorViewModel : ViewModel() {
                     originalMap.clear()
                     
                     for (entry in backupList) {
-                        if (entry.key == node.key) {
-                            parent.put(clipboardKey.ifEmpty { node.key }, copiedTag)
+                        if (entry.key == (node.key ?: "")) {
+                            parent.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
                         } else {
                             parent.put(entry.key, entry.value)
                         }
@@ -202,10 +203,10 @@ class NbtEditorViewModel : ViewModel() {
     fun deleteNode(node: NbtUiNode) {
         val parent = node.parent
         if (parent == null) {
-            editableNbt?.removeRootTag(node.key)
+            editableNbt?.removeRootTag(node.key ?: "")
         } else {
             when (parent) {
-                is CompoundTag -> parent.remove(node.key)
+                is CompoundTag -> parent.remove(node.key ?: "")
                 is ListTag<*, *> -> {
                     val list = parent.value
                     list?.remove(node.tag)
@@ -217,8 +218,8 @@ class NbtEditorViewModel : ViewModel() {
         refreshTree()
     }
 
-        fun renameNode(node: NbtUiNode, newName: String): Boolean {
-        if (newName.isEmpty() || newName == node.key) return false
+    fun renameNode(node: NbtUiNode, newName: String): Boolean {
+        if (newName.isEmpty() || newName == (node.key ?: "")) return false
         val parent = node.parent
 
         if (parent == null) {
@@ -237,7 +238,7 @@ class NbtEditorViewModel : ViewModel() {
                 originalMap.clear()
                 
                 for (entry in backupList) {
-                    if (entry.key == node.key) {
+                    if (entry.key == (node.key ?: "")) {
                         root.put(newName, node.tag)
                     } else {
                         root.put(entry.key, entry.value)
@@ -258,7 +259,7 @@ class NbtEditorViewModel : ViewModel() {
             originalMap.clear()
             
             for (entry in backupList) {
-                if (entry.key == node.key) {
+                if (entry.key == (node.key ?: "")) {
                     parent.put(newName, node.tag)
                 } else {
                     parent.put(entry.key, entry.value)
