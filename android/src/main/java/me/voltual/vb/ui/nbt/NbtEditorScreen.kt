@@ -122,20 +122,22 @@ fun NbtEditorScreen(
                     .horizontalScroll(horizontalScrollState)
                     .padding(16.dp)
             ) {
-                NbtTreeViewer(
-                    rootTag = rootTag,
-                    expandedPaths = expandedPaths,
-                    onToggleNode = { path ->
-                        expandedPaths = if (expandedPaths.contains(path)) {
-                            expandedPaths - path
-                        } else {
-                            expandedPaths + path
+                key(viewModel.treeVersion) {
+                            NbtTreeViewer(
+                                rootTag = rootTag,
+                                expandedPaths = expandedPaths,
+                                onToggleNode = { path ->
+                                    expandedPaths = if (expandedPaths.contains(path)) {
+                                        expandedPaths - path
+                                    } else {
+                                        expandedPaths + path
+                                    }
+                                },
+                                onNodeLongClick = { node ->
+                                    activeMenuNode = node
+                                }
+                            )
                         }
-                    },
-                    onNodeLongClick = { node ->
-                        activeMenuNode = node
-                    }
-                )
             }
         }
 
