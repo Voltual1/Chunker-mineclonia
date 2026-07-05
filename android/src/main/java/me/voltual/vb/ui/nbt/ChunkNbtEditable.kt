@@ -21,10 +21,6 @@ import java.io.RandomAccessFile
 import java.util.zip.Deflater
 import java.util.zip.DeflaterOutputStream
 
-/**
- * 外科手术式区块 NBT 编辑器。
- * 增加了防错机制：若读取异常，会将错误信息作为 NBT Tag 直接渲染到屏幕上供调试。
- */
 class ChunkEditableNbt(
     private val worldDir: File,
     private val chunkX: Int,
@@ -34,44 +30,59 @@ class ChunkEditableNbt(
 ) : EditableNbt() {
 
     private var rootTag: CompoundTag = CompoundTag()
-    
-    // 用于 Java MCA
     private var mcaFile: File? = null
     
     init {
         loadData()
     }
     
+    /**
+     * 在存档主目录内，递归搜索目标 MCA 文件
+     */
+    private fun findMcaFile(directory: File, targetName: String): File? {
+        val files = directory.listFiles() ?: return null
+        // 优先搜索当前层级下的匹配文件，避免过度深层扫描
+        for (file in files) {
+            if (file.isFile && file.name.equals(targetName, ignoreCase = true)) {
+                return file
+            }
+        }
+        // 如果第一层没找到，递归搜索子目录（排除无用目录）
+        for (file in files) {
+            if (file.isDirectory && !file.name.startsWith(".")) {
+                val found = findMcaFile(file, targetName)
+                if (found != null) return found
+            }
+        }
+        return null
+    }
+
     private fun loadData() {
         if (isBedrock) {
-            rootTag.put("BEDROCK_UNSUPPORTED", StringTag("基岩版的区块编辑需要绑定 LevelDB 实例，目前仅支持 Java 版直接修改。"))
+            rootTag.put("BEDROCK_UNSUPPORTED", StringTag("基岩版的区块编辑目前正在完善底层绑定，目前仅支持 Java 格式直接修改。"))
             return
         }
 
-        // Java MCA 寻址逻辑
         val regionX = chunkX shr 5
         val regionZ = chunkZ shr 5
         
-        // 兼容 1.17+ 独立实体目录，以及降级回旧版本 region 目录
-        var targetFile = File(worldDir, "entities/r.$regionX.$regionZ.mca")
-        if (isEntity && !targetFile.exists()) {
-            targetFile = File(worldDir, "region/r.$regionX.$regionZ.mca")
-        } else if (!isEntity) {
-            targetFile = File(worldDir, "region/r.$regionX.$regionZ.mca")
-        }
+        // 自动计算应寻找的目标 MCA 文件名
+        // 实体对应 entities，区块方块对应 region
+        val filePrefix = if (isEntity) "r" else "r" // MCA 格式的区域前缀均是 r.X.Z.mca
+        val targetFileName = "r.$regionX.$regionZ.mca"
 
-        mcaFile = targetFile
+        // 使用自适应搜索逻辑
+        val foundFile = findMcaFile(worldDir, targetFileName)
+        mcaFile = foundFile
 
-        if (!targetFile.exists()) {
-            rootTag.put("FILE_NOT_FOUND", StringTag("无法找到 MCA 文件: ${targetFile.absolutePath}"))
+        if (foundFile == null || !foundFile.exists()) {
+            rootTag.put("FILE_NOT_FOUND", StringTag("无法在 ${worldDir.name} 及其子目录中定位区域文件: $targetFileName"))
             return
         }
 
         try {
-            RandomAccessFile(targetFile, "r").use { raf ->
+            RandomAccessFile(foundFile, "r").use { raf ->
                 val reader = Reader.toJavaReader(raf)
-                
-                // 读取 4096 字节的 Offset 表
                 val offsets = IntArray(1024)
                 val temp = ByteArray(4096)
                 reader.readBytes(temp)
@@ -83,7 +94,6 @@ class ChunkEditableNbt(
                     offsets[i] = offset
                 }
                 
-                // 计算当前区块在表中的相对索引
                 val index = (chunkX and 31) + (chunkZ and 31) * 32
                 val offset = offsets[index]
                 
@@ -128,7 +138,6 @@ class ChunkEditableNbt(
 
     override fun save(): Boolean {
         if (isBedrock) return false
-        
         val file = mcaFile ?: return false
         if (!file.exists()) return false
         
@@ -161,7 +170,8 @@ class ChunkEditableNbt(
                 
                 val index = (chunkX and 31) + (chunkZ and 31) * 32
                 raf.seek(index * 4L)
-                raf.writeByte((newOffsetSector shr 16) and 0xFF)
+                val isSaved = (newOffsetSector shr 16) and 0xFF
+                raf.writeByte(isSaved)
                 raf.writeByte((newOffsetSector shr 8) and 0xFF)
                 raf.writeByte(newOffsetSector and 0xFF)
                 raf.writeByte(sectorCount and 0xFF)

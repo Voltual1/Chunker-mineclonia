@@ -81,15 +81,76 @@ class MapPreviewViewModel : ViewModel() {
             isLoading = true
             regionBitmaps.clear()
             regionRGBAData.clear()
-            statusMessage = "正在检测存档类型..."
+            statusMessage = "正在迁移世界存档至高速缓存以防读写受阻..."
 
             withContext(Dispatchers.Default) {
-                val worldDirectory = docFolder.toRawFile(context)
-                worldDirUri = docFolder.uri.toString()
+                // 1. 本地内部存储 worlds 路径准备
+                val externalDir = context.getExternalFilesDir(null)
+                val worldsDir = if (externalDir != null) {
+                    File(externalDir, "worlds")
+                } else {
+                    File(context.filesDir, "worlds")
+                }
+                val localInputPath = File(worldsDir, "world_input")
+                
+                // 清理旧缓存并使用 SimpleStorage 复制
+                if (localInputPath.exists()) {
+                    localInputPath.deleteRecursively()
+                }
+                localInputPath.mkdirs()
+                
+                // 执行内部零 SAF 限制的高速拷贝
+                val targetParentDoc = DocumentFile.fromFile(worldsDir)
+                val countDownLatch = java.util.concurrent.CountDownLatch(1)
+                var copyError = false
 
-                if (worldDirectory == null || !worldDirectory.exists()) {
+                viewModelScope.launch(Dispatchers.Main) {
+                    docFolder.copyFolderTo(
+                        context = context,
+                        targetParentFolder = targetParentDoc,
+                        skipEmptyFiles = false,
+                        newFolderNameInTargetPath = "world_input",
+                        onConflict = object : com.anggrayudi.storage.callback.SingleFolderConflictCallback(viewModelScope) {
+                            override fun onParentConflict(
+                                destinationFolder: DocumentFile,
+                                action: ParentFolderConflictAction,
+                                canMerge: Boolean
+                            ) {
+                                action.confirmResolution(ConflictResolution.REPLACE)
+                            }
+                        }
+                    ).collect { result ->
+                        when (result) {
+                            is com.anggrayudi.storage.result.SingleFolderResult.Completed -> {
+                                countDownLatch.countDown()
+                            }
+                            is com.anggrayudi.storage.result.SingleFolderResult.Error -> {
+                                copyError = true
+                                countDownLatch.countDown()
+                            }
+                            else -> {}
+                        }
+                    }
+                }
+
+                // 阻断等待复制任务结束
+                countDownLatch.await()
+
+                if (copyError) {
                     withContext(Dispatchers.Main) {
-                        statusMessage = "无法访问存档路径！"
+                        statusMessage = "存档移动至高速缓存失败"
+                        isLoading = false
+                    }
+                    return@withContext
+                }
+
+                // 2. 转换为内部物理绝对路径，彻底解脱 SAF
+                val worldDirectory = localInputPath
+                worldDirUri = localInputPath.absolutePath
+
+                if (!worldDirectory.exists()) {
+                    withContext(Dispatchers.Main) {
+                        statusMessage = "高速缓存目录异常！"
                         isLoading = false
                     }
                     return@withContext
@@ -123,14 +184,13 @@ class MapPreviewViewModel : ViewModel() {
                 val readerOpt = EncodingType.findReader(worldDirectory, converterStub)
                 if (!readerOpt.isPresent) {
                     withContext(Dispatchers.Main) {
-                        statusMessage = "未检测到支持的 Java 或 Bedrock 存档！"
+                        statusMessage = "未检测到支持的 Java 或 Bedrock 格式！"
                         isLoading = false
                     }
                     return@withContext
                 }
 
                 val levelReader = readerOpt.get()
-                // 正确设置格式类型
                 isBedrock = levelReader.encodingType == EncodingType.BEDROCK
                 
                 withContext(Dispatchers.Main) {
