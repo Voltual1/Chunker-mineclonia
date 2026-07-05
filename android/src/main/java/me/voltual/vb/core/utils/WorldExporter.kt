@@ -1,6 +1,18 @@
+// Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
+// 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
+
 package me.voltual.vb.core.utils
 
 import android.content.Context
+import android.os.Environment
+import com.anggrayudi.storage.media.FileDescription
+import com.anggrayudi.storage.media.MediaStoreCompat
 import java.io.BufferedReader
 import java.io.File
 import java.io.FileInputStream
@@ -20,6 +32,37 @@ object WorldExporter {
     private var serverSocket: ServerSocket? = null
     private var isRunning = false
     private const val PORT = 8080
+
+    /**
+     * 新增：提供外部调用的导出方法。
+     * 将临时预览文件夹压缩打包，并通过 MediaStore 零 SAF 限制高速输出到系统的 Downloads 公共文件夹中。
+     */
+    fun exportWorld(context: Context, sourceFolder: File): Boolean {
+        if (!sourceFolder.exists()) return false
+        
+        // 1. 在缓存目录生成一个临时 zip
+        val tempZip = File(context.cacheDir, "${sourceFolder.name}_exported.zip")
+        val zipSuccess = zipFolder(sourceFolder, tempZip)
+        if (!zipSuccess || !tempZip.exists()) return false
+
+        try {
+            // 2. 利用 MediaStoreCompat (由 SimpleStorage 提供) 将 zip 发送到公共下载目录
+            val desc = FileDescription("${sourceFolder.name}_export.zip", "", "application/zip")
+            val mediaFile = MediaStoreCompat.createDownload(context, desc)
+            if (mediaFile != null) {
+                mediaFile.openOutputStream(false)?.use { outputStream ->
+                    tempZip.inputStream().use { inputStream ->
+                        inputStream.copyTo(outputStream)
+                    }
+                }
+                tempZip.delete() // 清理临时文件
+                return true
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return false
+    }
 
     /**
      * 将指定文件夹打包压缩为 ZIP 文件
@@ -58,133 +101,5 @@ object WorldExporter {
                 zos.closeEntry()
             }
         }
-    }
-
-    /**
-     * 启动局域网 HTTP 服务 (基于 Socket 纯手工实现，规避 R8 缺失类问题)
-     */
-    @Synchronized
-    fun startHttpServer(context: Context, onStarted: (String) -> Unit, onError: (String) -> Unit) {
-        if (isRunning) {
-            val ip = getLocalIpAddress()
-            if (ip != null) {
-                onStarted("http://$ip:$PORT/download")
-            } else {
-                onError("无法获取本地 IP 地址，请检查 Wi-Fi 连接")
-            }
-            return
-        }
-
-        try {
-            val ip = getLocalIpAddress() ?: throw SocketException("未连接到局域网或无法获取 IP")
-            val zipFile = File(context.filesDir, "world_output.zip")
-            
-            serverSocket = ServerSocket(PORT)
-            isRunning = true
-
-            thread(name = "VB-HTTP-Server") {
-                while (isRunning) {
-                    try {
-                        val socket = serverSocket?.accept() ?: break
-                        thread {
-                            handleClient(socket, zipFile)
-                        }
-                    } catch (e: Exception) {
-                        break
-                    }
-                }
-            }
-
-            onStarted("http://$ip:$PORT/download")
-        } catch (e: Exception) {
-            e.printStackTrace()
-            serverSocket = null
-            isRunning = false
-            onError(e.message ?: "启动服务器失败")
-        }
-    }
-
-    private fun handleClient(socket: Socket, zipFile: File) {
-        try {
-            val reader = BufferedReader(InputStreamReader(socket.getInputStream()))
-            val requestLine = reader.readLine() ?: return
-            
-            // 解析 HTTP 请求行，例如: GET /download HTTP/1.1 或 GET / HTTP/1.1
-            val tokens = requestLine.split(" ")
-            if (tokens.size >= 2 && (tokens[1] == "/download" || tokens[1] == "/")) {
-                if (!zipFile.exists()) {
-                    val body = "Error: Output ZIP file not found. Please convert a world first."
-                    val headers = "HTTP/1.1 404 Not Found\r\n" +
-                            "Content-Type: text/plain; charset=utf-8\r\n" +
-                            "Content-Length: ${body.toByteArray().size}\r\n" +
-                            "Connection: close\r\n\r\n"
-                    socket.getOutputStream().write(headers.toByteArray())
-                    socket.getOutputStream().write(body.toByteArray())
-                } else {
-                    val headers = "HTTP/1.1 200 OK\r\n" +
-                            "Content-Type: application/zip\r\n" +
-                            "Content-Length: ${zipFile.length()}\r\n" +
-                            "Content-Disposition: attachment; filename=\"world_output.zip\"\r\n" +
-                            "Connection: close\r\n\r\n"
-                    socket.getOutputStream().write(headers.toByteArray())
-                    
-                    FileInputStream(zipFile).use { input ->
-                        input.copyTo(socket.getOutputStream())
-                    }
-                }
-            } else {
-                val body = "Only GET /download or GET / is supported."
-                val headers = "HTTP/1.1 400 Bad Request\r\n" +
-                        "Content-Type: text/plain; charset=utf-8\r\n" +
-                        "Content-Length: ${body.toByteArray().size}\r\n" +
-                        "Connection: close\r\n\r\n"
-                socket.getOutputStream().write(headers.toByteArray())
-                socket.getOutputStream().write(body.toByteArray())
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        } finally {
-            try {
-                socket.close()
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
-    }
-
-    /**
-     * 停止局域网 HTTP 服务
-     */
-    @Synchronized
-    fun stopHttpServer() {
-        isRunning = false
-        try {
-            serverSocket?.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        serverSocket = null
-    }
-
-    /**
-     * 获取手机在局域网中的 IPv4 地址
-     */
-    fun getLocalIpAddress(): String? {
-        try {
-            val en = NetworkInterface.getNetworkInterfaces()
-            while (en.hasMoreElements()) {
-                val intf = en.nextElement()
-                val enumIpAddr = intf.inetAddresses
-                while (enumIpAddr.hasMoreElements()) {
-                    val inetAddress = enumIpAddr.nextElement()
-                    if (!inetAddress.isLoopbackAddress && inetAddress is Inet4Address) {
-                        return inetAddress.hostAddress
-                    }
-                }
-            }
-        } catch (ex: SocketException) {
-            ex.printStackTrace()
-        }
-        return null
     }
 }
