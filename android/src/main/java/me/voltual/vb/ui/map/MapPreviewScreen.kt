@@ -64,16 +64,19 @@ fun MapPreviewScreen(
     val coroutineScope = rememberCoroutineScope()
 
     val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
+    
+    // 用独立的状态控制菜单的弹出与数据保留，防止 NBT 导航前和取消时的数据闪烁置空
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
+    var showActionMenu by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         viewModel.worldDirUri = folder.uri.toString()
         composeBitmaps.clear()
         selectedChunk = null
+        showActionMenu = false
         viewModel.loadAndRenderWorld(context, folder)
     }
 
-    // 初始化载入
     LaunchedEffect(initialFolderUri) {
         viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
@@ -82,7 +85,6 @@ fun MapPreviewScreen(
         }
     }
 
-    // 动态在 TopAppBar 注入“启用网格框”与“导出当前世界”选项
     LaunchedEffect(viewModel.worldDirUri, viewModel.showGrid, viewModel.isLoading) {
         if (viewModel.worldDirUri.isNotEmpty() && !viewModel.isLoading) {
             topAppBarController.updateActions(
@@ -100,8 +102,12 @@ fun MapPreviewScreen(
                                 snackbarHostState.showSnackbar("正在打包导出当前世界...")
                                 val file = File(viewModel.worldDirUri)
                                 if (file.exists()) {
-                                    WorldExporter.exportWorld(context, file)
-                                    snackbarHostState.showSnackbar("导出成功！已保存至共享文件夹")
+                                    val success = WorldExporter.exportWorld(context, file)
+                                    if (success) {
+                                        snackbarHostState.showSnackbar("导出成功！已保存至 Downloads 文件夹")
+                                    } else {
+                                        snackbarHostState.showSnackbar("打包压缩失败")
+                                    }
                                 } else {
                                     snackbarHostState.showSnackbar("物理文件不可访问")
                                 }
@@ -163,7 +169,6 @@ fun MapPreviewScreen(
                                 Text("选取存档目录")
                             }
 
-                            // 导出中转站快捷入口
                             if (viewModel.hasExistingFtpInput) {
                                 FilledTonalButton(onClick = {
                                     viewModel.loadAndRenderWorld(context, null, useFtpInput = true)
@@ -199,6 +204,7 @@ fun MapPreviewScreen(
                             viewModel = viewModel,
                             onChunkTap = { chunkPair ->
                                 selectedChunk = chunkPair
+                                showActionMenu = true // 点击时唤出菜单
                             }
                         )
                     }
@@ -207,10 +213,11 @@ fun MapPreviewScreen(
         }
 
         ChunkActionMenu(
+            visible = showActionMenu,
             chunk = selectedChunk,
-            onDismiss = { selectedChunk = null },
+            onDismiss = { showActionMenu = false }, // 关闭时仅收回菜单，保留 selectedChunk，淡出动画不发生闪烁
             onAction = { action, chunkPair ->
-                selectedChunk = null
+                showActionMenu = false
                 when (action) {
                     "entities" -> viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
                     "block_entities" -> viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
@@ -290,14 +297,36 @@ fun InteractiveMapCanvas(
                             topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
                         )
                         
-                        // 绘制 512x512 区域网格框
+                        // 网格线绘制逻辑修复：根据 16x16 进行 Chunk 区块级别的细密格线绘制
                         if (viewModel.showGrid) {
+                            // 绘制 512x512 Region 强实线边界
                             drawRect(
-                                color = Color.White.copy(alpha = 0.3f),
+                                color = Color.White.copy(alpha = 0.4f),
                                 topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f),
                                 size = Size(512f, 512f),
-                                style = Stroke(width = 1.5f)
+                                style = Stroke(width = 2.0f)
                             )
+                            
+                            // 绘制内部的 32x32 个 16 像素 Chunk 网格细线
+                            val startX = region.regionX() * 512f
+                            val startZ = region.regionZ() * 512f
+                            for (c in 1 until 32) {
+                                val offsetDist = c * 16f
+                                // 垂直线
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.15f),
+                                    start = Offset(startX + offsetDist, startZ),
+                                    end = Offset(startX + offsetDist, startZ + 512f),
+                                    strokeWidth = 0.8f
+                                )
+                                // 水平线
+                                drawLine(
+                                    color = Color.White.copy(alpha = 0.15f),
+                                    start = Offset(startX, startZ + offsetDist),
+                                    end = Offset(startX + 512f, startZ + offsetDist),
+                                    strokeWidth = 0.8f
+                                )
+                            }
                         }
                     }
                 }
@@ -318,12 +347,13 @@ fun InteractiveMapCanvas(
 
 @Composable
 fun ChunkActionMenu(
+    visible: Boolean,
     chunk: ChunkCoordPair?,
     onDismiss: () -> Unit,
     onAction: (String, ChunkCoordPair) -> Unit
 ) {
     AnimatedVisibility(
-        visible = chunk != null,
+        visible = visible && chunk != null,
         enter = fadeIn(animationSpec = tween(200)) + scaleIn(transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center),
         exit = fadeOut(animationSpec = tween(150)) + scaleOut(transformOrigin = androidx.compose.ui.graphics.TransformOrigin.Center),
         modifier = Modifier.fillMaxSize(),
