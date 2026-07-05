@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Pets
 import androidx.compose.material.icons.filled.Widgets
 import androidx.compose.material3.*
+import me.voltual.vb.ui.LocalNavigator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
