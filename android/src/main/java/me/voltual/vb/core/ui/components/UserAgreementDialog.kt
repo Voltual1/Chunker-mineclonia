@@ -5,21 +5,26 @@
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
 // 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>。
 package me.voltual.vb.core.ui.components
 
 import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.Dispatchers
@@ -44,10 +49,9 @@ fun UserAgreementDialog(
     val agreementContents = remember { mutableStateMapOf<Int, String>() }
     var animationForward by remember { mutableStateOf(true) }
 
-    // 协议列表：保持使用 Android 独有的 R.raw 引用
     val agreements = remember { 
         listOf(
-            AgreementItem("《用户协议》", R.raw.useragreement)
+            AgreementItem("《用户协议及隐私政策》", R.raw.useragreement)
         ) 
     }
 
@@ -59,35 +63,48 @@ fun UserAgreementDialog(
     }
 
     Dialog(
-        // 留空：即使用户点击外面或者按 Android 物理返回键，也绝对无法关闭
         onDismissRequest = {}, 
         properties = DialogProperties(
             usePlatformDefaultWidth = false,
-            dismissOnBackPress = false, // 禁用 Android 物理返回键
-            dismissOnClickOutside = false // 禁用点击外部关闭
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
         )
     ) {
         Card(
-            modifier = Modifier.fillMaxWidth(0.9f).padding(vertical = 24.dp),
+            modifier = Modifier
+                .fillMaxWidth(0.92f)
+                .padding(vertical = 24.dp)
+                .border(1.5.dp, MaterialTheme.colorScheme.primary, shape), // 强对比战术边框
             shape = shape,
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // 扁平化
         ) {
             val mainScrollState = rememberScrollState()
 
-            Column(modifier = Modifier.fillMaxWidth().verticalScroll(mainScrollState).padding(24.dp)) {
-                Text(
-                    text = "服务协议与隐私政策",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
+            Column(modifier = Modifier.fillMaxWidth().verticalScroll(mainScrollState).padding(20.dp)) {
+                // 顶部战术标志区
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    textAlign = TextAlign.Center,
-                )
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Box(modifier = Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary))
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "SYSTEM_ACCESS_PROTOCOL",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, letterSpacing = 2.sp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Box(modifier = Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary))
+                }
 
                 Text(
-                    text = "请阅读并同意以下条款以继续使用",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    text = "PROTOCOL_VERIFICATION_REQUIRED // 需要您确认数据接入规范",
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                    color = MaterialTheme.colorScheme.outline,
                     modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                    textAlign = TextAlign.Center,
+                    textAlign = TextAlign.Center
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -102,7 +119,7 @@ fun UserAgreementDialog(
                             text = agreements[targetIndex].title,
                             style = MaterialTheme.typography.titleMedium.copy(
                                 color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold,
+                                fontWeight = FontWeight.Black,
                             ),
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center,
@@ -110,16 +127,28 @@ fun UserAgreementDialog(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
-                        MarkDownText(
-                            content = agreementContents[targetIndex] ?: "正在加载...",
-                            modifier = Modifier.fillMaxWidth(),
-                        )
+                        // 加载区硬边缘卡片包裹
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 260.dp)
+                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), AppShapes.small),
+                            color = MaterialTheme.colorScheme.surfaceContainerLowest,
+                            shape = AppShapes.small
+                        ) {
+                            Box(modifier = Modifier.padding(12.dp).verticalScroll(rememberScrollState())) {
+                                MarkDownText(
+                                    content = agreementContents[targetIndex] ?: "正在解密核心数据流...",
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                            }
+                        }
                     }
                 }
 
                 HorizontalDivider(
                     modifier = Modifier.padding(vertical = 16.dp),
-                    color = MaterialTheme.colorScheme.outlineVariant,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
                 )
 
                 Row(
@@ -133,33 +162,39 @@ fun UserAgreementDialog(
                                 currentAgreementIndex--
                                 scope.launch { mainScrollState.animateScrollTo(0) }
                             },
+                            shape = AppShapes.small,
                             modifier = Modifier.weight(1f),
                         ) {
-                            Text("上一个")
+                            Text("PREV // 上一页", fontWeight = FontWeight.Bold)
                         }
                     } else {
-                        // 第一个协议时展示“不同意”按钮
-                        FilledTonalButton(
+                        // 第一个协议时展示“不同意”按钮 (战术阻断红色样式)
+                        Button(
                             onClick = {
                                 scope.launch {
-                                    // 巧妙的小心思：如果用户点击了不同意，把第一页的文本直接改成提示语
                                     agreementContents[0] = """
-                                        ### 您需要同意才能使用
+                                        ### ACCESS_DENIED // 授权阻断
                                         
-                                        很抱歉，如果您不同意本项目的《用户协议》，应用将无法服务。
+                                        很抱歉，拒绝本项目的《用户协议及隐私政策》将导致底层数据分析链无法成功构建。
                                         
-                                        如果您希望退出应用，请直接**关闭此后台程序**或**返回手机桌面**。
+                                        如需退出程序，请执行：
+                                        ■ **关闭后台应用** 或 
+                                        ■ **返回手机主屏幕 (HOME)** 
+                                        
+                                        期待您的下一次接入认证。
                                     """.trimIndent()
                                     mainScrollState.animateScrollTo(0)
                                 }
                             },
+                            shape = AppShapes.small,
                             modifier = Modifier.weight(1f),
-                            colors = ButtonDefaults.filledTonalButtonColors(
+                            colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.errorContainer,
                                 contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
+                            ),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
                         ) {
-                            Text("不同意")
+                            Text("REJECT // 拒绝授权", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                         }
                     }
 
@@ -176,11 +211,15 @@ fun UserAgreementDialog(
                                 }
                             }
                         },
+                        shape = AppShapes.small,
                         modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Text(
-                            text = if (currentAgreementIndex < agreements.size - 1) "同意并继续" else "同意并进入",
+                            text = if (currentAgreementIndex < agreements.size - 1) "CONTINUE" else "ACCEPT // 同意并加载",
+                            fontWeight = FontWeight.Black,
                             maxLines = 1,
+                            fontSize = 12.sp
                         )
                     }
                 }
@@ -195,7 +234,7 @@ private fun loadRawResourceText(context: android.content.Context, resId: Int): S
     return try {
         context.resources.openRawResource(resId).use { it.bufferedReader().readText() }
     } catch (e: Exception) {
-        "条款内容加载失败，请检查网络或重启应用"
+        "FATAL_ERROR: 核心加密数据流加载失败，请检查链路或重启系统"
     }
 }
 
