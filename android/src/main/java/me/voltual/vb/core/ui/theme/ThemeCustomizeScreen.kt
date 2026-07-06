@@ -307,16 +307,24 @@ fun ColorEditItem(colorName: String, currentColor: Color, onColorChange: (Color)
     }
 
     Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp), 
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), 
         horizontalArrangement = Arrangement.SpaceBetween, 
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(36.dp).background(currentColor).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), AppShapes.small))
+        Box(modifier = Modifier.size(32.dp).background(currentColor).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), AppShapes.small))
+        
         Text(
             text = if (translate) colorNameTranslations[colorName] ?: colorName else colorName.uppercase(), 
-            modifier = Modifier.weight(1f).padding(horizontal = 16.dp), 
-            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, fontSize = 13.sp)
+            modifier = Modifier.weight(1f).padding(horizontal = 12.dp), 
+            style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold, 
+                fontSize = 11.sp, // 缩小字号防止长单词溢出
+                letterSpacing = 0.sp
+            ),
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
         )
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             OutlinedTextField(
                 value = hexValue,
@@ -327,20 +335,24 @@ fun ColorEditItem(colorName: String, currentColor: Color, onColorChange: (Color)
                         onColorChange(newHex.toComposeColor())
                     }
                 },
-                modifier = Modifier.width(90.dp).height(46.dp),
+                // 移除固定高度，改为由内容撑开或使用较合理的最小高度
+                modifier = Modifier.width(85.dp),
                 maxLines = 1,
                 singleLine = true,
+                textStyle = LocalTextStyle.current.copy(fontSize = 12.sp),
                 shape = AppShapes.small,
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = MaterialTheme.colorScheme.primary,
                     unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
                 )
             )
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             IconButton(
                 onClick = { showColorPicker = true },
                 modifier = Modifier.size(36.dp).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small)
-            ) { Icon(imageVector = Icons.Filled.ColorLens, contentDescription = "选择颜色", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) }
+            ) { 
+                Icon(imageVector = Icons.Filled.ColorLens, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) 
+            }
         }
     }
 }

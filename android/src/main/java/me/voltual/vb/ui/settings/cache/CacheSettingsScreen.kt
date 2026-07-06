@@ -69,52 +69,38 @@ fun CacheSettingsScreen(
 
             // 数据看板卡片
             BBQCard(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("■ 转换输出目录 (worlds/world_output)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
-                        Text(viewModel.outputFolderSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                    }
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        // 使用自定义的 Row 渲染函数，确保右侧数值永不折行
+        CacheDataRow(label = "■ 转换输出目录 (worlds/world_output)", value = viewModel.outputFolderSize)
+        CacheDataRow(label = "■ 打包压缩介质 (worlds/world_output.zip)", value = viewModel.zipFileSize)
+        CacheDataRow(label = "■ 应用系统缓存堆栈 (app/cache)", value = viewModel.systemCacheSize)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("■ 打包压缩介质 (worlds/world_output.zip)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
-                        Text(viewModel.zipFileSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                    }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text("■ 应用系统缓存堆栈 (app/cache)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
-                        Text(viewModel.systemCacheSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                    }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.Bottom // 改为底部对齐
+        ) {
+            Text(
+                "SECTORS_TOTAL_VOLUME // 缓存总容积", 
+                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black),
+                modifier = Modifier.weight(1f) // 占据剩余空间
+            )
+            Text(
+                text = viewModel.totalSize, 
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black), 
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.wrapContentWidth() // 确保数值完整显示
+            )
+        }
+    }
+}
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("SECTORS_TOTAL_VOLUME // 缓存总容积", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black))
-                        Text(
-                            text = viewModel.totalSize, 
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black), 
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             // 按钮 1：仅清除转换缓存 (安全级警告橙色线条)
             OutlinedButton(
@@ -198,5 +184,29 @@ fun CacheSettingsScreen(
                 }
             )
         }
+    }
+}
+
+@Composable
+private fun CacheDataRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label, 
+            style = MaterialTheme.typography.bodySmall, 
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f), // 标签占满剩余空间
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            text = value, 
+            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), 
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.padding(start = 8.dp).wrapContentWidth() // 数值不准折行
+        )
     }
 }
