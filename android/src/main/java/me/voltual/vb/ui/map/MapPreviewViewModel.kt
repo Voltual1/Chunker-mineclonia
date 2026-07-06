@@ -18,6 +18,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
+import me.voltual.vb.core.utils.FileRepairUtil
 import androidx.lifecycle.viewModelScope
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
@@ -222,7 +223,11 @@ class MapPreviewViewModel : ViewModel() {
                             }
                         ).flowOn(Dispatchers.IO).collect { result: SingleFolderResult ->
                             when (result) {
-                                is SingleFolderResult.Completed -> countDownLatch.countDown()
+                                is SingleFolderResult.Completed -> {
+                                // 复制完成后在后台线程静默执行数据库修复，去除 .bin
+                                FileRepairUtil.repairCopiedDatabaseFiles(localPreviewPath)
+                                countDownLatch.countDown()
+                            }
                                 is SingleFolderResult.Error -> {
                                     copyError = true
                                     countDownLatch.countDown()

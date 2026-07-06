@@ -1,3 +1,4 @@
+// [在 HomeViewModel.kt 中，删除原有的私有 repairCopiedDatabaseFiles 方法，直接引入并调用公共工具]
 package me.voltual.vb.ui.home
 
 import android.content.Context
@@ -16,6 +17,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.voltual.vb.core.utils.FileRepairUtil // 导入公共工具
 import me.voltual.vb.core.utils.extension.text.formatSize
 import me.voltual.vb.ui.Navigator
 import me.voltual.vb.ui.TerminalExec
@@ -34,7 +36,6 @@ class HomeViewModel : ViewModel() {
     var copyProgress by mutableStateOf(0f)
     var copyStatusText by mutableStateOf("")
 
-    // 中转站文件状态
     var hasExistingInput by mutableStateOf(false)
         private set
     var useExistingInput by mutableStateOf(false)
@@ -100,45 +101,12 @@ class HomeViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 递归修复因 SimpleStorage 复制导致的文件名被强行追加 .bin 后缀的问题。
-     * 例如将 000022.ldb.bin 恢复为 000022.ldb，将 CURRENT.bin 恢复为 CURRENT
-     */
-    private fun repairCopiedDatabaseFiles(dir: File) {
-        if (!dir.exists() || !dir.isDirectory) return
-        val files = dir.listFiles() ?: return
-        for (file in files) {
-            if (file.isDirectory) {
-                repairCopiedDatabaseFiles(file)
-            } else {
-                val fileName = file.name
-                if (fileName.endsWith(".bin", ignoreCase = true)) {
-                    val originalName = fileName.substring(0, fileName.length - 4)
-                    // 仅当去掉 .bin 后的名称是 LevelDB 或基岩版存档特有数据文件时进行恢复
-                    if (originalName.endsWith(".ldb", ignoreCase = true) ||
-                        originalName.endsWith(".log", ignoreCase = true) ||
-                        originalName.equals("CURRENT", ignoreCase = true) ||
-                        originalName.equals("LOCK", ignoreCase = true) ||
-                        originalName.startsWith("MANIFEST-", ignoreCase = true)
-                    ) {
-                        val destFile = File(file.parentFile, originalName)
-                        if (destFile.exists()) {
-                            destFile.delete()
-                        }
-                        file.renameTo(destFile)
-                    }
-                }
-            }
-        }
-    }
-
     fun startCopyAndNavigate(context: Context, navigator: Navigator) {
         val format = selectedFormat ?: return
         val worldsDir = getWorldsDir(context)
         val localInputPath = File(worldsDir, "world_input").absolutePath
         val localOutputPath = File(worldsDir, "world_output").absolutePath
 
-        // 如果用户选择直接使用 FTP 导入的文件，则不进行 SAF 复制
         if (useExistingInput) {
             val outputDir = File(localOutputPath)
             if (outputDir.exists()) {
@@ -205,9 +173,9 @@ class HomeViewModel : ViewModel() {
                             isCopying = false
                             copyStatusText = "复制完成，正在整理数据目录..."
                             
-                            // 复制完成后在后台线程静默执行修复
                             withContext(Dispatchers.IO) {
-                                repairCopiedDatabaseFiles(inputDir)
+                                // 调用公共修复类
+                                FileRepairUtil.repairCopiedDatabaseFiles(inputDir)
                             }
 
                             val outputDir = File(localOutputPath)
