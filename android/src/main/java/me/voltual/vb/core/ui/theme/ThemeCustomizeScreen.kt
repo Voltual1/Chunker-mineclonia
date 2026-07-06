@@ -220,18 +220,12 @@ fun ThemeCustomizeScreen(
 
                 item { HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)) }
 
-                // 2. 战术色彩通道选择
+                // 2. 战术色彩通道选择 (修复：不传递自定义 indicator 规避 API 兼容性编译错误)
                 item {
                     PrimaryTabRow(
                         selectedTabIndex = selectedTab, 
                         modifier = Modifier.fillMaxWidth(),
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        indicator = { tabPositions ->
-                            TabRowDefaults.PrimaryIndicator(
-                                modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                     ) {
                         Tab(
                             selected = selectedTab == 0, 
