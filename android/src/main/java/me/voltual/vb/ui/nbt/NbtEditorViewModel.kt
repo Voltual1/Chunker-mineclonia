@@ -4,7 +4,7 @@
 // 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 你应该已经收到了一份 GNU 通用公共许可证 of the License.
 // 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 
 package me.voltual.vb.ui.nbt
@@ -19,6 +19,7 @@ import com.hivemc.chunker.nbt.tags.Tag
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 import com.hivemc.chunker.nbt.tags.collection.ListTag
 import com.hivemc.chunker.nbt.tags.primitive.*
+import java.util.ArrayDeque
 import java.util.concurrent.CompletableFuture
 
 class NbtEditorViewModel : ViewModel() {
@@ -34,16 +35,114 @@ class NbtEditorViewModel : ViewModel() {
     private var clipboardTag: Tag<*>? = null
     private var clipboardKey: String = ""
 
+    // ==========================================
+    // NBT 历史快照撤销/重做管理栈 (限制最大历史为 50 次)
+    // ==========================================
+    private val maxHistorySize = 50
+    private val undoStack = ArrayDeque<CompoundTag>()
+    private val redoStack = ArrayDeque<CompoundTag>()
+
+    var canUndo by mutableStateOf(false)
+        private set
+    var canRedo by mutableStateOf(false)
+        private set
+
     fun loadNbt(nbt: EditableNbt) {
         this.editableNbt = nbt
+        undoStack.clear()
+        redoStack.clear()
+        updateHistoryStates()
         refreshTree()
+    }
+
+    /**
+     * 在发生任何数据突变前，克隆并保存快照到撤销栈
+     */
+    private fun saveSnapshot() {
+        val root = getRootCompound() ?: return
+        // 执行深克隆，以保存完全独立的历史备份
+        val snapshot = root.clone() as CompoundTag
+        
+        if (undoStack.size >= maxHistorySize) {
+            undoStack.removeLast()
+        }
+        undoStack.push(snapshot)
+        // 任何新写入动作发生时，都清空重做栈
+        redoStack.clear()
+        updateHistoryStates()
+    }
+
+    private fun updateHistoryStates() {
+        canUndo = undoStack.isNotEmpty()
+        canRedo = redoStack.isNotEmpty()
+    }
+
+    /**
+     * 撤销操作：弹出最新历史快照，并将当前状态压入重做栈
+     */
+    fun performUndo() {
+        val nbt = editableNbt ?: return
+        val root = getRootCompound() ?: return
+        if (undoStack.isEmpty()) return
+
+        val currentSnapshot = root.clone() as CompoundTag
+        redoStack.push(currentSnapshot)
+
+        val previousSnapshot = undoStack.pop()
+        applyRootSnapshot(previousSnapshot)
+
+        nbt.markModified()
+        treeVersion++
+        updateHistoryStates()
+        refreshTree()
+    }
+
+    /**
+     * 重做操作：弹出重做快照，并将当前状态压回撤销栈
+     */
+    fun performRedo() {
+        val nbt = editableNbt ?: return
+        val root = getRootCompound() ?: return
+        if (redoStack.isEmpty()) return
+
+        val currentSnapshot = root.clone() as CompoundTag
+        undoStack.push(currentSnapshot)
+
+        val nextSnapshot = redoStack.pop()
+        applyRootSnapshot(nextSnapshot)
+
+        nbt.markModified()
+        treeVersion++
+        updateHistoryStates()
+        refreshTree()
+    }
+
+    private fun getRootCompound(): CompoundTag? {
+        val nbt = editableNbt as? ChunkEditableNbt ?: return null
+        return try {
+            val prop = nbt::class.java.getDeclaredField("rootTag")
+            prop.isAccessible = true
+            prop.get(nbt) as CompoundTag
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun applyRootSnapshot(snapshot: CompoundTag) {
+        val nbt = editableNbt as? ChunkEditableNbt ?: return
+        try {
+            val prop = nbt::class.java.getDeclaredField("rootTag")
+            prop.isAccessible = true
+            prop.set(nbt, snapshot)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun refreshTree() {
         val nbt = editableNbt ?: return
         visibleNodes.clear()
 
-        // 增加空安全防御 tag: Tag<*>?
         fun traverse(key: String?, tag: Tag<*>?, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
             if (tag == null) return
             val node = NbtUiNode(key, tag, parent, depth, isListElement)
@@ -78,6 +177,7 @@ class NbtEditorViewModel : ViewModel() {
 
     fun updateTagValue(node: NbtUiNode, value: Any) {
         try {
+            saveSnapshot() // 保存快照
             when (val tag = node.tag) {
                 is ByteTag -> tag.setValue((value as Number).toByte())
                 is ShortTag -> tag.setValue((value as Number).toShort())
@@ -109,16 +209,11 @@ class NbtEditorViewModel : ViewModel() {
         val copiedTag = clipboardTag?.clone() ?: return false
         val parent = node.parent
 
+        saveSnapshot() // 保存快照
         if (parent == null) {
             editableNbt?.let { nbt ->
-                val root = (nbt as ChunkEditableNbt).let {
-                    val prop = it::class.java.getDeclaredField("rootTag")
-                    prop.isAccessible = true
-                    prop.get(it) as CompoundTag
-                }
+                val root = getRootCompound() ?: return false
                 val originalMap = root.value ?: return false
-                
-                // 修复：提取为完全解耦的 Pair，断开与 Fastutil 数组的链接
                 val backupList = originalMap.entries.map { it.key to it.value }
                 originalMap.clear()
                 
@@ -139,7 +234,6 @@ class NbtEditorViewModel : ViewModel() {
             when (parent) {
                 is CompoundTag -> {
                     val originalMap = parent.value ?: return false
-                    
                     val backupList = originalMap.entries.map { it.key to it.value }
                     originalMap.clear()
                     
@@ -177,6 +271,7 @@ class NbtEditorViewModel : ViewModel() {
         val copiedTag = clipboardTag?.clone() ?: return false
         val tag = node.tag
 
+        saveSnapshot() // 保存快照
         when (tag) {
             is CompoundTag -> {
                 val targetKey = if (clipboardKey.startsWith("[")) "PastedTag" else clipboardKey
@@ -202,6 +297,7 @@ class NbtEditorViewModel : ViewModel() {
 
     fun deleteNode(node: NbtUiNode) {
         val parent = node.parent
+        saveSnapshot() // 保存快照
         if (parent == null) {
             editableNbt?.removeRootTag(node.key ?: "")
         } else {
@@ -222,18 +318,13 @@ class NbtEditorViewModel : ViewModel() {
         if (newName.isEmpty() || newName == node.key) return false
         val parent = node.parent
 
+        saveSnapshot() // 保存快照
         if (parent == null) {
             editableNbt?.let { nbt ->
-                val root = (nbt as ChunkEditableNbt).let {
-                    val prop = it::class.java.getDeclaredField("rootTag")
-                    prop.isAccessible = true
-                    prop.get(it) as CompoundTag
-                }
-                
+                val root = getRootCompound() ?: return false
                 val originalMap = root.value
                 if (originalMap == null || originalMap.containsKey(newName)) return false
                 
-                // 修复：解耦为 Pair
                 val backupList = originalMap.entries.map { it.key to it.value }
                 originalMap.clear()
                 
@@ -274,11 +365,12 @@ class NbtEditorViewModel : ViewModel() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>): Boolean {
+    fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>) : Boolean {
         val constructor = type.constructor ?: return false
         val newTag = constructor.get()
 
         val target = node.tag
+        saveSnapshot() // 保存快照
         when (target) {
             is CompoundTag -> {
                 if (name.isEmpty()) return false
@@ -304,6 +396,13 @@ class NbtEditorViewModel : ViewModel() {
     }
 
     fun saveChanges(): Boolean {
-        return editableNbt?.save() ?: false
+        val success = editableNbt?.save() ?: false
+        if (success) {
+            // 保存成功后清空历史，减少多余内存占用
+            undoStack.clear()
+            redoStack.clear()
+            updateHistoryStates()
+        }
+        return success
     }
 }
