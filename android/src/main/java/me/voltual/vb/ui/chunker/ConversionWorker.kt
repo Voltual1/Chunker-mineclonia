@@ -336,7 +336,7 @@ class ConversionWorker(
     var hasMoreData = true
     
     // 规定一个切片容纳的最大区块数（比如 2000 个区块切一次，可根据内存自行调整）
-    val CHUNK_LIMIT_PER_SLICE = 2000 
+    val CHUNK_LIMIT_PER_SLICE = 16
 
     while (hasMoreData) {
         if (isStopped || isSelfKilling) break
