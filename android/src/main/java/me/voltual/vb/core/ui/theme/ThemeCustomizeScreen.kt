@@ -126,31 +126,51 @@ fun ThemeCustomizeScreen(
             }
 
             // 头部功能操作区
-            Row(
-                modifier = Modifier.fillMaxWidth(), 
-                horizontalArrangement = Arrangement.SpaceBetween, 
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(modifier = Modifier.width(4.dp).height(20.dp).background(MaterialTheme.colorScheme.primary))
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        "VISUAL_CALIBRATOR // 外观校准",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    IconButton(
-                        onClick = { showResetDialog = true },
-                        modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small).size(36.dp)
-                    ) { Icon(Icons.Filled.Refresh, "恢复", modifier = Modifier.size(18.dp)) }
-                    IconButton(
-                        onClick = { translate = !translate },
-                        modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small).size(36.dp)
-                    ) { Icon(Icons.Filled.Language, "翻译", modifier = Modifier.size(18.dp)) }
-                }
-            }
+Row(
+    modifier = Modifier.fillMaxWidth(), 
+    horizontalArrangement = Arrangement.SpaceBetween, 
+    verticalAlignment = Alignment.CenterVertically
+) {
+    Row(
+        modifier = Modifier.weight(1f), // 1. 标题容器占满剩余空间，超出部分自动截断
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.width(4.dp).height(20.dp).background(MaterialTheme.colorScheme.primary))
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = "VISUAL_CALIBRATOR // 外观校准",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontSize = 16.sp),
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis // 防止溢出
+        )
+    }
+    
+    Spacer(modifier = Modifier.width(8.dp))
+
+    Row(
+        modifier = Modifier.wrapContentSize(), // 2. 按钮容器大小自适应其内容，绝不被挤压
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(
+            onClick = { showResetDialog = true },
+            modifier = Modifier
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small)
+                .size(36.dp)
+        ) { 
+            Icon(Icons.Filled.Refresh, "恢复", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) 
+        }
+        IconButton(
+            onClick = { translate = !translate },
+            modifier = Modifier
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small)
+                .size(36.dp)
+        ) { 
+            Icon(Icons.Filled.Language, "翻译", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) 
+        }
+    }
+}
 
             Spacer(modifier = Modifier.height(16.dp))
 
