@@ -100,7 +100,7 @@ class MapPreviewViewModel : ViewModel() {
                 worldDirUri = worldDirUri,
                 chunkX = chunk.chunkX(),
                 chunkZ = chunk.chunkZ(),
-                dimensionName = selectedDimension.getIdentifier(), // Chunker 维度获取字符串名使用 getIdentifier()
+                dimensionName = selectedDimension.getIdentifier(), // 修复：使用 getIdentifier()
                 isEntity = isEntity,
                 isBedrock = isBedrock
             )

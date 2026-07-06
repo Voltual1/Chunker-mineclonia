@@ -64,7 +64,6 @@ fun MapPreviewScreen(
     val topAppBarController = LocalTopAppBarController.current
     val coroutineScope = rememberCoroutineScope()
 
-    // 修复：使用正确的 mutableStateMapOf 泛型映射
     val composeBitmaps = remember { mutableStateMapOf<Pair<Dimension, RegionCoordPair>, ImageBitmap>() }
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
@@ -224,10 +223,10 @@ fun MapPreviewScreen(
                                         .padding(24.dp),
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer
                                 ) {
-                                    val dimLabel = when (viewModel.selectedDimension) {
-                                        Dimension.OVERWORLD -> "主世界"
-                                        Dimension.NETHER -> "下界"
-                                        Dimension.THE_END -> "末地"
+                                    val dimLabel = when (viewModel.selectedDimension.getIdentifier()) {
+                                        "minecraft:overworld" -> "主世界"
+                                        "minecraft:the_nether" -> "下界"
+                                        "minecraft:the_end" -> "末地"
                                         else -> viewModel.selectedDimension.getIdentifier()
                                     }
                                     Text(

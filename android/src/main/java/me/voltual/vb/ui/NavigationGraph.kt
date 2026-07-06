@@ -197,8 +197,12 @@ fun BBQNavDisplay(
         val docFile = DocumentFileCompat.fromUri(context, uri)
         val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
         
-        // Chunker 的 Dimension 是自定义类，应通过 getDimension 获取
-        val dim = Dimension.getDimension(key.dimensionName) ?: Dimension.OVERWORLD
+        // 根据 getIdentifier() 字符串精确匹配对应的 Dimension 静态实例
+        val dim = when (key.dimensionName) {
+            "minecraft:the_nether" -> Dimension.NETHER
+            "minecraft:the_end" -> Dimension.THE_END
+            else -> Dimension.OVERWORLD
+        }
         ChunkEditableNbt(
             worldDir = rawFile,
             chunkX = key.chunkX,
