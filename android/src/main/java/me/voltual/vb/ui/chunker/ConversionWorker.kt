@@ -74,7 +74,7 @@ class ConversionWorker(
                     val maxMem = runtime.maxMemory()
                     val ratio = usedMem.toDouble() / maxMem.toDouble()
 
-                    if (ratio > 0.80) {
+                    if (ratio > 0.98) {
                         if (isMerging) {
                             var waitCount = 0
                             while (isMerging && waitCount < 15) {
