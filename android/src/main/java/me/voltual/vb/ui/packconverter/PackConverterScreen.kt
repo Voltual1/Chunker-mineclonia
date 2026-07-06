@@ -1,6 +1,8 @@
 package me.voltual.vb.ui.packconverter
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,15 +11,21 @@ import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFilePicker
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import me.voltual.vb.core.ui.components.MarkDownText
+import me.voltual.vb.core.ui.theme.AppShapes
+import me.voltual.vb.core.ui.theme.BBQButton
+import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.ui.TerminalViewAndroidView
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -52,69 +60,30 @@ fun PackConverterScreen(
     }
 
     val helpMarkdown = """
-        ### 仅支持Java版材质包转换成基岩版材质包
-        ### 说明：已跳过精灵图(Spritesheet)合并
-        为避免在 Android 设备上因大图合并导致转换卡死，本程序在转换时已**跳过精灵图合并**。部分依赖合并精灵图的粒子及 UI 贴图可能无法完美呈现，敬请知悉。
-
-        ### 关于 PackConverter
-        本转换器基于上游 [PackConverter](https://github.com/GeyserMC/PackConverter) 开发，上游也目前仍处于开发阶段（Work in Progress）。
+        ### 材质转码协议说明 (Java to Bedrock)
         
-        **免责声明：**
-        1. 转换功能目前极不稳定，**请勿在生产环境中使用，预期可能会遇到各种 Bug！**
-        2. 本工具**不支持完整转换自定义物品（Custom Items）**。它仅转换贴图本身，不会生成任何 Geyser 映射。如果需要创建此类映射，请参考 [Rainbow](https://github.com/GeyserMC/Rainbow/) 项目。
-
+        ■ **核心限制**：当前逻辑仅支持 Java 版 ZIP 压缩介质转码至 Bedrock 标准格式。
+        ■ **精灵图跳过**：已自动跳过 Spritesheet 合并以防止 Android 内存溢出导致系统崩溃。
+        ■ **免责声明**：本组件基于上游 [PackConverter](https://github.com/GeyserMC/PackConverter) 开发，目前处于 WIP 阶段。部分自定义物品映射可能失效。
+        
         ---
-        以下为上游项目介绍：
-
-        # PackConverter
-
-        [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-        [![Discord](https://img.shields.io/discord/613163671870242838.svg?color=%237289da&label=discord)](http://discord.geysermc.org/)
-
-        PackConverter is a library for converting Java Edition resource packs to Bedrock Edition.
-
-        This is based on the Node.js module ConvertJavaTextureToBedrockApi by ozelot379. 
-
-        **Please note, this project is still a work in progress and should not be used on production. Expect bugs!**
-
-        **This project also does not convert custom items fully, it will only convert the textures, but does not create any Geyser mappings.**
-
-        If you are looking for a program capable of creating such custom item mappings, take a look at [Rainbow](https://github.com/GeyserMC/Rainbow/).
-
-        ## Usage
-        - Ensure Java is installed, you can use [PaperMC's guide](https://docs.papermc.io/misc/java-install/) on installing java if you do not have Java installed.
-        - Download Thunder, the PackConverter GUI, from the Actions tab on GitHub.
-        - Double-click on the JAR file to open up the UI, then select your java pack and hit convert!
-
-        ## CLI Usage
-        You can also use PackConverter in a CLI, by downloading Thunder (See `Usage`) then running the jar file with some parameters, an example can be seen below:
-
-        ```bash
-        java -jar Thunder.jar nogui --input "C:\path\to\pack.zip"
-        ```
-
-        You can also enable debug mode by adding `debug` as an additional argument, this also works for the GUI.
-
-        ## Compiling
-        1. Clone the repo to your computer
-        2. Run gradlew build and locate to bootstrap/build folder.
+        **AUTHOR: GEYSER_MC / VOLTUAL**
     """.trimIndent()
 
     if (showHelpDialog) {
         AlertDialog(
             onDismissRequest = { showHelpDialog = false },
-            title = { Text("关于材质包转换") },
+            shape = AppShapes.medium,
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = { Text("TRANSCODER_MANUAL // 帮助文档", fontWeight = FontWeight.Black) },
             text = {
-                Box(
-                    modifier = Modifier
-                        .verticalScroll(rememberScrollState())
-                ) {
+                Box(modifier = Modifier.verticalScroll(rememberScrollState())) {
                     MarkDownText(content = helpMarkdown)
                 }
             },
             confirmButton = {
-                TextButton(onClick = { showHelpDialog = false }) {
-                    Text("确定")
+                TextButton(onClick = { showHelpDialog = false }, shape = AppShapes.small) {
+                    Text("ACKNOWLEDGEMENT")
                 }
             }
         )
@@ -123,156 +92,178 @@ fun PackConverterScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 顶部栏：标题与帮助按钮
+        // 顶部战术标识
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.size(width = 4.dp, height = 20.dp).background(MaterialTheme.colorScheme.primary))
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "ASSET_TRANSCODER_BAY // 转码分析舱",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
             IconButton(onClick = { showHelpDialog = true }) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.Help,
-                    contentDescription = "帮助说明"
+                    contentDescription = "Manual",
+                    tint = MaterialTheme.colorScheme.primary
                 )
             }
         }
 
-        // 材质包名称输入
-        OutlinedTextField(
-            value = packName,
-            onValueChange = { viewModel.setPackName(it) },
-            label = { Text("材质包名称") },
-            modifier = Modifier.fillMaxWidth(),
-            enabled = !isRunning,
-            singleLine = true
-        )
-
-        // 路径选择卡片
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant
+        // 1. 转码指令集配置
+        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedTextField(
+                value = packName,
+                onValueChange = { viewModel.setPackName(it) },
+                label = { Text("ASSET_IDENTIFIER // 材质包标识名") },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isRunning,
+                singleLine = true,
+                shape = AppShapes.small,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                )
             )
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // 选择输入文件
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("输入材质包 (Java 版 ZIP)", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            text = if (inputUri != null) "已选择输入文件" else "未选择",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (inputUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Button(
-                        onClick = { filePicker.launch() },
-                        enabled = !isRunning
-                    ) {
-                        // 遵照编译器提示，直接使用 AutoMirrored 版本的原图标
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.InsertDriveFile,
-                            contentDescription = null,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text("选择")
-                    }
-                }
 
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-                // 选择输出目录
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
+            // 路径挂载卡片
+            BBQCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("输出目录 (基岩版 .mcpack)", style = MaterialTheme.typography.titleSmall)
-                        Text(
-                            text = if (outputTreeUri != null) "已选择输出目录" else "未选择",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (outputTreeUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                        )
-                    }
-                    Button(
-                        onClick = { folderPicker.launch() },
-                        enabled = !isRunning
+                    // 输入挂载
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(8.dp))
-                        Text("选择")
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("SOURCE_MEDIA // 输入介质 (Java ZIP)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            Text(
+                                text = if (inputUri != null) "READY // 已锁定文件" else "IDLE // 等待挂载",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (inputUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Button(
+                            onClick = { filePicker.launch() },
+                            enabled = !isRunning,
+                            shape = AppShapes.small,
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.InsertDriveFile, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("MOUNT", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+                    // 输出挂载
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("EXPORT_LINK // 输出目录 (MCPACK)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.outline)
+                            Text(
+                                text = if (outputTreeUri != null) "LINKED // 已建立链路" else "IDLE // 等待映射",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                                color = if (outputTreeUri != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                            )
+                        }
+                        Button(
+                            onClick = { folderPicker.launch() },
+                            enabled = !isRunning,
+                            shape = AppShapes.small,
+                            contentPadding = PaddingValues(horizontal = 12.dp)
+                        ) {
+                            Icon(Icons.Default.Folder, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("LINK", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         }
 
-        // 调试模式开关
+        // 2. 战术参数开关
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), AppShapes.small)
+                .padding(horizontal = 12.dp, vertical = 4.dp)
         ) {
             Checkbox(
                 checked = debugMode,
                 onCheckedChange = { viewModel.setDebugMode(it) },
-                enabled = !isRunning
+                enabled = !isRunning,
+                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.secondary)
             )
             Spacer(Modifier.width(8.dp))
-            Text("调试模式 (Debug Mode)", style = MaterialTheme.typography.bodyMedium)
+            Text("ENABLE_TRACE_LOG // 开启调试模式追踪", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
         }
 
-        // 转换按钮
-        Button(
+        // 3. 执行启动按钮
+        BBQButton(
             onClick = { viewModel.startConversion() },
             enabled = !isRunning && inputUri != null && outputTreeUri != null,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            if (isRunning) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(24.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("转换中...")
-            } else {
-                Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("开始转换")
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            text = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isRunning) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("TRANSCODING_IN_PROGRESS...", fontWeight = FontWeight.Black)
+                    } else {
+                        Icon(Icons.Default.Build, null, modifier = Modifier.size(20.dp))
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("START_TRANSCODE // 启动重构", fontWeight = FontWeight.Black)
+                    }
+                }
             }
-        }
+        )
 
-        // 输出日志区域
-        Text("转换日志输出", style = MaterialTheme.typography.titleSmall)
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF121212), MaterialTheme.shapes.small)
-                .padding(8.dp)
-        ) {
-            session?.let { activeSession ->
-                TerminalViewAndroidView(
-                    session = activeSession,
-                    modifier = Modifier.fillMaxSize(),
-                    initialTextSize = 28
-                )
-            } ?: Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+        // 4. 转码监控区
+        Column(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Terminal, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(8.dp))
+                Text("LIVE_TELEMETRY // 实时转码流", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.primary)
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .background(Color(0xFF08080C)) // 深色监控屏底色
+                    .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), AppShapes.small)
+                    .padding(4.dp)
             ) {
-                Text("暂无日志", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                session?.let { activeSession ->
+                    TerminalViewAndroidView(
+                        session = activeSession,
+                        modifier = Modifier.fillMaxSize(),
+                        initialTextSize = 28
+                    )
+                } ?: Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("NO_STREAM_ACTIVE // 等待任务触发", color = Color(0xFF44474F), style = MaterialTheme.typography.labelSmall)
+                }
             }
         }
     }
