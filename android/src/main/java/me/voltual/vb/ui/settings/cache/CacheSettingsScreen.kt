@@ -1,15 +1,24 @@
 package me.voltual.vb.ui.settings.cache
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import me.voltual.vb.core.ui.theme.AppShapes
+import me.voltual.vb.core.ui.theme.BBQCard
+import me.voltual.vb.core.ui.theme.BBQButton
 import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -25,8 +34,6 @@ fun CacheSettingsScreen(
     viewModel: CacheSettingsViewModel = koinViewModel()
 ) {
     val navigator = LocalNavigator.current
-    
-    // 控制弹窗状态与清理模式
     var pendingClearType by remember { mutableStateOf<ClearType?>(null) }
 
     Scaffold(
@@ -41,106 +48,130 @@ fun CacheSettingsScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 战术标题
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(modifier = Modifier.width(4.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "MEMORY_SECTOR_PURGER // 存储扇区清理",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
             Text(
-                text = "缓存管理",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.primary
+                text = "STATUS // 检测到以下各数据分区缓存残留，清空缓存不影响输入源存档文件安全。",
+                style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+                color = MaterialTheme.colorScheme.outline
             )
 
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                ),
-                modifier = Modifier.fillMaxWidth()
-            ) {
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // 数据看板卡片
+            BBQCard(modifier = Modifier.fillMaxWidth()) {
                 Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("转换输出目录 (worlds/world_output)", style = MaterialTheme.typography.bodyMedium)
-                        Text(viewModel.outputFolderSize, style = MaterialTheme.typography.bodyMedium)
+                        Text("■ 转换输出目录 (worlds/world_output)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text(viewModel.outputFolderSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("打包压缩包 (worlds/world_output.zip)", style = MaterialTheme.typography.bodyMedium)
-                        Text(viewModel.zipFileSize, style = MaterialTheme.typography.bodyMedium)
+                        Text("■ 打包压缩介质 (worlds/world_output.zip)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text(viewModel.zipFileSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                     }
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("应用系统缓存 (cache)", style = MaterialTheme.typography.bodyMedium)
-                        Text(viewModel.systemCacheSize, style = MaterialTheme.typography.bodyMedium)
+                        Text("■ 应用系统缓存堆栈 (app/cache)", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
+                        Text(viewModel.systemCacheSize, style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
                     }
 
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("总计缓存大小", style = MaterialTheme.typography.titleSmall)
-                        Text(viewModel.totalSize, style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+                        Text("SECTORS_TOTAL_VOLUME // 缓存总容积", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black))
+                        Text(
+                            text = viewModel.totalSize, 
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black), 
+                            color = MaterialTheme.colorScheme.primary
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 按钮 1：仅清除转换缓存
+            // 按钮 1：仅清除转换缓存 (安全级警告橙色线条)
             OutlinedButton(
                 onClick = { pendingClearType = ClearType.CONVERSION_ONLY },
+                shape = AppShapes.small,
                 colors = ButtonDefaults.outlinedButtonColors(
-                    contentColor = MaterialTheme.colorScheme.error
+                    contentColor = MaterialTheme.colorScheme.tertiary
                 ),
+                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.tertiary),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(54.dp)
             ) {
                 Icon(imageVector = Icons.Default.Delete, contentDescription = "清除转换缓存")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("仅清除转换缓存")
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("PURGE_CONVERSION_CACHE // 仅清除转换数据", fontWeight = FontWeight.Bold)
             }
 
-            // 按钮 2：清除全部缓存
+            // 按钮 2：清除全部缓存 (高危警告红实色按键)
             Button(
                 onClick = { pendingClearType = ClearType.ALL },
+                shape = AppShapes.small,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.error
+                    containerColor = MaterialTheme.colorScheme.error,
+                    contentColor = MaterialTheme.colorScheme.onError
                 ),
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
+                    .height(54.dp)
             ) {
                 Icon(imageVector = Icons.Default.DeleteSweep, contentDescription = "清除全部缓存")
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("清除全部缓存")
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("PURGE_ALL_SECTORS // 物理清除全部缓存", fontWeight = FontWeight.Black)
             }
         }
 
-        // 统一处理的确认弹窗
+        // 二次高危指令确认安全阀
         pendingClearType?.let { type ->
-            val title = if (type == ClearType.ALL) "确认清除全部缓存" else "确认清除转换缓存"
+            val title = if (type == ClearType.ALL) "CONFIRM_SYSTEM_PURGE" else "CONFIRM_SECTOR_PURGE"
             val text = if (type == ClearType.ALL) {
-                "此操作将永久删除：\n1. 本地转换输出目录及对应压缩包\n2. 临时系统缓存文件（网络图片/中转站残留等）。\n\n源存档不受影响。是否确认彻底清理？"
+                "此指令将擦除物理存储介质中的：\n1. 转换导出的世界文件夹及其对应的 zip 压缩包。\n2. 系统底层的临时缓存寄存器文件。\n\n这会导致正在进行中的中转状态丢失，是否继续写入擦除协议？"
             } else {
-                "此操作将永久删除本地转换输出的世界文件夹及其对应的压缩包。源存档不受影响。是否继续？"
+                "此指令将移除输出目录 worlds/world_output/ 下的全部缓存数据与打包压缩成果。是否继续写入擦除协议？"
             }
 
             AlertDialog(
                 onDismissRequest = { pendingClearType = null },
-                title = { Text(title) },
-                text = { Text(text) },
+                shape = AppShapes.medium,
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(imageVector = Icons.Default.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(title, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+                    }
+                },
+                text = { Text(text, style = MaterialTheme.typography.bodySmall) },
                 confirmButton = {
                     Button(
                         onClick = {
@@ -151,16 +182,18 @@ fun CacheSettingsScreen(
                             }
                             pendingClearType = null
                         },
+                        shape = AppShapes.small,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.error
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
                         )
                     ) {
-                        Text("确认")
+                        Text("EXECUTE_PURGE", fontWeight = FontWeight.Black)
                     }
                 },
                 dismissButton = {
-                    TextButton(onClick = { pendingClearType = null }) {
-                        Text("取消")
+                    TextButton(onClick = { pendingClearType = null }, shape = AppShapes.small) {
+                        Text("ABORT")
                     }
                 }
             )
