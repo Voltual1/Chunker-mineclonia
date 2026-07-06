@@ -29,7 +29,7 @@ abstract class EditableNbt {
 
     /**
      * 底层的根 CompoundTag。
-     * 修复：使用抽象属性代替方法，避免 JVM 签名冲突。
+     * 使用抽象属性代替方法，避免 JVM 签名冲突。
      */
     abstract val rootTag: CompoundTag
 

@@ -197,7 +197,6 @@ fun BBQNavDisplay(
         val docFile = DocumentFileCompat.fromUri(context, uri)
         val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
         
-        // 根据 getIdentifier() 字符串精确匹配对应的 Dimension 静态实例
         val dim = when (key.dimensionName) {
             "minecraft:the_nether" -> Dimension.NETHER
             "minecraft:the_end" -> Dimension.THE_END

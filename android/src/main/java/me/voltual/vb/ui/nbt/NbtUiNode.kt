@@ -15,7 +15,7 @@ import androidx.compose.runtime.setValue
 import com.hivemc.chunker.nbt.tags.Tag
 
 /**
- * 展平后的 NBT 树节点 UI 状态，支持可空 key (解决 Chunker 空名节点造成的崩溃问题)
+ * 展平后的 NBT 树节点 UI 状态，支持可空 key 
  */
 class NbtUiNode(
     val key: String?,            // 可空键名

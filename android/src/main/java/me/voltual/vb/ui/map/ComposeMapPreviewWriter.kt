@@ -28,7 +28,6 @@ import java.util.function.Predicate
 
 /**
  * 拦截 Chunker 转换器流式读取到的区块，提取最高方块像素色值并传回给 UI。
- * 修复：修正 writeWorld 的返回签名为 ColumnWriter。
  */
 class ComposeMapPreviewWriter(
     private val onColumnRendered: (Dimension, RegionCoordPair, ChunkCoordPair, IntArray) -> Unit,
@@ -37,7 +36,6 @@ class ComposeMapPreviewWriter(
 
     override fun writeLevel(chunkerLevel: ChunkerLevel?): WorldWriter {
         return object : WorldWriter {
-            // 修复：返回类型由 WorldWriter 修正为 ColumnWriter
             override fun writeWorld(chunkerWorld: ChunkerWorld?): ColumnWriter {
                 val currentDimension = chunkerWorld?.dimension ?: Dimension.OVERWORLD
 

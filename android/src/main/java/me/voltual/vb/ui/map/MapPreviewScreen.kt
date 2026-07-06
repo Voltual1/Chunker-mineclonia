@@ -82,7 +82,6 @@ fun MapPreviewScreen(
     }
 
     LaunchedEffect(initialFolderUri) {
-        // 修复：使用 ViewModel 中正确的函数名
         viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
             val doc = com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)
@@ -165,7 +164,6 @@ fun MapPreviewScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            // 修复：明确使用命名参数以解决编译 lambda 错位问题
                             BBQButton(
                                 onClick = { folderPicker.launch() },
                                 text = {
@@ -178,7 +176,6 @@ fun MapPreviewScreen(
                             )
 
                             if (viewModel.hasExistingFtpInput) {
-                                // 修复：明确使用命名参数
                                 BBQOutlinedButton(
                                     onClick = {
                                         viewModel.loadAndRenderWorld(context, null, useFtpInput = true)

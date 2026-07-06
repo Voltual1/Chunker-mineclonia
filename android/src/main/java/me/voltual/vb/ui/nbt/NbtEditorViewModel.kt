@@ -1,8 +1,11 @@
-// Copyright (C) 2025 Voltual
-// 本程序 is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License.
-
+//Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.vb.ui.nbt
 
 import androidx.compose.runtime.mutableStateListOf
@@ -41,9 +44,7 @@ class NbtEditorViewModel : ViewModel() {
     var canRedo by mutableStateOf(false)
         private set
 
-    // ==========================================
     // 搜索与节点定位状态
-    // ==========================================
     var searchQuery by mutableStateOf("")
         private set
     var searchResults = mutableStateListOf<String>() // 匹配节点的绝对路径列表
@@ -178,9 +179,7 @@ class NbtEditorViewModel : ViewModel() {
         refreshTree()
     }
 
-    // ==========================================
     // 搜索执行与高亮自动展开逻辑 (DFS)
-    // ==========================================
     fun performSearch(query: String) {
         searchQuery = query
         searchResults.clear()

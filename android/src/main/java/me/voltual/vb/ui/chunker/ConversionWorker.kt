@@ -6,7 +6,6 @@ import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
-// import me.voltual.mcl.writer.MclLevelWriter 
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
@@ -104,19 +103,10 @@ class ConversionWorker(
         memoryMonitorThread.isDaemon = true
         memoryMonitorThread.start()
 
-        // --- MCL 逻辑注释区 ---
-        // val isMineclonia = format == "MINECLONIA"
-        // val targetTypeName = if (isMineclonia) "MINECLONIA" else format.substringBefore("_")
-        // val targetVersionString = if (isMineclonia) "1.12.2" else format.substringAfter("_").replace("_", ".")
-        // val encodingType = if (isMineclonia) null else EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
-        // val outputVersion = Version.fromString(targetVersionString)
-        
-        // 移除 MCL 后的标准格式解析
         val targetTypeName = format.substringBefore("_")
         val targetVersionString = format.substringAfter("_").replace("_", ".")
         val encodingType = EncodingType.getTypes().find { it.name.equals(targetTypeName, ignoreCase = true) }
         val outputVersion = Version.fromString(targetVersionString)
-        // ---------------------
 
         val worldId = calculateWorldIdentity(inputPathFile)
         val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
@@ -161,7 +151,6 @@ class ConversionWorker(
                     lastSavedProgressIndex = lastSavedProgressIndex,
                     threadCount = threadCount,
                     processMaps = processMaps,
-                    // isMineclonia = isMineclonia, // 注释掉
                     encodingType = encodingType,
                     outputVersion = outputVersion,
                     targetTypeName = targetTypeName,
@@ -176,7 +165,6 @@ class ConversionWorker(
                     lastSavedProgressIndex = lastSavedProgressIndex,
                     threadCount = threadCount,
                     processMaps = processMaps,
-                    // isMineclonia = isMineclonia, // 注释掉
                     encodingType = encodingType,
                     outputVersion = outputVersion,
                     targetTypeName = targetTypeName,
@@ -219,7 +207,6 @@ class ConversionWorker(
         lastSavedProgressIndex: Int,
         threadCount: Int,
         processMaps: Boolean,
-        // isMineclonia: Boolean, // 注释掉
         encodingType: EncodingType?,
         outputVersion: Version,
         targetTypeName: String,
@@ -274,16 +261,8 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
-            // --- MCL Writer 逻辑注释 ---
-            /*
-            val sliceWriterOpt = if (isMineclonia) {
-                java.util.Optional.of(MclLevelWriter(sliceOutputDir))
-            } else {
-                encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-            }
-            */
+            
             val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-            // --------------------------
             
             if (!sliceWriterOpt.isPresent) {
                 throw IllegalStateException("Failed to create writer.")
@@ -314,7 +293,7 @@ class ConversionWorker(
     outputPathFile: File,
     sliceInputDir: File,
     sliceOutputDir: File,
-    lastSavedProgressIndex: Int, // 这里的 index 现在代表“第几个切片”
+    lastSavedProgressIndex: Int, 
     threadCount: Int,
     processMaps: Boolean,
     encodingType: EncodingType?,
@@ -326,7 +305,7 @@ class ConversionWorker(
     File(srcDbDir, "LOCK").delete()
 
     val dbOptions = Options().createIfMissing(false)
-    dbOptions.writeBufferSize(4 * 1024 * 1024) // 适当调小缓存，腾出堆内存给JVM
+    dbOptions.writeBufferSize(4 * 1024 * 1024) 
     dbOptions.blockSize(4 * 1024)
 
     srcDb = factory.open(srcDbDir, dbOptions)
@@ -335,7 +314,7 @@ class ConversionWorker(
     var lastProcessedKey: ByteArray? = null
     var hasMoreData = true
     
-    // 规定一个切片容纳的最大区块数（比如 2000 个区块切一次，可根据内存自行调整）
+    // 规定一个切片容纳的最大区块数
     val CHUNK_LIMIT_PER_SLICE = 256
 
     while (hasMoreData) {
@@ -343,7 +322,7 @@ class ConversionWorker(
 
         // 跳过已经存档处理过的切片
         if (currentSliceIndex < lastSavedProgressIndex) {
-            // 如果需要跳过，我们需要知道从哪接着 seek。所以这里我们要空跑定位到下一个切片起始点
+            // 如果需要跳过，需要知道从哪接着 seek。所以这里要空跑定位到下一个切片起始点
             srcDb!!.iterator().use { skipIterator ->
                 if (lastProcessedKey != null) {
                     skipIterator.seek(lastProcessedKey!!)
@@ -369,7 +348,7 @@ class ConversionWorker(
 
         val runtime = Runtime.getRuntime()
         val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-        System.out.println("\n[Slicing] Preparing Slice #$currentSliceIndex | Heap: ${usedMem}MB")
+        System.out.println("\n[Slicing] Slice #$currentSliceIndex | Heap: ${usedMem}MB")
 
         // 清理并重新创建临时切片目录
         deleteDirectory(sliceInputDir)
@@ -394,7 +373,7 @@ class ConversionWorker(
         var loadedChunkCount = 0
         var nextBoundaryKey: ByteArray? = null
 
-        // 2. 🔥 开始抽取当前切片的数据
+        //  开始抽取当前切片的数据
         srcDb!!.iterator().use { readIterator ->
             // 从上一次结束的地方继续
             if (lastProcessedKey != null) {
@@ -436,7 +415,7 @@ class ConversionWorker(
         lastProcessedKey = nextBoundaryKey
         ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
 
-        // 3. 投喂给 Chunker 开始转换
+        // 投喂给 Chunker 开始转换
         val sliceConverter = WorldConverter(UUID.randomUUID())
         currentConverter = sliceConverter
         sliceConverter.setProcessItems(true)

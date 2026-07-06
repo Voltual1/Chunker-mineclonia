@@ -112,18 +112,17 @@ fun MainScreenContent(
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            Box(modifier = Modifier.width(300.dp)) { // 缩窄侧边栏，营造紧凑极客终端感
+            Box(modifier = Modifier.width(300.dp)) { 
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
                         .roundScreenPadding()
-                        .background(MaterialTheme.colorScheme.surface) // 纯深色碳素面板底色
+                        .background(MaterialTheme.colorScheme.surface) 
                         .border(
                             width = 1.dp,
                             color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
-                ) {
-                    // 战术修饰线条区代替原有头图，呈现硬核控制台的条纹质感
+                ) {                    
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -200,8 +199,7 @@ fun MainScreenContent(
                             containerColor = MaterialTheme.colorScheme.surface,
                             titleContentColor = MaterialTheme.colorScheme.onSurface
                         )
-                    )
-                    // 硬线条下边框，完美贴合战术框线设计
+                    )                    
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
                 }
             },

@@ -108,7 +108,7 @@ fun NbtEditorScreen(
             .fillMaxSize()
             .background(Color(0xFF0A0B10))
     ) {
-        // 修复：通过属性访问根节点
+        // 通过属性访问根节点
         val rootTag = editableNbt.rootTag
         
         Column(modifier = Modifier.fillMaxSize()) {

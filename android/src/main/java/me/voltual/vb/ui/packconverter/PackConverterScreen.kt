@@ -63,7 +63,7 @@ fun PackConverterScreen(
         ### 材质转码协议说明 (Java to Bedrock)
         
         ■ **核心限制**：当前逻辑仅支持 Java 版 ZIP 压缩介质转码至 Bedrock 标准格式。
-        ■ **精灵图跳过**：已自动跳过 Spritesheet 合并以防止 Android 内存溢出导致系统崩溃。
+        ■ **精灵图跳过**：已自动跳过 Spritesheet 合并以防止转换时间过长
         ■ **免责声明**：本组件基于上游 [PackConverter](https://github.com/GeyserMC/PackConverter) 开发，目前处于 WIP 阶段。部分自定义物品映射可能失效。
         
         ---
@@ -96,22 +96,33 @@ fun PackConverterScreen(
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 顶部战术标识
+        // 顶部战术标识（修复帮助按钮被挤压的问题）
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.weight(1f), // 确保标题行占满可用空间且不挤压右侧
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Box(modifier = Modifier.size(width = 4.dp, height = 20.dp).background(MaterialTheme.colorScheme.primary))
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    "ASSET_TRANSCODER_BAY // 转码分析舱",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
-                    color = MaterialTheme.colorScheme.primary
+                    text = "ASSET_TRANSCODER_BAY // 转码分析舱",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontSize = 16.sp),
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                 )
             }
-            IconButton(onClick = { showHelpDialog = true }) {
+            
+            Spacer(modifier = Modifier.width(8.dp))
+
+            IconButton(
+                onClick = { showHelpDialog = true },
+                modifier = Modifier.size(36.dp) // 固定大小，防止变形
+            ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Outlined.Help,
                     contentDescription = "Manual",
@@ -248,7 +259,7 @@ fun PackConverterScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
-                    .background(Color(0xFF08080C)) // 深色监控屏底色
+                    .background(Color(0xFF08080C)) 
                     .border(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f), AppShapes.small)
                     .padding(4.dp)
             ) {

@@ -42,7 +42,7 @@ val appModule = module {
     viewModel { PackConverterViewModel(androidContext()) }
     viewModel { DecoderViewModel(androidContext()) }
     viewModel { NbtEditorViewModel() }
-    viewModel { MapPreviewViewModel() } // 注册地图预览 ViewModel
+    viewModel { MapPreviewViewModel() } 
    
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }
