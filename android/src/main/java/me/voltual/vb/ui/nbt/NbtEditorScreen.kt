@@ -22,7 +22,9 @@ package me.voltual.vb.ui.nbt
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -37,12 +39,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hivemc.chunker.nbt.TagType
 import com.hivemc.chunker.nbt.tags.Tag
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 import kotlinx.coroutines.launch
+import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.TopAppBarAction
 import org.koin.compose.viewmodel.koinViewModel
@@ -104,7 +108,7 @@ fun NbtEditorScreen(
                     description = "保存",
                     onClick = {
                         if (viewModel.saveChanges()) {
-                            coroutineScope.launch { snackbarHostState.showSnackbar("数据已保存！") }
+                            coroutineScope.launch { snackbarHostState.showSnackbar("SAVE_OK // 写入字节流成功") }
                         }
                     }
                 )
@@ -112,7 +116,7 @@ fun NbtEditorScreen(
         }
 
         topAppBarController.updateActions(actionsList)
-        topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
+        topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT COMPILER"
     }
 
     DisposableEffect(Unit) {
@@ -124,7 +128,7 @@ fun NbtEditorScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
+            .background(Color(0xFF0A0B10)) // 极硬灰黑底色
     ) {
         val rootTag = (editableNbt as? ChunkEditableNbt)?.let {
             val prop = it::class.java.getDeclaredField("rootTag")
@@ -133,11 +137,12 @@ fun NbtEditorScreen(
         }
         
         Column(modifier = Modifier.fillMaxSize()) {
-            // 可折叠搜索条
+            // 战术风格可折叠搜索条
             AnimatedVisibility(visible = showSearchBar) {
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
-                    modifier = Modifier.fillMaxWidth()
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                    modifier = Modifier.fillMaxWidth(),
+                    border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
                 ) {
                     Row(
                         modifier = Modifier.padding(8.dp),
@@ -147,9 +152,16 @@ fun NbtEditorScreen(
                         OutlinedTextField(
                             value = viewModel.searchQuery,
                             onValueChange = { viewModel.performSearch(it) },
-                            placeholder = { Text("搜索 Key / Value", fontSize = 14.sp) },
+                            placeholder = { Text("FILTER_QUERY // 匹配键/值...", fontSize = 12.sp) },
                             singleLine = true,
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            shape = AppShapes.small,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(46.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.tertiary, // 高亮警告黄
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                            ),
                             trailingIcon = {
                                 if (viewModel.searchQuery.isNotEmpty()) {
                                     IconButton(onClick = { viewModel.performSearch("") }) {
@@ -160,15 +172,16 @@ fun NbtEditorScreen(
                         )
                         if (viewModel.searchResults.isNotEmpty()) {
                             Text(
-                                text = "${viewModel.currentSearchIndex + 1}/${viewModel.searchResults.size}",
-                                color = Color.White,
-                                fontSize = 13.sp
+                                text = "MATCH // ${viewModel.currentSearchIndex + 1}/${viewModel.searchResults.size}",
+                                color = MaterialTheme.colorScheme.primary,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold
                             )
                             IconButton(onClick = { viewModel.previousSearchResult() }) {
-                                Icon(Icons.Default.KeyboardArrowUp, null, tint = Color.White)
+                                Icon(Icons.Default.KeyboardArrowUp, null, tint = MaterialTheme.colorScheme.primary)
                             }
                             IconButton(onClick = { viewModel.nextSearchResult() }) {
-                                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White)
+                                Icon(Icons.Default.KeyboardArrowDown, null, tint = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
@@ -178,7 +191,7 @@ fun NbtEditorScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
                 if (rootTag == null || rootTag.size() == 0) {
                     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("当前区块无 NBT 属性", color = Color(0xFF94A3B8))
+                        Text("EMPTY_CELL_STREAM // 区块无有效 NBT 载荷", color = Color(0xFF44474F), style = MaterialTheme.typography.labelSmall)
                     }
                 } else {
                     val verticalScrollState = rememberScrollState()
@@ -191,6 +204,17 @@ fun NbtEditorScreen(
                             .horizontalScroll(horizontalScrollState)
                             .padding(16.dp)
                     ) {
+                        // 顶部极客说明饰条
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(bottom = 12.dp)) {
+                            Box(modifier = Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary))
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                "NBT_COMPILER_REGISTRY // DECRYPTING_BYTE_STREAM",
+                                style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, letterSpacing = 1.sp),
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                            )
+                        }
+
                         key(viewModel.treeVersion, viewModel.searchQuery) {
                             NbtTreeViewer(
                                 rootTag = rootTag,
@@ -215,23 +239,24 @@ fun NbtEditorScreen(
                 onCopy = {
                     viewModel.copyNode(node)
                     activeMenuNode = null
-                    coroutineScope.launch { snackbarHostState.showSnackbar("已复制到剪贴板") }
+                    coroutineScope.launch { snackbarHostState.showSnackbar("DATA_COPIED // 已载入临时寄存器") }
                 },
                 onPasteOverwrite = {
                     if (viewModel.pasteOverwrite(node)) {
-                        coroutineScope.launch { snackbarHostState.showSnackbar("已覆盖粘贴") }
+                        coroutineScope.launch { snackbarHostState.showSnackbar("OVERWRITE_OK // 覆盖修改完成") }
                     }
                     activeMenuNode = null
                 },
                 onPasteSubTag = {
                     if (viewModel.pasteSubTag(node)) {
-                        coroutineScope.launch { snackbarHostState.showSnackbar("已作为子项粘贴") }
+                        coroutineScope.launch { snackbarHostState.showSnackbar("MOUNT_SUB // 已挂载为子标签") }
                     }
                     activeMenuNode = null
                 },
                 onDelete = {
                     viewModel.deleteNode(node)
                     activeMenuNode = null
+                    coroutineScope.launch { snackbarHostState.showSnackbar("DELETE_OK // 字段已抹除") }
                 },
                 onRename = {
                     showRenameDialogNode = node
@@ -299,86 +324,89 @@ fun NbtNodeContextMenu(
     val isContainer = node.tag.type == TagType.COMPOUND || node.tag.type == TagType.LIST
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "操作: ${node.key?.ifEmpty { "Root" } ?: "Root"}") },
+        shape = AppShapes.medium,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text(text = "INTERRUPT // 操作: ${node.key?.ifEmpty { "Root" } ?: "Root"}", fontWeight = FontWeight.Black) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (!isContainer) {
-                    TextButton(onClick = onEditValue, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onEditValue, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = null)
+                            Icon(Icons.Default.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("修改数值")
+                            Text("UPDATE_VAL // 更改数值")
                         }
                     }
                 }
-                TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onCopy, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null)
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("复制")
+                        Text("REGISTER_COPY // 复制属性")
                     }
                 }
                 if (hasClipboard) {
-                    TextButton(onClick = onPasteOverwrite, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onPasteOverwrite, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.ContentPaste, contentDescription = null)
+                            Icon(Icons.Default.ContentPaste, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("覆盖粘贴")
+                            Text("OVERWRITE_PASTE // 覆盖粘贴")
                         }
                     }
                     if (node.isContainer) {
-                        TextButton(onClick = onPasteSubTag, modifier = Modifier.fillMaxWidth()) {
+                        TextButton(onClick = onPasteSubTag, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.Start,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Default.ContentPasteGo, contentDescription = null)
+                                Icon(Icons.Default.ContentPasteGo, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text("粘贴为子节点")
+                                Text("MOUNT_SUB // 粘贴为子标签")
                             }
                         }
                     }
                 }
-                TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth()) {
+                TextButton(onClick = onRename, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null)
+                        Icon(Icons.Default.DriveFileRenameOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("重命名键名")
+                        Text("RENAME_KEY // 键名重构")
                     }
                 }
                 if (node.isContainer) {
-                    TextButton(onClick = onAddSubTag, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = onAddSubTag, modifier = Modifier.fillMaxWidth(), shape = AppShapes.small) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.Start,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null)
+                            Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                             Spacer(modifier = Modifier.width(12.dp))
-                            Text("添加子标签")
+                            Text("INSERT_TAG // 插入子属性")
                         }
                     }
                 }
                 TextButton(
                     onClick = onDelete,
                     modifier = Modifier.fillMaxWidth(),
+                    shape = AppShapes.small,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
                     Row(
@@ -386,15 +414,15 @@ fun NbtNodeContextMenu(
                         horizontalArrangement = Arrangement.Start,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = null)
+                        Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("删除")
+                        Text("DELETE_TAG // 彻底删除")
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss, shape = AppShapes.small) { Text("ABORT") }
         }
     )
 }
@@ -411,7 +439,9 @@ fun EditValueDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("修改数值 (${node.tag.type.tagClass?.simpleName})") },
+        shape = AppShapes.medium,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("COMPILATION_VAL (${node.tag.type.tagClass?.simpleName})", fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (node.tag.type == TagType.BYTE && isBoolean) {
@@ -420,15 +450,20 @@ fun EditValueDialog(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("布尔值状态")
+                        Text("布尔链路状态 BOOLEAN_STATE")
                         Switch(checked = checked, onCheckedChange = { checked = it })
                     }
                 } else {
                     OutlinedTextField(
                         value = textValue,
                         onValueChange = { textValue = it },
-                        label = { Text("值") },
+                        label = { Text("BINARY_DATA_VALUE") },
                         singleLine = true,
+                        shape = AppShapes.small,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -436,6 +471,7 @@ fun EditValueDialog(
         },
         confirmButton = {
             Button(
+                shape = AppShapes.small,
                 onClick = {
                     if (node.tag.type == TagType.BYTE && isBoolean) {
                         onConfirm(if (checked) 1.toByte() else 0.toByte())
@@ -456,11 +492,11 @@ fun EditValueDialog(
                     }
                 }
             ) {
-                Text("确认")
+                Text("COMMIT")
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss, shape = AppShapes.small) { Text("ABORT") }
         }
     )
 }
@@ -474,21 +510,28 @@ fun RenameDialog(
     var newName by remember { mutableStateOf(initialName) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("重命名 NBT 键") },
+        shape = AppShapes.medium,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("RENAME_COMPACT_KEY", fontWeight = FontWeight.Bold) },
         text = {
             OutlinedTextField(
                 value = newName,
                 onValueChange = { newName = it },
-                label = { Text("新键名") },
+                label = { Text("NEW_IDENTIFIER_NAME") },
                 singleLine = true,
+                shape = AppShapes.small,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                    unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
         },
         confirmButton = {
-            Button(onClick = { onConfirm(newName) }) { Text("确认") }
+            Button(onClick = { onConfirm(newName) }, shape = AppShapes.small) { Text("REWRITE") }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss, shape = AppShapes.small) { Text("ABORT") }
         }
     )
 }
@@ -512,15 +555,22 @@ fun AddSubTagDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("创建新 NBT 子标签") },
+        shape = AppShapes.medium,
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text("GENERATE_NEW_TAG", fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (isCompound) {
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("键名 (Name)") },
+                        label = { Text("TAG_IDENTIFIER_NAME") },
                         singleLine = true,
+                        shape = AppShapes.small,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(modifier = Modifier.height(12.dp))
@@ -534,7 +584,12 @@ fun AddSubTagDialog(
                         value = selectedType.tagClass?.simpleName ?: "Unknown",
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("选择标签类型") },
+                        label = { Text("SELECT_DAT_TYPE") },
+                        shape = AppShapes.small,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                        ),
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -542,7 +597,8 @@ fun AddSubTagDialog(
                     )
                     ExposedDropdownMenu(
                         expanded = expanded,
-                        onDismissRequest = { expanded = false }
+                        onDismissRequest = { expanded = false },
+                        modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant)
                     ) {
                         types.forEach { type ->
                             DropdownMenuItem(
@@ -558,10 +614,10 @@ fun AddSubTagDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { onConfirm(name, selectedType) }) { Text("创建") }
+            Button(onClick = { onConfirm(name, selectedType) }, shape = AppShapes.small) { Text("COMPILE") }
         },
         dismissButton = {
-            TextButton(onClick = { onDismiss() }) { Text("取消") }
+            TextButton(onClick = { onDismiss() }, shape = AppShapes.small) { Text("ABORT") }
         }
     )
 }
