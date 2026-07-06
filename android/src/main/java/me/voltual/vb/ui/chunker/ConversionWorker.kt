@@ -289,173 +289,173 @@ class ConversionWorker(
     }
 
     private suspend fun processBedrockWorld(
-    inputPathFile: File,
-    outputPathFile: File,
-    sliceInputDir: File,
-    sliceOutputDir: File,
-    lastSavedProgressIndex: Int, 
-    threadCount: Int,
-    processMaps: Boolean,
-    encodingType: EncodingType?,
-    outputVersion: Version,
-    targetTypeName: String,
-    worldId: String
-) {
-    val srcDbDir = File(inputPathFile, "db")
-    File(srcDbDir, "LOCK").delete()
+        inputPathFile: File,
+        outputPathFile: File,
+        sliceInputDir: File,
+        sliceOutputDir: File,
+        lastSavedProgressIndex: Int, 
+        threadCount: Int,
+        processMaps: Boolean,
+        encodingType: EncodingType?,
+        outputVersion: Version,
+        targetTypeName: String,
+        worldId: String
+    ) {
+        val srcDbDir = File(inputPathFile, "db")
+        File(srcDbDir, "LOCK").delete()
 
-    val dbOptions = Options().createIfMissing(false)
-    dbOptions.writeBufferSize(4 * 1024 * 1024) 
-    dbOptions.blockSize(4 * 1024)
+        val dbOptions = Options().createIfMissing(false)
+        dbOptions.writeBufferSize(4 * 1024 * 1024) 
+        dbOptions.blockSize(4 * 1024)
 
-    srcDb = factory.open(srcDbDir, dbOptions)
+        srcDb = factory.open(srcDbDir, dbOptions)
 
-    var currentSliceIndex = 0
-    var lastProcessedKey: ByteArray? = null
-    var hasMoreData = true
-    
-    // 规定一个切片容纳的最大区块数
-    val CHUNK_LIMIT_PER_SLICE = 256
+        var currentSliceIndex = 0
+        var lastProcessedKey: ByteArray? = null
+        var hasMoreData = true
+        
+        // 规定一个切片容纳的最大区块数
+        val CHUNK_LIMIT_PER_SLICE = 256
 
-    while (hasMoreData) {
-        if (isStopped || isSelfKilling) break
+        while (hasMoreData) {
+            if (isStopped || isSelfKilling) break
 
-        // 跳过已经存档处理过的切片
-        if (currentSliceIndex < lastSavedProgressIndex) {
-            // 如果需要跳过，需要知道从哪接着 seek。所以这里要空跑定位到下一个切片起始点
-            srcDb!!.iterator().use { skipIterator ->
-                if (lastProcessedKey != null) {
-                    skipIterator.seek(lastProcessedKey!!)
-                    if (skipIterator.hasNext()) skipIterator.next() // 跳过当前这个已经处理的边界Key
-                } else {
-                    skipIterator.seekToFirst()
-                }
-                var skipCount = 0
-                while (skipIterator.hasNext() && skipCount < CHUNK_LIMIT_PER_SLICE) {
-                    val entry = skipIterator.next()
-                    if (isBedrockChunkKey(entry.key)) {
-                        skipCount++
+            // 跳过已经存档处理过的切片
+            if (currentSliceIndex < lastSavedProgressIndex) {
+                // 如果需要跳过，需要知道从哪接着 seek。所以这里要空跑定位到下一个切片起始点
+                srcDb!!.iterator().use { skipIterator ->
+                    if (lastProcessedKey != null) {
+                        skipIterator.seek(lastProcessedKey)
+                        if (skipIterator.hasNext()) skipIterator.next() // 跳过当前这个已经处理的边界Key
+                    } else {
+                        skipIterator.seekToFirst()
                     }
-                    lastProcessedKey = entry.key
+                    var skipCount = 0
+                    while (skipIterator.hasNext() && skipCount < CHUNK_LIMIT_PER_SLICE) {
+                        val entry = skipIterator.next()
+                        if (isBedrockChunkKey(entry.key)) {
+                            skipCount++
+                        }
+                        lastProcessedKey = entry.key
+                    }
+                    if (!skipIterator.hasNext()) {
+                        hasMoreData = false
+                    }
                 }
-                if (!skipIterator.hasNext()) {
+                currentSliceIndex++
+                continue
+            }
+
+            val runtime = Runtime.getRuntime()
+            val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
+            System.out.println("\n[Slicing] Slice #$currentSliceIndex | Heap: ${usedMem}MB")
+
+            // 清理并重新创建临时切片目录
+            deleteDirectory(sliceInputDir)
+            deleteDirectory(sliceOutputDir)
+            sliceInputDir.mkdirs()
+            sliceOutputDir.mkdirs()
+
+            val levelDat = File(inputPathFile, "level.dat")
+            if (levelDat.exists()) {
+                copyFile(levelDat, File(sliceInputDir, "level.dat"))
+            }
+
+            val sliceDbDir = File(sliceInputDir, "db")
+            sliceDbDir.mkdirs()
+            File(sliceDbDir, "LOCK").delete()
+
+            // 建立临时切片小数据库
+            val tempDbOptions = Options().createIfMissing(true)
+            tempDbOptions.writeBufferSize(2 * 1024 * 1024)
+            val tempDb = factory.open(sliceDbDir, tempDbOptions)
+
+            var loadedChunkCount = 0
+            var nextBoundaryKey: ByteArray? = null
+
+            //  开始抽取当前切片的数据
+            srcDb!!.iterator().use { readIterator ->
+                // 从上一次结束的地方继续
+                if (lastProcessedKey != null) {
+                    readIterator.seek(lastProcessedKey)
+                    if (readIterator.hasNext()) readIterator.next() // 排除掉上一个边界 Key 本身
+                } else {
+                    readIterator.seekToFirst()
+                }
+
+                // 顺着字典序捞取固定数量的区块
+                while (readIterator.hasNext() && loadedChunkCount < CHUNK_LIMIT_PER_SLICE) {
+                    if (isStopped || isSelfKilling) break
+                    val entry = readIterator.next()
+                    val key = entry.key
+                    
+                    if (isBedrockChunkKey(key)) {
+                        tempDb.put(key, entry.value)
+                        loadedChunkCount++
+                    } else {
+                        // 非区块数据（如地图、玩家数据），在每个切片里都保留一份复用
+                        tempDb.put(key, entry.value)
+                    }
+                    nextBoundaryKey = key // 滚动更新当前切片捞到的最后一个 Key
+                }
+                
+                // 如果迭代器后面没东西了，说明全库读完了
+                if (!readIterator.hasNext()) {
                     hasMoreData = false
                 }
             }
-            currentSliceIndex++
-            continue
-        }
+            tempDb.close()
 
-        val runtime = Runtime.getRuntime()
-        val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-        System.out.println("\n[Slicing] Slice #$currentSliceIndex | Heap: ${usedMem}MB")
-
-        // 清理并重新创建临时切片目录
-        deleteDirectory(sliceInputDir)
-        deleteDirectory(sliceOutputDir)
-        sliceInputDir.mkdirs()
-        sliceOutputDir.mkdirs()
-
-        val levelDat = File(inputPathFile, "level.dat")
-        if (levelDat.exists()) {
-            copyFile(levelDat, File(sliceInputDir, "level.dat"))
-        }
-
-        val sliceDbDir = File(sliceInputDir, "db")
-        sliceDbDir.mkdirs()
-        File(sliceDbDir, "LOCK").delete()
-
-        // 建立临时切片小数据库
-        val tempDbOptions = Options().createIfMissing(true)
-        tempDbOptions.writeBufferSize(2 * 1024 * 1024)
-        val tempDb = factory.open(sliceDbDir, tempDbOptions)
-
-        var loadedChunkCount = 0
-        var nextBoundaryKey: ByteArray? = null
-
-        //  开始抽取当前切片的数据
-        srcDb!!.iterator().use { readIterator ->
-            // 从上一次结束的地方继续
-            if (lastProcessedKey != null) {
-                readIterator.seek(lastProcessedKey!!)
-                if (readIterator.hasNext()) readIterator.next() // 排除掉上一个边界 Key 本身
-            } else {
-                readIterator.seekToFirst()
+            // 如果这个切片空空如也，说明已经没有可以转的数据了
+            if (loadedChunkCount == 0) {
+                break
             }
 
-            // 顺着字典序捞取固定数量的区块
-            while (readIterator.hasNext() && loadedChunkCount < CHUNK_LIMIT_PER_SLICE) {
-                if (isStopped || isSelfKilling) break
-                val entry = readIterator.next()
-                val key = entry.key
-                
-                if (isBedrockChunkKey(key)) {
-                    tempDb.put(key, entry.value)
-                    loadedChunkCount++
-                } else {
-                    // 非区块数据（如地图、玩家数据），在每个切片里都保留一份复用
-                    tempDb.put(key, entry.value)
-                }
-                nextBoundaryKey = key // 滚动更新当前切片捞到的最后一个 Key
+            // 更新进度状态
+            lastProcessedKey = nextBoundaryKey
+            ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
+
+            // 投喂给 Chunker 开始转换
+            val sliceConverter = WorldConverter(UUID.randomUUID())
+            currentConverter = sliceConverter
+            sliceConverter.setProcessItems(true)
+            sliceConverter.setProcessEntities(true)
+            sliceConverter.setProcessBlockEntities(true)
+            sliceConverter.setProcessBiomes(true)
+            sliceConverter.setProcessLighting(false)
+            sliceConverter.setProcessColumnPreTransform(false)
+            sliceConverter.setThreadCount(threadCount)
+            sliceConverter.setProcessMaps(processMaps)
+
+            val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
+            if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
+            val sliceReader = sliceReaderOpt.get()
+
+            val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
+            if (!sliceWriterOpt.isPresent) throw IllegalStateException("Failed to create writer.")
+            val sliceWriter = sliceWriterOpt.get()
+
+            val future = sliceConverter.convert(sliceReader, sliceWriter).future()
+            while (!future.isDone) {
+                delay(250)
             }
+            future.get()
+
+            try { sliceReader.free() } catch (_: Exception) {}
+            try { sliceWriter.free() } catch (_: Exception) {}
             
-            // 如果迭代器后面没东西了，说明全库读完了
-            if (!readIterator.hasNext()) {
-                hasMoreData = false
-            }
+            delay(50)
+
+            // 4. 将切片转换出来的数据合并到最终目录
+            mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
+            
+            currentSliceIndex++
+            ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
+
+            System.gc()
+            System.runFinalization()
         }
-        tempDb.close()
-
-        // 如果这个切片空空如也，说明已经没有可以转的数据了
-        if (loadedChunkCount == 0) {
-            break
-        }
-
-        // 更新进度状态
-        lastProcessedKey = nextBoundaryKey
-        ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
-
-        // 投喂给 Chunker 开始转换
-        val sliceConverter = WorldConverter(UUID.randomUUID())
-        currentConverter = sliceConverter
-        sliceConverter.setProcessItems(true)
-        sliceConverter.setProcessEntities(true)
-        sliceConverter.setProcessBlockEntities(true)
-        sliceConverter.setProcessBiomes(true)
-        sliceConverter.setProcessLighting(false)
-        sliceConverter.setProcessColumnPreTransform(false)
-        sliceConverter.setThreadCount(threadCount)
-        sliceConverter.setProcessMaps(processMaps)
-
-        val sliceReaderOpt = EncodingType.findReader(sliceInputDir, sliceConverter)
-        if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
-        val sliceReader = sliceReaderOpt.get()
-
-        val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-        if (!sliceWriterOpt.isPresent) throw IllegalStateException("Failed to create writer.")
-        val sliceWriter = sliceWriterOpt.get()
-
-        val future = sliceConverter.convert(sliceReader, sliceWriter).future()
-        while (!future.isDone) {
-            delay(250)
-        }
-        future.get()
-
-        try { sliceReader.free() } catch (_: Exception) {}
-        try { sliceWriter.free() } catch (_: Exception) {}
-        
-        delay(50)
-
-        // 4. 将切片转换出来的数据合并到最终目录
-        mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
-        
-        currentSliceIndex++
-        ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
-
-        System.gc()
-        System.runFinalization()
     }
-}
 
     private fun closeDatabases() {
         currentConverter?.cancel(null)
@@ -546,34 +546,33 @@ class ConversionWorker(
 
             cursor = sliceDb.rawQuery("SELECT `pos`, `data` FROM `blocks`", null)
 
-            if (cursor != null) {
-                val posIdx = cursor.getColumnIndex("pos")
-                val dataIdx = cursor.getColumnIndex("data")
+            // cursor 在 Kotlin 中已声明为非空类型，直接使用
+            val posIdx = cursor.getColumnIndex("pos")
+            val dataIdx = cursor.getColumnIndex("data")
 
-                destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
+            destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
 
-                var count = 0
-                while (cursor.moveToNext()) {
-                    val pos = cursor.getLong(posIdx)
-                    val data = cursor.getBlob(dataIdx)
+            var count = 0
+            while (cursor.moveToNext()) {
+                val pos = cursor.getLong(posIdx)
+                val data = cursor.getBlob(dataIdx)
 
-                    destInsertStmt.clearBindings()
-                    destInsertStmt.bindLong(1, pos)
-                    destInsertStmt.bindBlob(2, data)
-                    destInsertStmt.executeInsert()
+                destInsertStmt.clearBindings()
+                destInsertStmt.bindLong(1, pos)
+                destInsertStmt.bindBlob(2, data)
+                destInsertStmt.executeInsert()
 
-                    count++
-                    if (count >= 500) {
-                        destDb.setTransactionSuccessful()
-                        destDb.endTransaction()
-                        destDb.beginTransaction()
-                        count = 0
-                    }
+                count++
+                if (count >= 500) {
+                    destDb.setTransactionSuccessful()
+                    destDb.endTransaction()
+                    destDb.beginTransaction()
+                    count = 0
                 }
-
-                destDb.setTransactionSuccessful()
-                destDb.endTransaction()
             }
+
+            destDb.setTransactionSuccessful()
+            destDb.endTransaction()
 
         } catch (e: Exception) {
             System.err.println("\u001B[31m[Merge Error] Failed to merge Minetest databases: ${e.message}\u001B[0m")
