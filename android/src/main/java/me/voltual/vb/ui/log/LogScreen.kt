@@ -11,27 +11,29 @@
 
 package me.voltual.vb.ui.log
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.ui.draw.clip
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager 
 import androidx.compose.ui.text.AnnotatedString 
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import me.voltual.vb.core.database.entity.LogEntry
-import me.voltual.vb.core.ui.components.ListItem
+import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.ThemeManager
 import me.voltual.vb.core.ui.theme.billing_expense
 import me.voltual.vb.core.ui.theme.billing_expense_dark
@@ -39,7 +41,6 @@ import me.voltual.vb.core.ui.theme.billing_income
 import me.voltual.vb.core.ui.theme.billing_income_dark
 import kotlinx.coroutines.launch
 
-@Suppress("DEPRECATION")
 @Composable
 fun LogScreen(
     viewModel: LogViewModel,
@@ -48,24 +49,21 @@ fun LogScreen(
 ) {
     val logs by viewModel.logs.collectAsState()
     val isSelectionMode by viewModel.isSelectionMode.collectAsState()
-    val selectedCount = viewModel.selectedItems.collectAsState().value.size
+    val selectedItems by viewModel.selectedItems.collectAsState()
+    val selectedCount = selectedItems.size
     val coroutineScope = rememberCoroutineScope()
 
     var showClearAllDialog by remember { mutableStateOf(false) }
     var showSelectionOptions by remember { mutableStateOf(false) }
 
-    // 获取 Compose 的剪贴板管理器
     val clipboardManager = LocalClipboardManager.current
 
-    // 监听复制事件
     LaunchedEffect(Unit) {
         viewModel.copyEvent.collect { (textToCopy, count) ->
-            // 使用 LocalClipboardManager 设置剪贴板文本
             clipboardManager.setText(AnnotatedString(textToCopy))
-            
             coroutineScope.launch {
                 snackbarHostState.showSnackbar(
-                    message = "已复制 $count 条日志",
+                    message = "ACCESS_DATA // 已提取 $count 条记录至剪贴板",
                     duration = SnackbarDuration.Short
                 )
             }
@@ -73,26 +71,40 @@ fun LogScreen(
     }
     
     LaunchedEffect(Unit) {
-    viewModel.refreshFileLogs() // 每次进入界面重新读取磁盘上的 txt 文件
-}
+        viewModel.refreshFileLogs()
+    }
 
     Box(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         if (logs.isEmpty()) {
-            Box(
+            Column(
                 modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text("还没有任何日志记录", style = MaterialTheme.typography.titleMedium)
+                Icon(
+                    imageVector = Icons.Default.Inbox, 
+                    contentDescription = null, 
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
+                )
+                Spacer(Modifier.height(16.dp))
+                Text(
+                    "EMPTY_REGISTRY // 暂无系统运行日志", 
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.outline
+                )
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(bottom = 16.dp)
+                contentPadding = PaddingValues(top = if (isSelectionMode) 80.dp else 16.dp, bottom = 100.dp)
             ) {
                 items(logs, key = { it.id }) { log ->
-                    val isSelected = viewModel.selectedItems.collectAsState().value.contains(log.id)
+                    val isSelected = selectedItems.contains(log.id)
                     LogListItem(
                         log = log,
                         isSelected = isSelected,
@@ -104,30 +116,45 @@ fun LogScreen(
             }
         }
 
-        // 选择模式下的浮动操作按钮
-        if (isSelectionMode) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                SmallFloatingActionButton(
-                    onClick = { viewModel.copySelectedLogs() },
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                ) {
-                    Icon(Icons.Default.ContentCopy, "复制")
+        // 战术操作悬浮按钮组
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(24.dp)
+        ) {
+            if (isSelectionMode) {
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    FloatingActionButton(
+                        onClick = { viewModel.copySelectedLogs() },
+                        containerColor = MaterialTheme.colorScheme.secondary,
+                        contentColor = MaterialTheme.colorScheme.onSecondary,
+                        shape = AppShapes.small
+                    ) {
+                        Icon(Icons.Default.ContentCopy, "EXTRACT")
+                    }
+                    FloatingActionButton(
+                        onClick = { viewModel.deleteSelected() },
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                        shape = AppShapes.small
+                    ) {
+                        Icon(Icons.Default.Delete, "PURGE")
+                    }
                 }
-                SmallFloatingActionButton(
-                    onClick = { viewModel.deleteSelected() },
-                    containerColor = MaterialTheme.colorScheme.errorContainer
+            } else {
+                FloatingActionButton(
+                    onClick = { showSelectionOptions = true },
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = AppShapes.small
                 ) {
-                    Icon(Icons.Default.Delete, "删除")
+                    Icon(Icons.Default.Terminal, "MENU")
                 }
             }
+        }
 
-            // 选择模式下的顶部操作栏（固定在顶部）
+        // 选择模式下的战术覆盖顶栏
+        if (isSelectionMode) {
             SelectionTopBar(
                 selectedCount = selectedCount,
                 onClose = { viewModel.clearSelection() },
@@ -135,60 +162,48 @@ fun LogScreen(
                 onInvertSelection = { viewModel.invertSelection() },
                 modifier = Modifier.align(Alignment.TopCenter)
             )
-        } else {
-            // 非选择模式下的操作按钮
-            FloatingActionButton(
-                onClick = { showSelectionOptions = true },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
-            ) {
-                Icon(Icons.Default.Menu, "操作菜单")
-            }
         }
     }
 
-    // 清空确认对话框
     if (showClearAllDialog) {
         AlertDialog(
             onDismissRequest = { showClearAllDialog = false },
-            title = { Text("清空日志") },
-            text = { Text("确定要清空所有日志记录吗？此操作不可恢复。") },
+            shape = AppShapes.medium,
+            title = { Text("DANGER_ZONE // 清空注册表", fontWeight = FontWeight.Black) },
+            text = { Text("此操作将永久抹除当前所有运行日志记录（包含磁盘缓存日志），确定执行？") },
             confirmButton = {
-                TextButton(
-                    onClick = {
-                        viewModel.clearAllLogs()
-                        showClearAllDialog = false
-                    }
-                ) {
-                    Text("清空", color = MaterialTheme.colorScheme.error)
+                TextButton(onClick = {
+                    viewModel.clearAllLogs()
+                    showClearAllDialog = false
+                }) {
+                    Text("EXEC_PURGE // 确认清除", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllDialog = false }) {
-                    Text("取消")
+                    Text("ABORT")
                 }
             }
         )
     }
 
-    // 操作菜单
     if (showSelectionOptions) {
         DropdownMenu(
             expanded = showSelectionOptions,
-            onDismissRequest = { showSelectionOptions = false }
+            onDismissRequest = { showSelectionOptions = false },
+            modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant).border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small)
         ) {
             DropdownMenuItem(
-                text = { Text("进入选择模式") },
+                text = { Text("SELECT_MODE // 进入选择模式") },
+                leadingIcon = { Icon(Icons.Default.Checklist, null) },
                 onClick = {
                     viewModel.startSelectionMode()
                     showSelectionOptions = false
                 }
             )
             DropdownMenuItem(
-                text = { Text("清空全部日志") },
+                text = { Text("PURGE_ALL // 清空所有日志", color = MaterialTheme.colorScheme.error) },
+                leadingIcon = { Icon(Icons.Default.DeleteForever, null, tint = MaterialTheme.colorScheme.error) },
                 onClick = {
                     showClearAllDialog = true
                     showSelectionOptions = false
@@ -209,54 +224,44 @@ fun SelectionTopBar(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.primaryContainer,
-        tonalElevation = 8.dp
+            .padding(12.dp)
+            .border(1.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
+        shape = AppShapes.small,
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.95f),
+        tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // 左侧：标题和关闭按钮
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = onClose,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.Close, "取消选择")
+                IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Close, "ABORT")
                 }
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(12.dp))
                 Text(
-                    text = "已选择 $selectedCount 项",
-                    style = MaterialTheme.typography.titleMedium
+                    text = "TARGETS_LOCKED // $selectedCount",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
 
-            // 右侧：操作按钮
             Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(
-                    onClick = onSelectAll,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.SelectAll, "全选")
+                IconButton(onClick = onSelectAll, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.SelectAll, "ALL")
                 }
                 Spacer(Modifier.width(8.dp))
-                IconButton(
-                    onClick = onInvertSelection,
-                    modifier = Modifier.size(32.dp)
-                ) {
-                    Icon(Icons.Default.SyncAlt, "反选")
+                IconButton(onClick = onInvertSelection, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.SyncAlt, "INVERT")
                 }
             }
         }
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LogListItem(
     log: LogEntry,
@@ -271,39 +276,79 @@ fun LogListItem(
     } else {
         if (isDarkTheme) billing_expense_dark else billing_expense
     }
-    val statusIcon = if (log.status == "SUCCESS") Icons.Default.CheckCircle else Icons.Default.Error
     
-    val backgroundColor = if (isSelected) {
-        MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-    } else {
-        statusColor.copy(alpha = 0.1f)
-    }
+    val itemBorderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.1f)
+    val itemBgColor = if (isSelected) MaterialTheme.colorScheme.primary.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.5f)
 
     Box(
         modifier = Modifier
-            .padding(horizontal = 8.dp, vertical = 4.dp)
-            .clip(MaterialTheme.shapes.medium)
-            .background(backgroundColor)
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+            .fillMaxWidth()
+            .clip(AppShapes.small)
+            .background(itemBgColor)
+            .border(1.dp, itemBorderColor, AppShapes.small)
             .combinedClickable(
-                onClick = {
-                    if (isSelectionMode) {
-                        onToggleSelection()
-                    }
-                },
-                onLongClick = {
-                    if (!isSelectionMode) {
-                        onStartSelection()
-                    }
-                }
+                onClick = { if (isSelectionMode) onToggleSelection() },
+                onLongClick = { if (!isSelectionMode) onStartSelection() }
             )
     ) {
-        ListItem(
-            title = "[${log.type}] - ${log.status}",
-            content = "请求: ${log.requestBody}\n响应: ${log.responseBody}",
-            time = log.formattedTime(),
-            icon = statusIcon,
-            backgroundColor = Color.Transparent,
-            onClick = null
-        )
+        Row(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+            // 状态色标条
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .width(4.dp)
+                    .background(statusColor)
+            )
+            
+            Column(modifier = Modifier.padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "RECORD // ${log.type}",
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Black),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = log.formattedTime(),
+                        style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+                
+                Spacer(Modifier.height(8.dp))
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "STATUS // ",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = log.status,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                        color = statusColor
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                Text(
+                    text = "■ IN_DATA: ${log.requestBody.take(60)}${if (log.requestBody.length > 60) "..." else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Text(
+                    text = "■ OUT_MSG: ${log.responseBody.take(100)}${if (log.responseBody.length > 100) "..." else ""}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2
+                )
+            }
+        }
     }
 }
