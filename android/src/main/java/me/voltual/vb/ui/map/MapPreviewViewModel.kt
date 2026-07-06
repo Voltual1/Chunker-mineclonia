@@ -311,17 +311,27 @@ class MapPreviewViewModel : ViewModel() {
                         // 检测并向 availableDimensions 中注入新的维度
                         val currentDim = selectedDimension
                         viewModelScope.launch(Dispatchers.Main) {
-                            if (!availableDimensions.contains(currentDim)) {
-                                availableDimensions.add(currentDim)
+                    availableDimensions.clear()
+                }
+
+                val previewWriter = ComposeMapPreviewWriter(
+                    onColumnRendered = { dimension, region, chunk, argb ->
+                        // 动态注册新发现的维度
+                        viewModelScope.launch(Dispatchers.Main) {
+                            if (availableDimensions.none { it.identifier == dimension.identifier }) {
+                                availableDimensions.add(dimension)
+                                // 如果是找到的第一个维度，将其设为默认展示的维度
+                                if (availableDimensions.size == 1) {
+                                    selectedDimension = dimension
+                                }
                             }
                         }
-                        val dimRegion = Pair(currentDim, region)
+                        val dimRegion = Pair(dimension, region)
                         val chunksInRegion = regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }
                         chunksInRegion[chunk] = argb
                     },
-                    onFlushRegion = { region ->
-                        val currentDim = selectedDimension
-                        val dimRegion = Pair(currentDim, region)
+                    onFlushRegion = { dimension, region ->
+                        val dimRegion = Pair(dimension, region)
                         val chunkMap = regionRGBAData[dimRegion]
                         if (chunkMap != null) {
                             val bitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)

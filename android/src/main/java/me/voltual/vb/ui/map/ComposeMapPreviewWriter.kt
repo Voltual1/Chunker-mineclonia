@@ -1,6 +1,6 @@
 // Copyright (C) 2025 Voltual
 // 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发 and/或 修改 it。
+//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
 // 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
 // 有关更多细节，请参阅 GNU 通用公共许可证。
 //
@@ -20,6 +20,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import com.hivemc.chunker.scheduling.task.FutureTask
 import com.hivemc.chunker.scheduling.task.Task
 import java.util.concurrent.CompletableFuture
@@ -27,15 +28,19 @@ import java.util.function.Predicate
 
 /**
  * 拦截 Chunker 转换器流式读取到的区块，提取最高方块像素色值并传回给 UI。
+ * 修复：携带 Dimension 维度上下文。
  */
 class ComposeMapPreviewWriter(
-    private val onColumnRendered: (RegionCoordPair, ChunkCoordPair, IntArray) -> Unit,
-    private val onFlushRegion: (RegionCoordPair) -> Unit
+    private val onColumnRendered: (Dimension, RegionCoordPair, ChunkCoordPair, IntArray) -> Unit,
+    private val onFlushRegion: (Dimension, RegionCoordPair) -> Unit
 ) : LevelWriter {
 
     override fun writeLevel(chunkerLevel: ChunkerLevel?): WorldWriter {
         return object : WorldWriter {
             override fun writeWorld(chunkerWorld: ChunkerWorld?): ColumnWriter {
+                // 精确捕获当前正在写入的维度
+                val currentDimension = chunkerWorld?.dimension ?: Dimension.OVERWORLD
+
                 return object : ColumnWriter {
                     override fun writeColumn(chunkerColumn: ChunkerColumn): Task<Void> {
                         val argb = IntArray(256)
@@ -56,18 +61,18 @@ class ComposeMapPreviewWriter(
 
                         if (hasContent) {
                             onColumnRendered(
+                                currentDimension,
                                 chunkerColumn.position.region,
                                 chunkerColumn.position,
                                 argb
                             )
                         }
 
-                        // 返回已完成的 FutureTask 实例以驱动 Chunker 的后续任务链
                         return FutureTask(CompletableFuture.completedFuture(null))
                     }
 
                     override fun flushRegion(regionCoordPair: RegionCoordPair) {
-                        onFlushRegion(regionCoordPair)
+                        onFlushRegion(currentDimension, regionCoordPair)
                     }
                 }
             }
