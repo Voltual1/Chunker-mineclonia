@@ -285,66 +285,66 @@ class NbtEditorViewModel : ViewModel() {
     }
 
     @Suppress("UNCHECKED_CAST")
-    fun pasteOverwrite(node: NbtUiNode): Boolean {
-        val copiedTag = clipboardTag?.clone() ?: return false
-        val parent = node.parent
+fun pasteOverwrite(node: NbtUiNode): Boolean {
+    val copiedTag = clipboardTag?.clone() ?: return false
+    val parent = node.parent
 
-        saveSnapshot()
-        if (parent == null) {
-            editableNbt?.let { nbt ->
-                val root = getRootCompound() ?: return false
-                val originalMap = root.value ?: return false
+    saveSnapshot()
+    if (parent == null) {
+        editableNbt?.let { nbt ->
+            val root = getRootCompound() ?: return false
+            val originalMap = root.value ?: return false
+            val backupList = originalMap.entries.map { it.key to it.value }
+            originalMap.clear()
+            
+            for ((k, v) in backupList) {
+                if (k == node.key) {
+                    root.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
+                } else if (v != null) {
+                    root.put(k, v)
+                }
+            }
+            
+            nbt.markModified()
+            treeVersion++
+            refreshTree()
+            return true
+        }
+    } else {
+        when (parent) {
+            is CompoundTag -> {
+                val originalMap = parent.value ?: return false
                 val backupList = originalMap.entries.map { it.key to it.value }
                 originalMap.clear()
                 
                 for ((k, v) in backupList) {
                     if (k == node.key) {
-                        root.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
+                        parent.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
                     } else if (v != null) {
-                        root.put(k, v)
+                        parent.put(k, v)
                     }
                 }
                 
-                nbt.markModified()
+                editableNbt?.markModified()
                 treeVersion++
                 refreshTree()
                 return true
             }
-        } else {
-            when (parent) {
-                is CompoundTag -> {
-                    val originalMap = parent.value ?: return false
-                    val backupList = originalMap.entries.map { it.key to it.value }
-                    originalMap.clear()
-                    
-                    for ((k, v) in backupList) {
-                        if (k == node.key) {
-                            parent.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
-                        } else if (v != null) {
-                            parent.put(k, v)
-                        }
-                    }
-                    
+            is ListTag<*, *> -> {
+                val list = parent.value as? MutableList<Tag<Any>> ?: return false
+                val index = list.indexOf(node.tag as Tag<Any>)
+                if (index != -1) {
+                    list[index] = copiedTag as Tag<Any>
                     editableNbt?.markModified()
                     treeVersion++
                     refreshTree()
                     return true
                 }
-                is ListTag<*, *> -> {
-                    val list = parent.value as? MutableList<Tag<Any>> ?: return false
-                    val index = list.indexOf(node.tag as Tag<Any>)
-                    if (index != -1) {
-                        list[index] = copiedTag as Tag<Any>
-                        editableNbt?.markModified()
-                        treeVersion++
-                        refreshTree()
-                        return true
-                    }
-                }
             }
         }
-        return false
     }
+    return false
+}
 
     @Suppress("UNCHECKED_CAST")
     fun pasteSubTag(node: NbtUiNode): Boolean {
@@ -394,35 +394,15 @@ class NbtEditorViewModel : ViewModel() {
         refreshTree()
     }
 
-    fun renameNode(node: NbtUiNode, newName: String): Boolean {
-        if (newName.isEmpty() || newName == node.key) return false
-        val parent = node.parent
+fun renameNode(node: NbtUiNode, newName: String): Boolean {
+    if (newName.isEmpty() || newName == node.key) return false
+    val parent = node.parent
 
-        saveSnapshot()
-        if (parent == null) {
-            editableNbt?.let { nbt ->
-                val root = getRootCompound() ?: return false
-                val originalMap = root.value
-                if (originalMap == null || originalMap.containsKey(newName)) return false
-                
-                val backupList = originalMap.entries.map { it.key to it.value }
-                originalMap.clear()
-                
-                for ((k, v) in backupList) {
-                    if (k == node.key) {
-                        root.put(newName, node.tag)
-                    } else if (v != null) {
-                        root.put(k, v)
-                    }
-                }
-                
-                nbt.markModified()
-                treeVersion++
-                refreshTree()
-                return true
-            }
-        } else if (parent is CompoundTag) {
-            val originalMap = parent.value
+    saveSnapshot()
+    if (parent == null) {
+        editableNbt?.let { nbt ->
+            val root = getRootCompound() ?: return false
+            val originalMap = root.value
             if (originalMap == null || originalMap.containsKey(newName)) return false
             
             val backupList = originalMap.entries.map { it.key to it.value }
@@ -430,19 +410,39 @@ class NbtEditorViewModel : ViewModel() {
             
             for ((k, v) in backupList) {
                 if (k == node.key) {
-                    parent.put(newName, node.tag)
+                    root.put(newName, node.tag)
                 } else if (v != null) {
-                    parent.put(k, v)
+                    root.put(k, v)
                 }
             }
             
-            editableNbt?.markModified()
+            nbt.markModified()
             treeVersion++
             refreshTree()
             return true
         }
-        return false
+    } else if (parent is CompoundTag) {
+        val originalMap = parent.value
+        if (originalMap == null || originalMap.containsKey(newName)) return false
+        
+        val backupList = originalMap.entries.map { it.key to it.value }
+        originalMap.clear()
+        
+        for ((k, v) in backupList) {
+            if (k == node.key) {
+                parent.put(newName, node.tag)
+            } else if (v != null) {
+                parent.put(k, v)
+            }
+        }
+        
+        editableNbt?.markModified()
+        treeVersion++
+        refreshTree()
+        return true
     }
+    return false
+}
 
     @Suppress("UNCHECKED_CAST")
     fun addSubTag(node: NbtUiNode, name: String, type: TagType<*, *>) : Boolean {

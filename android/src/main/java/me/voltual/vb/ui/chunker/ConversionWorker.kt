@@ -20,8 +20,6 @@ import java.util.UUID
 import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
-import android.database.sqlite.SQLiteDatabase
-import android.database.sqlite.SQLiteStatement
 import kotlinx.coroutines.CancellationException
 
 class ConversionWorker(
@@ -509,100 +507,7 @@ class ConversionWorker(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    /**
-     * 合并 SQLite3 map.sqlite 数据库 (MCL/Minetest 专有，已不再被 mergeOutputSlice 调用)
-     */
-    private fun mergeSqliteDatabase(sliceDbFile: File, finalDbFile: File) {
-        var destDb: SQLiteDatabase? = null
-        var sliceDb: SQLiteDatabase? = null
-        var cursor: android.database.Cursor? = null
-        var destInsertStmt: SQLiteStatement? = null
-
-        try {
-            finalDbFile.parentFile?.mkdirs()
-
-            destDb = SQLiteDatabase.openOrCreateDatabase(finalDbFile.absolutePath, null)
-            
-            val pragmaSyncCursor = destDb.rawQuery("PRAGMA synchronous = OFF;", null)
-            pragmaSyncCursor?.moveToFirst()
-            pragmaSyncCursor?.close()
-
-            val pragmaJournalCursor = destDb.rawQuery("PRAGMA journal_mode = MEMORY;", null)
-            pragmaJournalCursor?.moveToFirst()
-            pragmaJournalCursor?.close()
-
-            destDb.execSQL(
-                """
-                CREATE TABLE IF NOT EXISTS `blocks` (
-                    `pos` INT PRIMARY KEY,
-                    `data` BLOB
-                );
-                """.trimIndent()
-            )
-
-            sliceDb = SQLiteDatabase.openOrCreateDatabase(sliceDbFile.absolutePath, null)
-
-            destDb.beginTransaction()
-
-            cursor = sliceDb.rawQuery("SELECT `pos`, `data` FROM `blocks`", null)
-
-            // cursor 在 Kotlin 中已声明为非空类型，直接使用
-            val posIdx = cursor.getColumnIndex("pos")
-            val dataIdx = cursor.getColumnIndex("data")
-
-            destInsertStmt = destDb.compileStatement("INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
-
-            var count = 0
-            while (cursor.moveToNext()) {
-                val pos = cursor.getLong(posIdx)
-                val data = cursor.getBlob(dataIdx)
-
-                destInsertStmt.clearBindings()
-                destInsertStmt.bindLong(1, pos)
-                destInsertStmt.bindBlob(2, data)
-                destInsertStmt.executeInsert()
-
-                count++
-                if (count >= 500) {
-                    destDb.setTransactionSuccessful()
-                    destDb.endTransaction()
-                    destDb.beginTransaction()
-                    count = 0
-                }
-            }
-
-            destDb.setTransactionSuccessful()
-            destDb.endTransaction()
-
-        } catch (e: Exception) {
-            System.err.println("\u001B[31m[Merge Error] Failed to merge Minetest databases: ${e.message}\u001B[0m")
-            e.printStackTrace()
-        } finally {
-            try { destInsertStmt?.close() } catch (_: Exception) {}
-            try { cursor?.close() } catch (_: Exception) {}
-            try { sliceDb?.close() } catch (_: Exception) {}
-            try { destDb?.close() } catch (_: Exception) {}
-        }
-    }
-
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
-        /*
-        if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
-            val sliceMapDb = File(sliceOutputDir, "map.sqlite")
-            if (sliceMapDb.exists()) {
-                val finalMapDb = File(finalOutputDir, "map.sqlite")
-                mergeSqliteDatabase(sliceMapDb, finalMapDb)
-            }
-
-            val worldMt = File(sliceOutputDir, "world.mt")
-            if (worldMt.exists()) {
-                val finalWorldMt = File(finalOutputDir, "world.mt")
-                if (!finalWorldMt.exists()) {
-                    copyFile(worldMt, finalWorldMt)
-                }
-            }
-        } else 
-        */
         if (targetFormat.contains("JAVA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
