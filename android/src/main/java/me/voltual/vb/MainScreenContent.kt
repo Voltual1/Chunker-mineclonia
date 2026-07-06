@@ -99,7 +99,6 @@ fun MainScreenContent(
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    val themeStore: ThemeColorDataStore = koinInject()
 
     val currentRoute = navigationState.currentRoute
     val currentTopLevelRoute = navigationState.topLevelRoute
@@ -110,27 +109,41 @@ fun MainScreenContent(
 
     val topAppBarController = LocalTopAppBarController.current
 
-    val useDarkTheme = ThemeManager.isAppDarkTheme
-    val lightBgUri by themeStore.drawerHeaderLightBackgroundUriFlow.collectAsState(initial = null)
-    val darkBgUri by themeStore.drawerHeaderDarkBackgroundUriFlow.collectAsState(initial = null)
-    val drawerHeaderBackgroundUri = if (useDarkTheme) darkBgUri else lightBgUri
-
     ModalNavigationDrawer(
         drawerState = drawerState,
         drawerContent = {
-            Box(modifier = Modifier.width(360.dp)) {
+            Box(modifier = Modifier.width(300.dp)) { // 缩窄侧边栏，营造紧凑极客终端感
                 Column(
                     modifier = Modifier
                         .fillMaxHeight()
                         .roundScreenPadding()
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(MaterialTheme.colorScheme.surface) // 纯深色碳素面板底色
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                        )
                 ) {
-                    DrawerHeader(
+                    // 战术修饰线条区代替原有头图，呈现硬核控制台的条纹质感
+                    Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(180.dp),
-                        backgroundUri = drawerHeaderBackgroundUri
-                    )
+                            .height(64.dp)
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                            .padding(horizontal = 24.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text(
+                            text = "VECTOR // TERMINAL",
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                                letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                            ),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
                     NavigationDrawerItems(
                         navigator = navigator,
                         currentTopLevelRoute = currentTopLevelRoute,
@@ -145,46 +158,52 @@ fun MainScreenContent(
     ) {
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = topAppBarController.customTitle ?: getTitleForDestination(currentRoute),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            maxLines = 1
+                Column {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = topAppBarController.customTitle ?: getTitleForDestination(currentRoute),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+                                )
+                            )
+                        },
+                        navigationIcon = {
+                            if (showBackButton) {
+                                IconButton(onClick = { navigator.goBack() }) {
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = "返回",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            } else {
+                                IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                    Icon(
+                                        imageVector = Icons.Default.Menu,
+                                        contentDescription = "打开菜单",
+                                        tint = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                            }
+                        },
+                        actions = {
+                            topAppBarController.actions.forEach { action ->
+                                IconButton(onClick = action.onClick) {
+                                    action.icon(action.tint?.invoke() ?: MaterialTheme.colorScheme.onSurface)
+                                }
+                            }
+                        },
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.surface,
+                            titleContentColor = MaterialTheme.colorScheme.onSurface
                         )
-                    },
-                    navigationIcon = {
-                        if (showBackButton) {
-                            IconButton(onClick = { navigator.goBack() }) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "返回",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        } else {
-                            IconButton(onClick = { scope.launch { drawerState.open() } }) {
-                                Icon(
-                                    imageVector = Icons.Default.Menu,
-                                    contentDescription = "打开菜单",
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-                    },
-                    actions = {
-                        // 循环渲染动态注入的 TopAppBarAction
-                        topAppBarController.actions.forEach { action ->
-                            IconButton(onClick = action.onClick) {
-                                action.icon(action.tint?.invoke() ?: MaterialTheme.colorScheme.onSurface)
-                            }
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        titleContentColor = MaterialTheme.colorScheme.onSurface
                     )
-                )
+                    // 硬线条下边框，完美贴合战术框线设计
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), thickness = 1.dp)
+                }
             },
             snackbarHost = { BBQSnackbarHost(hostState = snackbarHostState) },
             content = { innerPadding ->
@@ -225,19 +244,19 @@ fun MainScreenContent(
 @Composable
 fun getTitleForDestination(route: NavKey?): String {
     return when (route) {
-        Home -> "主页"
-        ThemeCustomize -> "主题定制"
-        UpdateSettings -> "更新设置"
-        is TerminalExec -> "终端"
-        FtpSettings -> "世界中转 (FTP)"
-        LogViewer -> "日志" 
-        CacheSettings -> "缓存设置" 
-        Export -> "导出" 
-        ChunkerSettings -> "转换性能设置"
-        PackConverterDest -> "材质包转换"
-        DecoderDest -> "存档还原"
-        is MapPreviewDest -> "地图预览"
-        else -> "在~ $route ~里~哦"
+        Home -> "主页 SYSTEM"
+        ThemeCustomize -> "主题定制 THEME"
+        UpdateSettings -> "更新设置 UPDATE"
+        is TerminalExec -> "终端 EXEC"
+        FtpSettings -> "世界中转 FTP"
+        LogViewer -> "日志 LOG" 
+        CacheSettings -> "缓存设置 CACHE" 
+        Export -> "导出 EXPORT" 
+        ChunkerSettings -> "转换设置 CHUNKER"
+        PackConverterDest -> "材质包转换 PACK"
+        DecoderDest -> "存档还原 DECODER"
+        is MapPreviewDest -> "地图预览 MAP"
+        else -> "SYSTEM // $route"
     }
 }
 
