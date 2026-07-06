@@ -37,8 +37,8 @@ class ComposeMapPreviewWriter(
 
     override fun writeLevel(chunkerLevel: ChunkerLevel?): WorldWriter {
         return object : WorldWriter {
-            override fun writeWorld(chunkerWorld: ChunkerWorld?): ColumnWriter {
-                // 精确捕获当前正在写入的维度
+            override fun writeWorld(chunkerWorld: ChunkerWorld?): WorldWriter {
+                // 无法在 WorldWriter 级别直接转换，但我们需要捕获维度以供 ColumnWriter 使用
                 val currentDimension = chunkerWorld?.dimension ?: Dimension.OVERWORLD
 
                 return object : ColumnWriter {

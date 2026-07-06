@@ -55,6 +55,7 @@ import java.io.RandomAccessFile
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Predicate
 
 class MapPreviewViewModel : ViewModel() {
 
@@ -100,7 +101,7 @@ class MapPreviewViewModel : ViewModel() {
                 worldDirUri = worldDirUri,
                 chunkX = chunk.chunkX(),
                 chunkZ = chunk.chunkZ(),
-                dimensionName = selectedDimension.getIdentifier(), // 修复：使用 getIdentifier()
+                dimensionName = selectedDimension.getIdentifier(),
                 isEntity = isEntity,
                 isBedrock = isBedrock
             )
@@ -185,7 +186,10 @@ class MapPreviewViewModel : ViewModel() {
             mapOffset = Offset.Zero
             regionBitmaps.clear()
             regionRGBAData.clear()
-            availableDimensions.clear()
+            
+            viewModelScope.launch(Dispatchers.Main) {
+                availableDimensions.clear()
+            }
 
             withContext(Dispatchers.Default) {
                 val externalDir = context.getExternalFilesDir(null)
@@ -305,22 +309,11 @@ class MapPreviewViewModel : ViewModel() {
                     statusMessage = "检测到 ${levelReader.encodingType.name} 格式 (版本: ${levelReader.version})"
                 }
 
-                // 统一使用封装好的 ComposeMapPreviewWriter 写入器解决匿名继承的编译错误
-                val previewWriter = ComposeMapPreviewWriter(
-                    onColumnRendered = { region, chunk, argb ->
-                        // 检测并向 availableDimensions 中注入新的维度
-                        val currentDim = selectedDimension
-                        viewModelScope.launch(Dispatchers.Main) {
-                    availableDimensions.clear()
-                }
-
                 val previewWriter = ComposeMapPreviewWriter(
                     onColumnRendered = { dimension, region, chunk, argb ->
-                        // 动态注册新发现的维度
                         viewModelScope.launch(Dispatchers.Main) {
                             if (availableDimensions.none { it.identifier == dimension.identifier }) {
                                 availableDimensions.add(dimension)
-                                // 如果是找到的第一个维度，将其设为默认展示的维度
                                 if (availableDimensions.size == 1) {
                                     selectedDimension = dimension
                                 }
