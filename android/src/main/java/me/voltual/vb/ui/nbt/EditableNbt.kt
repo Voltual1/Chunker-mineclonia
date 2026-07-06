@@ -17,7 +17,6 @@ import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 
 /**
  * 封装 NBT 数据的抽象类，用于在 UI 层进行编辑和状态跟踪。
- * 我们使用了 Compose 的 mutableStateOf 来让 [isModified] 成为响应式属性。
  */
 abstract class EditableNbt {
 
@@ -27,6 +26,12 @@ abstract class EditableNbt {
 
     // 是否允许修改根节点（例如重命名根标签等）
     var enableRootModifications: Boolean = true
+
+    /**
+     * 获取底层的根 CompoundTag。
+     * 修复：移除反射，改为抽象方法实现。
+     */
+    abstract fun getRootTag(): CompoundTag
 
     /**
      * 设置为已修改状态
@@ -44,7 +49,6 @@ abstract class EditableNbt {
 
     /**
      * 获取根节点的所有子标签。
-     * 由于 Chunker 的 CompoundTag 使用 Map 存储，这里返回一个 Entry 的迭代。
      */
     abstract fun getTags(): List<Pair<String, Tag<*>>>
 

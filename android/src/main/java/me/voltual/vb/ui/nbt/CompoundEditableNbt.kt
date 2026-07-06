@@ -12,19 +12,16 @@ package me.voltual.vb.ui.nbt
 import com.hivemc.chunker.nbt.tags.Tag
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 
-/**
- * 一个通用的 EditableNbt 实现，包装 Chunker 的 [CompoundTag]。
- * 用于编辑 Level.dat、玩家数据或实体 NBT。
- */
 class CompoundEditableNbt(
     val rootTag: CompoundTag,
     private val title: String,
     private val onSave: (CompoundTag) -> Boolean
 ) : EditableNbt() {
 
+    override fun getRootTag(): CompoundTag = rootTag
+
     override fun getTags(): List<Pair<String, Tag<*>>> {
         val valueMap = rootTag.value ?: return emptyList()
-        // 将 Map 转换为 Pair 列表，方便 UI 列表渲染
         return valueMap.entries.map { it.key to it.value }
     }
 
@@ -48,10 +45,6 @@ class CompoundEditableNbt(
         markModified()
     }
 
-    /**
-     * 辅助方法：由于 Chunker 的 Tag 是 Java 类且内部值通常是通过 setValue 修改的，
-     * 在修改任何深层节点时触发 EditableNbt 的修改状态。
-     */
     fun notifyChange() {
         markModified()
     }

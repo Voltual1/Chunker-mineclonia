@@ -130,11 +130,7 @@ fun NbtEditorScreen(
             .fillMaxSize()
             .background(Color(0xFF0A0B10)) // 极硬灰黑底色
     ) {
-        val rootTag = (editableNbt as? ChunkEditableNbt)?.let {
-            val prop = it::class.java.getDeclaredField("rootTag")
-            prop.isAccessible = true
-            prop.get(it) as? CompoundTag
-        }
+        val rootTag = editableNbt.getRootTag()
         
         Column(modifier = Modifier.fillMaxSize()) {
             // 战术风格可折叠搜索条

@@ -35,7 +35,7 @@ class ChunkEditableNbt(
     private val worldDir: File,
     private val chunkX: Int,
     private val chunkZ: Int,
-    private val dimension: Dimension, // 引入维度
+    private val dimension: Dimension,
     private val isEntity: Boolean,
     private val isBedrock: Boolean
 ) : EditableNbt() {
@@ -46,7 +46,25 @@ class ChunkEditableNbt(
     init {
         loadData()
     }
+
+    override fun getRootTag(): CompoundTag = rootTag
     
+    private fun findMcaFile(directory: File, targetName: String): File? {
+        val files = directory.listFiles() ?: return null
+        for (file in files) {
+            if (file.isFile && file.name.equals(targetName, ignoreCase = true)) {
+                return file
+            }
+        }
+        for (file in files) {
+            if (file.isDirectory && !file.name.startsWith(".")) {
+                val found = findMcaFile(file, targetName)
+                if (found != null) return found
+            }
+        }
+        return null
+    }
+
     private fun loadData() {
         if (isBedrock) {
             val dbDir = File(worldDir, "db")
@@ -63,7 +81,6 @@ class ChunkEditableNbt(
                     val chunkPair = ChunkCoordPair(chunkX, chunkZ)
                     val chunkType = if (isEntity) LevelDBChunkType.ENTITY else LevelDBChunkType.BLOCK_ENTITY
                     
-                    // 完美结合：Bedrock 的 LevelDBKey 自带维度识别
                     val key = LevelDBKey.key(dimension, chunkPair, chunkType)
                     val bytes = db.get(key)
                     
@@ -90,7 +107,6 @@ class ChunkEditableNbt(
             return
         }
 
-        // Java MCA 多维度精确物理寻址
         val regionX = chunkX shr 5
         val regionZ = chunkZ shr 5
         val dimFolder = when (dimension) {
