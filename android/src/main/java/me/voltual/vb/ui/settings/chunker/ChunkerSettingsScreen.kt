@@ -1,15 +1,26 @@
 package me.voltual.vb.ui.settings.chunker
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.SettingsSuggest
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import me.voltual.vb.core.ui.theme.AppShapes
+import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -27,73 +38,87 @@ fun ChunkerSettingsScreen(
     val processMaps by viewModel.processMaps.collectAsState()
     
     val scrollState = rememberScrollState()
-    
-    // 控制二次确认对话框的显示状态
     var showClearDialog by remember { mutableStateOf(false) }
 
     Column(
         modifier = modifier
             .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(scrollState)
+            .background(MaterialTheme.colorScheme.background)
+            .padding(20.dp)
+            .verticalScroll(scrollState),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        
-        Spacer(modifier = Modifier.height(8.dp))
+        // 顶部战术标题
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(modifier = Modifier.width(4.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = "ENGINE_CALIBRATION // 转换核心微调",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
         
         Text(
-            text = "调整多线程并行度以实现最大速度或最大兼容性。",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "REGULATION // 调节底层多线程并发与模块屏蔽开关，以在吞吐能效与硬件过载保护之间达成平衡。",
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp, lineHeight = 16.sp),
+            color = MaterialTheme.colorScheme.outline
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // 1. 线程并发滑块
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
+        // 1. 核心线程数分配滑块 (CORES_ALLOCATION)
+        BBQCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Column {
+                        Text(
+                            text = "CORES_ALLOCATION // 核心分配",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                        Text(
+                            text = "分配并行硬件线程数量",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.outline
+                        )
+                    }
                     Text(
-                        text = "并行任务线程数",
-                        style = MaterialTheme.typography.bodyLarge
-                    )
-                    Text(
-                        text = "$threadCount 线程",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "$threadCount THREADS",
+                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Black),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 
                 Slider(
                     value = threadCount.toFloat(),
                     onValueChange = { viewModel.updateThreadCount(it.toInt()) },
                     valueRange = 1f..viewModel.maxCores.toFloat(),
-                    steps = if (viewModel.maxCores > 1) viewModel.maxCores - 2 else 0
+                    steps = if (viewModel.maxCores > 1) viewModel.maxCores - 2 else 0,
+                    colors = SliderDefaults.colors(
+                        thumbColor = MaterialTheme.colorScheme.primary,
+                        activeTrackColor = MaterialTheme.colorScheme.primary,
+                        inactiveTrackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    )
                 )
                 
+                Spacer(modifier = Modifier.height(8.dp))
+                
                 Text(
-                    text = "最大可用 CPU 核心数: ${viewModel.maxCores}。你自己调的掂量着点",
+                    text = "■ 当前平台物理核心限界: ${viewModel.maxCores}。线程设置过高会导致温控降频与系统卡顿。",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 2. 地图读取转换开关
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
+        // 2. 地图转换参数控制 (PARAMETER_REGULATION)
+        BBQCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -103,29 +128,34 @@ fun ChunkerSettingsScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "转换地图数据 (Maps)",
-                        style = MaterialTheme.typography.bodyLarge
+                        text = "MAP_CONVERSION // 转换地图项目",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "转换地图画作文件。由于地图资源解析极为消耗运行内存，建议默认保持关闭，避免特定存档加载地图，运行内存不够用转换失败。",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "物理地图画作解码算法开销极大。为避免 JVM 虚拟机堆栈耗尽 (OOM)，强烈建议中低内存端设备保持 OFF 状态。",
+                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
+                Spacer(modifier = Modifier.width(12.dp))
                 Switch(
                     checked = processMaps,
-                    onCheckedChange = { viewModel.updateProcessMaps(it) }
+                    onCheckedChange = { viewModel.updateProcessMaps(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    )
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
-
-        // 3. 合并进来的：清除进度卡片
-        Card(
+        // 3. 断点进度物理清空 (DESTRUCTIVE_COMMAND) - 红色警示区域
+        Surface(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)) // 使用淡错误色背景作为警告提示
+            shape = AppShapes.medium,
+            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
         ) {
             Row(
                 modifier = Modifier
@@ -136,37 +166,52 @@ fun ChunkerSettingsScreen(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "清除断点进度",
-                        style = MaterialTheme.typography.bodyLarge,
+                        text = "DESTRUCTIVE_COMMAND // 物理擦除",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "清除所有已保存的世界转换断点。清除后下次将从头开始转换，无法再使用自动恢复进度续传。",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "清空所有存储在 DataStore 寄存器中的物理断点。此指令执行后将不可回滚，下次转换必须全新全量扫描。",
+                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(16.dp))
                 Button(
                     onClick = { showClearDialog = true },
+                    shape = AppShapes.small,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error,
                         contentColor = MaterialTheme.colorScheme.onError
-                    )
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
                 ) {
-                    Text("清除")
+                    Text("PURGE", fontWeight = FontWeight.Black, fontSize = 12.sp)
                 }
             }
         }
     }
 
-    // 二次确认对话框
+    // 二次高危操作确认对话框
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
-            title = { Text("确认清除全部进度？") },
-            text = { Text("清除后，下次进行相同世界的转换时将从头开始，无法再使用之前的自动恢复进度续传（因为断点续转可能会有一些问题）。") },
+            shape = AppShapes.medium,
+            containerColor = MaterialTheme.colorScheme.surface,
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(imageVector = Icons.Default.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("REGISTRY_PURGE_CONFIRM", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+                }
+            },
+            text = { 
+                Text(
+                    "注意：强制清空世界转换器的断点记录信息（BREAK_POINTS）将解除该文件的续转锁。下一次执行相同世界数据转码时，数据流将执行重头对齐（FROM_SCRATCH）。确定擦除？",
+                    style = MaterialTheme.typography.bodySmall
+                ) 
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -174,17 +219,17 @@ fun ChunkerSettingsScreen(
                         scope.launch {
                             ConversionProgressDataStore.clearAllProgress(context)
                             ConversionProgressDataStore.clearActiveConversion(context)
-                            snackbarHostState.showSnackbar("断点进度清除成功")
+                            snackbarHostState.showSnackbar("PURGE_OK // 断点记录清除成功")
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
-                    Text("确认清除")
+                    Text("CONFIRM_PURGE // 确定物理擦除", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearDialog = false }) {
-                    Text("取消")
+                    Text("ABORT")
                 }
             }
         )
