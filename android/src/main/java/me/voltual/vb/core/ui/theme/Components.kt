@@ -29,15 +29,15 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.PopupProperties
 
-// 基础按钮组件
+// 战术工业风高亮按钮
 @Composable
 fun BBQButton(
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
   text: @Composable () -> Unit,
   enabled: Boolean = true,
-  shape: Shape = AppShapes.medium,
-  contentPadding: PaddingValues = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+  shape: Shape = AppShapes.small, // 更改为小硬角
+  contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 10.dp),
 ) {
   Button(
     onClick = onClick,
@@ -48,14 +48,17 @@ fun BBQButton(
       ButtonDefaults.buttonColors(
         containerColor = MaterialTheme.colorScheme.primary,
         contentColor = MaterialTheme.colorScheme.onPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
       ),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)),
     contentPadding = contentPadding,
   ) {
     text()
   }
 }
 
-// 轮廓按钮组件
+// 战术框线按钮
 @Composable
 fun BBQOutlinedButton(
   onClick: () -> Unit,
@@ -69,16 +72,19 @@ fun BBQOutlinedButton(
     onClick = onClick,
     modifier = modifier,
     enabled = enabled,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary), // 增粗线条
     shape = shape,
-    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.primary),
+    colors = ButtonDefaults.outlinedButtonColors(
+        contentColor = MaterialTheme.colorScheme.primary,
+        containerColor = Color.Transparent
+    ),
     contentPadding = contentPadding,
   ) {
     text()
   }
 }
 
-// 卡片组件
+// 战术控制面板卡片 (硬切角与微细框)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BBQCard(
@@ -88,6 +94,7 @@ fun BBQCard(
   shape: Shape = AppShapes.medium,
   content: @Composable () -> Unit,
 ) {
+  val defaultBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
   Card(
     modifier = modifier,
     onClick = onClick ?: {},
@@ -97,14 +104,14 @@ fun BBQCard(
         containerColor = MaterialTheme.colorScheme.surface,
         contentColor = MaterialTheme.colorScheme.onSurface,
       ),
-    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-    border = border,
+    elevation = CardDefaults.cardElevation(defaultElevation = 0.dp), // 扁平化，去除发散阴影
+    border = border ?: defaultBorder,
   ) {
     content()
   }
 }
 
-// 图标按钮组件
+// 战术终端功能按键
 @Composable
 fun BBQIconButton(
   onClick: () -> Unit,
@@ -113,12 +120,18 @@ fun BBQIconButton(
   modifier: Modifier = Modifier,
   tint: Color = MaterialTheme.colorScheme.primary,
 ) {
-  IconButton(onClick = onClick, modifier = modifier.size(48.dp)) {
+  IconButton(
+    onClick = onClick, 
+    modifier = modifier
+      .size(48.dp)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f), AppShapes.small)
+      .background(MaterialTheme.colorScheme.surfaceContainerLow, AppShapes.small)
+  ) {
     Icon(imageVector = icon, contentDescription = contentDescription, tint = tint)
   }
 }
 
-// 移动帖子详情页"带文本的开关"到theme下的公共位置以便复用
+// 战术带文本开关
 @Composable
 fun SwitchWithText(
   text: String,
@@ -126,36 +139,48 @@ fun SwitchWithText(
   onCheckedChange: (Boolean) -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
-    Switch(checked = checked, onCheckedChange = onCheckedChange)
-    Spacer(Modifier.width(8.dp))
-    Text(text = text, style = MaterialTheme.typography.bodyMedium)
+  Row(
+    verticalAlignment = Alignment.CenterVertically, 
+    modifier = modifier
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), AppShapes.small)
+      .background(MaterialTheme.colorScheme.surfaceContainerLowest, AppShapes.small)
+      .padding(horizontal = 12.dp, vertical = 8.dp)
+  ) {
+    Switch(
+      checked = checked, 
+      onCheckedChange = onCheckedChange,
+      colors = SwitchDefaults.colors(
+        checkedThumbColor = MaterialTheme.colorScheme.primary,
+        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+      )
+    )
+    Spacer(Modifier.width(12.dp))
+    Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface)
   }
 }
 
-// 自定义 Snackbar 组件
+// 战术通知控制面板
 @Composable
 fun BBQSnackbar(
   snackbarData: SnackbarData,
   modifier: Modifier = Modifier,
   actionOnNewLine: Boolean = false,
-  shape: Shape = MaterialTheme.shapes.medium,
+  shape: Shape = AppShapes.small,
   containerColor: Color = MaterialTheme.colorScheme.surfaceVariant,
   contentColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
   actionColor: Color = MaterialTheme.colorScheme.primary,
   dismissActionContentColor: Color = contentColor,
 ) {
-  // 使用基础版 Snackbar 重载，它支持 dismissAction
   Snackbar(
-    modifier = modifier.padding(12.dp),
+    modifier = modifier
+      .padding(12.dp)
+      .border(1.5.dp, actionColor.copy(alpha = 0.8f), shape), // 赋予边缘指示光带效果
     actionOnNewLine = actionOnNewLine,
     shape = shape,
     containerColor = containerColor,
     contentColor = contentColor,
     dismissActionContentColor = dismissActionContentColor,
-    // 设置中间的文本内容
-    content = { Text(text = snackbarData.visuals.message) },
-    // 设置右侧的动作按钮（如果有的话）
+    content = { Text(text = snackbarData.visuals.message, style = MaterialTheme.typography.bodyMedium) },
     action =
       snackbarData.visuals.actionLabel?.let { label ->
         {
@@ -163,7 +188,7 @@ fun BBQSnackbar(
             onClick = { snackbarData.performAction() },
             colors = ButtonDefaults.textButtonColors(contentColor = actionColor),
           ) {
-            Text(label)
+            Text(label, style = MaterialTheme.typography.labelMedium)
           }
         }
       },
@@ -179,13 +204,12 @@ fun BBQSnackbar(
   )
 }
 
-// 成功状态的 Snackbar
 @Composable
 fun BBQSuccessSnackbar(
   snackbarData: SnackbarData,
   modifier: Modifier = Modifier,
   actionOnNewLine: Boolean = true,
-  shape: Shape = MaterialTheme.shapes.medium,
+  shape: Shape = AppShapes.small,
 ) {
   BBQSnackbar(
     snackbarData = snackbarData,
@@ -194,16 +218,16 @@ fun BBQSuccessSnackbar(
     shape = shape,
     containerColor = MaterialTheme.colorScheme.primaryContainer,
     contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    actionColor = MaterialTheme.colorScheme.primary
   )
 }
 
-// 错误状态的 Snackbar
 @Composable
 fun BBQErrorSnackbar(
   snackbarData: SnackbarData,
   modifier: Modifier = Modifier,
   actionOnNewLine: Boolean = false,
-  shape: Shape = MaterialTheme.shapes.medium,
+  shape: Shape = AppShapes.small,
 ) {
   BBQSnackbar(
     snackbarData = snackbarData,
@@ -212,16 +236,16 @@ fun BBQErrorSnackbar(
     shape = shape,
     containerColor = MaterialTheme.colorScheme.errorContainer,
     contentColor = MaterialTheme.colorScheme.onErrorContainer,
+    actionColor = MaterialTheme.colorScheme.error
   )
 }
 
-// 警告状态的 Snackbar
 @Composable
 fun BBQWarningSnackbar(
   snackbarData: SnackbarData,
   modifier: Modifier = Modifier,
   actionOnNewLine: Boolean = false,
-  shape: Shape = MaterialTheme.shapes.medium,
+  shape: Shape = AppShapes.small,
 ) {
   BBQSnackbar(
     snackbarData = snackbarData,
@@ -230,16 +254,16 @@ fun BBQWarningSnackbar(
     shape = shape,
     containerColor = MaterialTheme.messageDefaultBg,
     contentColor = MaterialTheme.colorScheme.onSurface,
+    actionColor = MaterialTheme.colorScheme.tertiary
   )
 }
 
-// 信息状态的 Snackbar
 @Composable
 fun BBQInfoSnackbar(
   snackbarData: SnackbarData,
   modifier: Modifier = Modifier,
   actionOnNewLine: Boolean = false,
-  shape: Shape = MaterialTheme.shapes.medium,
+  shape: Shape = AppShapes.small,
 ) {
   BBQSnackbar(
     snackbarData = snackbarData,
@@ -248,10 +272,10 @@ fun BBQInfoSnackbar(
     shape = shape,
     containerColor = MaterialTheme.messageCommentBg,
     contentColor = MaterialTheme.colorScheme.onSurface,
+    actionColor = MaterialTheme.colorScheme.secondary
   )
 }
 
-// 自定义 Snackbar Host
 @Composable
 fun BBQSnackbarHost(
   hostState: SnackbarHostState,
@@ -265,7 +289,6 @@ fun BBQSnackbarHost(
   },
 ) {
   Box(modifier = Modifier.fillMaxSize()) {
-    // 在 BoxScope 内部调用 SnackbarHost
     SnackbarHost(
       hostState = hostState,
       modifier = modifier.align(Alignment.TopCenter),
@@ -274,7 +297,6 @@ fun BBQSnackbarHost(
   }
 }
 
-/** 自定义基础 DropdownMenu 参数与原版完全一致，默认添加了 surfaceVariant 背景色 */
 @Composable
 fun BBQDropdownMenu(
   expanded: Boolean,
@@ -291,12 +313,13 @@ fun BBQDropdownMenu(
     offset = offset,
     scrollState = scrollState,
     properties = properties,
-    modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+    modifier = modifier
+      .background(MaterialTheme.colorScheme.surfaceVariant)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), AppShapes.small),
     content = content,
   )
 }
 
-/** 自定义 ExposedDropdownMenu 必须在 ExposedDropdownMenuBoxScope 下使用 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ExposedDropdownMenuBoxScope.BBQExposedDropdownMenu(
@@ -310,12 +333,13 @@ fun ExposedDropdownMenuBoxScope.BBQExposedDropdownMenu(
     expanded = expanded,
     onDismissRequest = onDismissRequest,
     scrollState = scrollState,
-    modifier = modifier.background(MaterialTheme.colorScheme.surfaceVariant),
+    modifier = modifier
+      .background(MaterialTheme.colorScheme.surfaceVariant)
+      .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.5f), AppShapes.small),
     content = content,
   )
 }
 
-// 为了方便调用，同时提供一个 Box 的包装（虽然它只是透明转发）
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BBQExposedDropdownMenuBox(
@@ -332,16 +356,6 @@ fun BBQExposedDropdownMenuBox(
   )
 }
 
-/**
- * 自定义的下拉刷新指示器，使用 MaterialTheme 语义颜色。 兼容 Compose Material 3 1.4.0 及以上版本。
- *
- * @param state [PullToRefreshState] 状态对象。
- * @param isRefreshing Boolean，指示是否正在进行刷新。
- * @param modifier Modifier 应用于此指示器的修饰符。
- * @param backgroundColor 指示器容器的背景色，默认使用 [MaterialTheme.colorScheme.surface]。
- * @param contentColor 指示器的颜色，默认使用 [MaterialTheme.colorScheme.primary]。
- * @param containerShape 指示器容器的形状，默认使用 [PullToRefreshDefaults.indicatorShape]。
- */
 @Composable
 fun BBQPullRefreshIndicator(
   state: PullToRefreshState,
@@ -349,7 +363,7 @@ fun BBQPullRefreshIndicator(
   modifier: Modifier = Modifier,
   backgroundColor: Color = MaterialTheme.colorScheme.surface,
   contentColor: Color = MaterialTheme.colorScheme.primary,
-  containerShape: Shape = PullToRefreshDefaults.indicatorShape,
+  containerShape: Shape = AppShapes.small,
 ) {
   PullToRefreshDefaults.Indicator(
     state = state,
