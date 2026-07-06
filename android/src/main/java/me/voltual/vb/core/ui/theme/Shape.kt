@@ -13,12 +13,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Shapes
 import androidx.compose.ui.unit.dp
 
+// 战术几何低圆角，体现极客与硬核工业线条
 val AppShapes = Shapes(
-    small = RoundedCornerShape(4.dp),    // 按钮/标签
-    medium = RoundedCornerShape(12.dp),  // 卡片/对话框
-    large = RoundedCornerShape(16.dp),   // 大卡片/表单
-    extraLarge = RoundedCornerShape(50)  // 圆形元素/头像
+    small = RoundedCornerShape(2.dp),    // 按钮/徽章/小切口
+    medium = RoundedCornerShape(4.dp),   // 卡片/对话框/浮动面板
+    large = RoundedCornerShape(8.dp),    // 大卡片/侧边栏容器
+    extraLarge = RoundedCornerShape(12.dp)
 )
 
-// 额外定义的圆形形状
 val AppCircleShape = CircleShape
