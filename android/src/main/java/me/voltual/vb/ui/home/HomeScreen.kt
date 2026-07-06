@@ -3,6 +3,7 @@ package me.voltual.vb.ui.home
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,16 +17,21 @@ import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import kotlinx.coroutines.launch
+import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQCard
+import me.voltual.vb.core.ui.theme.BBQButton
+import me.voltual.vb.core.ui.theme.BBQOutlinedButton
 import me.voltual.vb.ui.FtpSettings
 import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
@@ -45,11 +51,10 @@ fun HomeScreen(
     var showSafWarningDialog by remember { mutableStateOf(false) }
 
     val folderPickerLauncher = rememberLauncherForFolderPicker { folder ->
-        viewModel.useExistingInput = false // 既然手动选择了，重置为不使用 FTP 中转
+        viewModel.useExistingInput = false
         viewModel.selectedFolder = folder
     }
 
-    // 页面初始化与复原时检测中转站世界
     LaunchedEffect(Unit) {
         viewModel.checkExistingInput(context)
     }
@@ -73,14 +78,23 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            text = "第一步：准备世界存档",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(bottom = 24.dp)
-                        )
+                        // 战术标题
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.width(4.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "PHASE 01 // 准备世界存档",
+                                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Black),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
 
-                        // 选项 A：手动从 SAF 选择（带预警弹窗）
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        // 选项 A：手动从 SAF 选择
                         BBQCard(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -107,8 +121,8 @@ fun HomeScreen(
                                         modifier = Modifier.size(36.dp)
                                     )
                                     Text(
-                                        text = if (viewModel.useExistingInput) "已选择使用中转站存档" else (viewModel.selectedFolder?.name ?: "手动选择本地世界存档文件夹"),
-                                        style = MaterialTheme.typography.bodyLarge,
+                                        text = if (viewModel.useExistingInput) "[SYS_MOUNTED] 已挂载中转站存档" else (viewModel.selectedFolder?.name ?: "MANUAL_SELECT // 本地世界存档文件夹"),
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                                         color = if (viewModel.selectedFolder != null && !viewModel.useExistingInput) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
                                     )
                                 }
@@ -117,26 +131,35 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // 选项 B：检测到 FTP 存在输入存档直接转换
+                        // 选项 B：FTP 存档提示（高亮警告黄）
                         if (viewModel.hasExistingInput) {
-                            Card(
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
-                                ),
+                            Surface(
+                                shape = AppShapes.small,
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.tertiary),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(16.dp),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
                                 ) {
-                                    Text(
-                                        text = "检测到世界中转站 (FTP) 目录下已存在 world_input 存档文件！",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.WarningAmber, 
+                                            contentDescription = "Warning",
+                                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "SYSTEM DETECTED // 发现中转站 (FTP) 存档缓存",
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+                                    
                                     Button(
                                         onClick = {
                                             viewModel.selectedFolder = null
@@ -146,12 +169,15 @@ fun HomeScreen(
                                             }
                                         },
                                         colors = ButtonDefaults.buttonColors(
-                                            containerColor = MaterialTheme.colorScheme.primary
-                                        )
+                                            containerColor = MaterialTheme.colorScheme.tertiary,
+                                            contentColor = MaterialTheme.colorScheme.onTertiary
+                                        ),
+                                        shape = AppShapes.small,
+                                        modifier = Modifier.fillMaxWidth(0.9f)
                                     ) {
-                                        Icon(imageVector = Icons.Default.Check, contentDescription = "使用中转站")
+                                        Icon(imageVector = Icons.Default.Check, contentDescription = "Use FTP")
                                         Spacer(modifier = Modifier.width(8.dp))
-                                        Text("直接转换中转站存档")
+                                        Text("MOUNT // 挂载中转存档", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -160,7 +186,7 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(32.dp))
 
                         AnimatedVisibility(visible = viewModel.selectedFolder != null || viewModel.useExistingInput) {
-                            Button(
+                            BBQButton(
                                 onClick = {
                                     scope.launch {
                                         pagerState.animateScrollToPage(1)
@@ -168,7 +194,7 @@ fun HomeScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("下一步：选择目标格式")
+                                Text("NEXT_PHASE // 确认源文件", fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Icon(imageVector = Icons.Default.NavigateNext, contentDescription = "下一步")
                             }
@@ -190,25 +216,31 @@ fun HomeScreen(
                                     pagerState.animateScrollToPage(0)
                                 }
                             }) {
-                                Icon(imageVector = Icons.Default.NavigateBefore, contentDescription = "返回")
+                                Icon(imageVector = Icons.Default.NavigateBefore, contentDescription = "返回", tint = MaterialTheme.colorScheme.primary)
                             }
+                            Box(modifier = Modifier.width(4.dp).height(20.dp).background(MaterialTheme.colorScheme.primary))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(
-                                text = "第二步：选择输出格式",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 8.dp)
+                                text = "PHASE 02 // 设定目标格式",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
+                                color = MaterialTheme.colorScheme.primary
                             )
                         }
 
                         OutlinedTextField(
                             value = viewModel.searchQuery,
                             onValueChange = { viewModel.searchQuery = it },
-                            label = { Text("搜索格式 (例如: JAVA, BEDROCK)") },
+                            label = { Text("[ SEARCH_FORMAT ]") },
                             leadingIcon = { Icon(imageVector = Icons.Default.Search, contentDescription = "搜索") },
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 12.dp),
-                            singleLine = true
+                            singleLine = true,
+                            shape = AppShapes.small,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+                            )
                         )
 
                         LazyColumn(
@@ -219,9 +251,12 @@ fun HomeScreen(
                         ) {
                             items(viewModel.filteredFormats) { format ->
                                 val isSelected = viewModel.selectedFormat == format
-                                Card(
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                Surface(
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = AppShapes.small,
+                                    border = BorderStroke(
+                                        width = if (isSelected) 1.5.dp else 1.dp,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                                     ),
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -238,7 +273,7 @@ fun HomeScreen(
                                     ) {
                                         Text(
                                             text = format,
-                                            style = MaterialTheme.typography.bodyLarge,
+                                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = if (isSelected) FontWeight.Black else FontWeight.Normal),
                                             color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                         if (isSelected) {
@@ -255,79 +290,101 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        Button(
+                        BBQButton(
                             onClick = {
                                 viewModel.startCopyAndNavigate(context, navigator)
                             },
                             enabled = viewModel.selectedFormat != null && !viewModel.isCopying,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(50.dp)
+                                .height(54.dp)
                         ) {
-                            Text("开始复制并转换")
+                            Text("EXECUTE // 启动重构转换", fontWeight = FontWeight.Black)
                         }
                     }
                 }
             }
         }
 
-        // SAF 限制与覆盖确认对话框
+        // 战术风 SAF 警告提示框
         if (showSafWarningDialog) {
             AlertDialog(
                 onDismissRequest = { showSafWarningDialog = false },
-                title = { Text("手动选择及覆盖提示") },
+                shape = AppShapes.medium,
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = { 
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.WarningAmber, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("SYSTEM ALERT", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Black)
+                    }
+                },
                 text = {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text("1. 手动选择文件夹会覆盖当前世界中转站下的已有 world_input 数据。")
-                        Text("2. 由于 Android 系统 SAF 存储访问框架的接口和跨进程 Binder 限制，对于含数千小碎片文件的世界存档，手动复制将极其缓慢。")
-                        Text("3. 建议：对大型世界存档，强烈建议通过内建 [世界中转站 (FTP)] 进行高速无线传输。")
+                        Text("■ 覆写警告：手动选择文件夹将覆盖 world_input 下的已有数据。")
+                        Text("■ 性能劣化：Android SAF 接口对碎片化存档的 I/O 操作极其缓慢。")
+                        Text("■ 最优策略：对于超过 50MB 的存档，强烈建议使用 [世界中转站 (FTP)] 进行内网直传。")
                     }
                 },
                 confirmButton = {
-                    Button(
-                        onClick = {
-                            showSafWarningDialog = false
-                            folderPickerLauncher.launch()
-                        }
-                    ) {
-                        Text("坚持手动选择")
-                    }
-                },
-                dismissButton = {
                     TextButton(
                         onClick = {
                             showSafWarningDialog = false
+                            folderPickerLauncher.launch()
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.outline)
+                    ) {
+                        Text("IGNORE // 强行手动选择")
+                    }
+                },
+                dismissButton = {
+                    Button(
+                        onClick = {
+                            showSafWarningDialog = false
                             navigator.navigate(FtpSettings)
-                        }
+                        },
+                        shape = AppShapes.small,
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(imageVector = Icons.Default.Wifi, contentDescription = "FTP")
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("去开启 FTP 传输")
+                        Text("ROUTE // 开启 FTP", fontWeight = FontWeight.Bold)
                     }
                 }
             )
         }
 
-        // 复制进度弹窗
+        // 战术进度覆盖面板
         if (viewModel.isCopying) {
-            AlertDialog(
-                onDismissRequest = {},
-                confirmButton = {},
-                title = { Text("正在处理存档") },
-                text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = viewModel.copyStatusText)
-                        LinearProgressIndicator(
-                            progress = { viewModel.copyProgress },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.9f)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "I/O OPERATION IN PROGRESS",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(bottom = 16.dp)
+                    )
+                    LinearProgressIndicator(
+                        progress = { viewModel.copyProgress },
+                        modifier = Modifier.fillMaxWidth().height(4.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = viewModel.copyStatusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
                 }
-            )
+            }
         }
     }
 }
