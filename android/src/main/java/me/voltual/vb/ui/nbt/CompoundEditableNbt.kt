@@ -12,13 +12,14 @@ package me.voltual.vb.ui.nbt
 import com.hivemc.chunker.nbt.tags.Tag
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 
+/**
+ * 一个通用的 EditableNbt 实现，包装 Chunker 的 [CompoundTag]。
+ */
 class CompoundEditableNbt(
-    val rootTag: CompoundTag,
+    override val rootTag: CompoundTag, // 覆写基类属性
     private val title: String,
     private val onSave: (CompoundTag) -> Boolean
 ) : EditableNbt() {
-
-    override fun getRootTag(): CompoundTag = rootTag
 
     override fun getTags(): List<Pair<String, Tag<*>>> {
         val valueMap = rootTag.value ?: return emptyList()

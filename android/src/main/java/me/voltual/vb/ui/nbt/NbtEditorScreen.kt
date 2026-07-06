@@ -35,7 +35,6 @@ import com.hivemc.chunker.nbt.tags.collection.CompoundTag
 import kotlinx.coroutines.launch
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.TopAppBarAction
-import me.voltual.vb.ui.LocalNavigationState
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -107,10 +106,10 @@ fun NbtEditorScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xFF0A0B10)) // 极硬灰黑底色
+            .background(Color(0xFF0A0B10))
     ) {
-        // 修复：移除反射，直接使用基类公开的 getRootTag 方法
-        val rootTag = editableNbt.getRootTag()
+        // 修复：通过属性访问根节点
+        val rootTag = editableNbt.rootTag
         
         Column(modifier = Modifier.fillMaxSize()) {
             AnimatedVisibility(visible = showSearchBar) {
@@ -211,6 +210,7 @@ fun NbtEditorScreen(
                 onDelete = {
                     viewModel.deleteNode(node)
                     activeMenuNode = null
+                    coroutineScope.launch { snackbarHostState.showSnackbar("DELETE_OK // 字段已抹除") }
                 },
                 onRename = {
                     showRenameDialogNode = node

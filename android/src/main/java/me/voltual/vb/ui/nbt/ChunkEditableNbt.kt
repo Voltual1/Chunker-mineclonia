@@ -40,14 +40,14 @@ class ChunkEditableNbt(
     private val isBedrock: Boolean
 ) : EditableNbt() {
 
-    private var rootTag: CompoundTag = CompoundTag()
+    private var _rootTag: CompoundTag = CompoundTag()
+    override val rootTag: CompoundTag get() = _rootTag
+    
     private var mcaFile: File? = null
     
     init {
         loadData()
     }
-
-    override fun getRootTag(): CompoundTag = rootTag
     
     private fun findMcaFile(directory: File, targetName: String): File? {
         val files = directory.listFiles() ?: return null
@@ -69,7 +69,7 @@ class ChunkEditableNbt(
         if (isBedrock) {
             val dbDir = File(worldDir, "db")
             if (!dbDir.exists()) {
-                rootTag.put("DB_NOT_FOUND", StringTag("未能在 ${worldDir.name} 下找到 db 目录！"))
+                _rootTag.put("DB_NOT_FOUND", StringTag("未能在 ${worldDir.name} 下找到 db 目录！"))
                 return
             }
 
@@ -95,14 +95,14 @@ class ChunkEditableNbt(
                                 }
                             }
                         }
-                        rootTag.put(if (isEntity) "Entities" else "BlockEntities", listTag)
+                        _rootTag.put(if (isEntity) "Entities" else "BlockEntities", listTag)
                     } else {
-                        rootTag.put("EMPTY_CHUNK_DATA", StringTag("该区块 (${chunkX}, ${chunkZ}) 暂无${if (isEntity) "实体" else "方块实体"}数据。"))
+                        _rootTag.put("EMPTY_CHUNK_DATA", StringTag("该区块 (${chunkX}, ${chunkZ}) 暂无${if (isEntity) "实体" else "方块实体"}数据。"))
                     }
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                rootTag.put("EXCEPTION", StringTag("LevelDB 读取失败: " + e.localizedMessage))
+                _rootTag.put("EXCEPTION", StringTag("LevelDB 读取失败: " + e.localizedMessage))
             }
             return
         }
@@ -125,7 +125,7 @@ class ChunkEditableNbt(
         mcaFile = targetPath
 
         if (!targetPath.exists()) {
-            rootTag.put("FILE_NOT_FOUND", StringTag("无法定位区域文件: ${targetPath.absolutePath}"))
+            _rootTag.put("FILE_NOT_FOUND", StringTag("无法定位区域文件: ${targetPath.absolutePath}"))
             return
         }
 
@@ -160,27 +160,27 @@ class ChunkEditableNbt(
                         3 -> Tag.readUncompressedJavaNBT(compressedColumn)
                         4 -> Tag.readLZ4JavaNBT(compressedColumn)
                         else -> {
-                            rootTag.put("COMPRESSION_ERROR", StringTag("不支持的压缩类型: $compressionType"))
+                            _rootTag.put("COMPRESSION_ERROR", StringTag("不支持的压缩类型: $compressionType"))
                             null
                         }
                     }
                     if (tag != null) {
-                        rootTag = tag
-                    } else if (!rootTag.contains("COMPRESSION_ERROR")) {
-                        rootTag.put("PARSE_ERROR", StringTag("无法解析 NBT 数据。"))
+                        _rootTag = tag
+                    } else if (!_rootTag.contains("COMPRESSION_ERROR")) {
+                        _rootTag.put("PARSE_ERROR", StringTag("无法解析 NBT 数据。"))
                     }
                 } else {
-                    rootTag.put("UNGENERATED_CHUNK", StringTag("区块 ($chunkX, $chunkZ) 尚未生成 (Offset=0)。"))
+                    _rootTag.put("UNGENERATED_CHUNK", StringTag("区块 ($chunkX, $chunkZ) 尚未生成 (Offset=0)。"))
                 }
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            rootTag.put("EXCEPTION", StringTag(e.toString()))
+            _rootTag.put("EXCEPTION", StringTag(e.toString()))
         }
     }
 
     override fun getTags(): List<Pair<String, Tag<*>>> {
-        return rootTag.value?.entries?.map { it.key to it.value } ?: emptyList()
+        return _rootTag.value?.entries?.map { it.key to it.value } ?: emptyList()
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -199,7 +199,7 @@ class ChunkEditableNbt(
                     val key = LevelDBKey.key(dimension, chunkPair, chunkType)
                     
                     val listName = if (isEntity) "Entities" else "BlockEntities"
-                    val listTag = rootTag.get(listName) as? ListTag<CompoundTag, *>
+                    val listTag = _rootTag.get(listName) as? ListTag<CompoundTag, *>
                     
                     if (listTag != null && listTag.size() > 0) {
                         val bytes = ByteArrayOutputStream().use { baos ->
@@ -230,7 +230,7 @@ class ChunkEditableNbt(
                 val compressedData = ByteArrayOutputStream().use { baos ->
                     DeflaterOutputStream(baos, Deflater(Deflater.BEST_SPEED)).use { dos ->
                         DataOutputStream(dos).use { daos ->
-                            Tag.encodeNamed(Writer.toJavaWriter(daos), "", rootTag)
+                            Tag.encodeNamed(Writer.toJavaWriter(daos), "", _rootTag)
                         }
                     }
                     baos.toByteArray()
@@ -257,8 +257,10 @@ class ChunkEditableNbt(
                     raf.seek(index * 4L)
                     val isSaved = (newOffsetSector shr 16) and 0xFF
                     raf.writeByte(isSaved)
-                    raf.writeByte((newOffsetSector shr 8) and 0xFF)
-                    raf.writeByte(newOffsetSector and 0xFF)
+                    val restOffset1 = (newOffsetSector shr 8) and 0xFF
+                    raf.writeByte(restOffset1)
+                    val restOffset2 = newOffsetSector and 0xFF
+                    raf.writeByte(restOffset2)
                     raf.writeByte(sectorCount and 0xFF)
                 }
                 clearModified()
@@ -273,12 +275,12 @@ class ChunkEditableNbt(
     override fun getRootTitle(): String = "区块 ($chunkX, $chunkZ) ${if (isEntity) "实体" else "信息"}"
 
     override fun addRootTag(name: String, tag: Tag<*>) {
-        rootTag.put(name, tag)
+        _rootTag.put(name, tag)
         markModified()
     }
 
     override fun removeRootTag(name: String) {
-        rootTag.remove(name)
+        _rootTag.remove(name)
         markModified()
     }
 }

@@ -28,10 +28,10 @@ abstract class EditableNbt {
     var enableRootModifications: Boolean = true
 
     /**
-     * 获取底层的根 CompoundTag。
-     * 修复：移除反射，改为抽象方法实现。
+     * 底层的根 CompoundTag。
+     * 修复：使用抽象属性代替方法，避免 JVM 签名冲突。
      */
-    abstract fun getRootTag(): CompoundTag
+    abstract val rootTag: CompoundTag
 
     /**
      * 设置为已修改状态
