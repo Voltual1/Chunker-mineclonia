@@ -71,50 +71,44 @@ fun NbtEditorScreen(
     var showAddTagDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var editingValueNode by remember { mutableStateOf<NbtUiNode?>(null) }
 
-    val navigationState = me.voltual.vb.ui.LocalNavigationState.current
+    // 移除了 currentRoute 监听，仅在内部数值、快照等脏状态发生修改时更新顶部 Actions
+    LaunchedEffect(isModified, viewModel.editableNbt, viewModel.canUndo, viewModel.canRedo) {
+        val actionsList = mutableListOf<TopAppBarAction>()
+        
+        actionsList.add(
+            TopAppBarAction(
+                icon = { tint -> Icon(Icons.Default.Undo, contentDescription = "撤销", tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
+                description = "撤销",
+                onClick = { viewModel.performUndo() }
+            )
+        )
+        
+        actionsList.add(
+            TopAppBarAction(
+                icon = { tint -> Icon(Icons.Default.Redo, contentDescription = "重做", tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
+                description = "重做",
+                onClick = { viewModel.performRedo() }
+            )
+        )
 
-    LaunchedEffect(isModified, viewModel.editableNbt, viewModel.canUndo, viewModel.canRedo, navigationState.currentRoute) {
-        if (navigationState.currentRoute is ChunkNbtEditorDest || navigationState.currentRoute is NbtEditorDest) {
-            val actionsList = mutableListOf<TopAppBarAction>()
-            
-            // 1. 注入撤销（Undo）按钮
+        if (isModified) {
             actionsList.add(
                 TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.Undo, contentDescription = "撤销", tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
-                    description = "撤销",
-                    onClick = { viewModel.performUndo() }
-                )
-            )
-            
-            // 2. 注入重做（Redo）按钮
-            actionsList.add(
-                TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.Redo, contentDescription = "重做", tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
-                    description = "重做",
-                    onClick = { viewModel.performRedo() }
-                )
-            )
-
-            // 3. 只有被修改过且有内容时才追加保存按钮
-            if (isModified) {
-                actionsList.add(
-                    TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.Save, contentDescription = "保存", tint = tint) },
-                        description = "保存",
-                        onClick = {
-                            if (viewModel.saveChanges()) {
-                                coroutineScope.launch { snackbarHostState.showSnackbar("数据已成功保存！") }
-                            }
+                    icon = { tint -> Icon(Icons.Default.Save, contentDescription = "保存", tint = tint) },
+                    description = "保存",
+                    onClick = {
+                        if (viewModel.saveChanges()) {
+                            coroutineScope.launch { snackbarHostState.showSnackbar("数据已成功保存！") }
                         }
-                    )
+                    }
                 )
-            }
-
-            topAppBarController.updateActions(actionsList)
-            topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
+            )
         }
+
+        topAppBarController.updateActions(actionsList)
+        topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
     }
-    
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -214,7 +208,7 @@ fun NbtEditorScreen(
 
         showRenameDialogNode?.let { node ->
             RenameDialog(
-                initialName = node.key ?: "", // 修复：处理可空 key
+                initialName = node.key ?: "",
                 onDismiss = { showRenameDialogNode = null },
                 onConfirm = { newName ->
                     viewModel.renameNode(node, newName)

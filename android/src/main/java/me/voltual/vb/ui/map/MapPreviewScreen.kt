@@ -84,8 +84,7 @@ fun MapPreviewScreen(
         }
     }
 
-    // 常驻注入 TopAppBar Actions，仅在状态变化时更新 UI 表现（如 tint）
-    // 依赖 Navigator 的清理机制，此处不再使用 DisposableEffect
+    // 移除 currentRoute 监听，仅对配置状态进行响应式刷新
     LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri) {
         topAppBarController.updateActions(
             listOf(
