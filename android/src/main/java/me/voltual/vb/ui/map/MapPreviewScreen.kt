@@ -217,6 +217,16 @@ fun MapPreviewScreen(
                 when (action) {
                     "entities" -> viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
                     "block_entities" -> viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
+                    "delete_chunk" -> {
+                        coroutineScope.launch {
+                            val success = viewModel.deleteChunk(chunkPair)
+                            if (success) {
+                                snackbarHostState.showSnackbar("区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 已彻底抹除")
+                            } else {
+                                snackbarHostState.showSnackbar("区块删除失败，可能它本身就是空的")
+                            }
+                        }
+                    }
                 }
             }
         )
@@ -394,6 +404,21 @@ fun ChunkActionMenu(
                     ) {
                         chunk?.let { onAction("block_entities", it) }
                     }
+
+                    // 危险操作分隔符
+                    HorizontalDivider(
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                        thickness = 0.5.dp,
+                        color = MaterialTheme.colorScheme.error.copy(alpha = 0.2f)
+                    )
+
+                    ActionMenuItem(
+                        icon = Icons.Default.DeleteForever,
+                        label = "删除此区块 (不可逆)",
+                        textColor = MaterialTheme.colorScheme.error
+                    ) {
+                        chunk?.let { onAction("delete_chunk", it) }
+                    }
                 }
             }
         }
@@ -404,6 +429,7 @@ fun ChunkActionMenu(
 private fun ActionMenuItem(
     icon: ImageVector,
     label: String,
+    textColor: Color = MaterialTheme.colorScheme.onSurfaceVariant, // 增强：支持自定义颜色
     onClick: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxWidth().clickable { onClick() }, color = Color.Transparent) {
@@ -415,10 +441,14 @@ private fun ActionMenuItem(
                 imageVector = icon,
                 contentDescription = label,
                 modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                tint = textColor,
             )
             Spacer(modifier = Modifier.width(16.dp))
-            Text(text = label, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onSurface)
+            Text(
+                text = label, 
+                style = MaterialTheme.typography.bodyLarge, 
+                color = if (textColor == MaterialTheme.colorScheme.error) textColor else MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

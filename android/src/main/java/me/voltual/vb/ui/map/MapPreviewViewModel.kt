@@ -22,6 +22,8 @@ import androidx.lifecycle.viewModelScope
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
 import com.hivemc.chunker.conversion.encoding.base.Version
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
 import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -44,11 +46,13 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.iq80.leveldb.Options
+import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.File
+import java.io.RandomAccessFile
 import java.util.Optional
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import java.util.function.Predicate
 
 class MapPreviewViewModel : ViewModel() {
 
@@ -77,7 +81,6 @@ class MapPreviewViewModel : ViewModel() {
     // 控制网格线绘制
     var showGrid by mutableStateOf(false)
 
-    // 检测中转站 (FTP) 目录下是否有已有存档
     var hasExistingFtpInput by mutableStateOf(false)
         private set
 
@@ -101,8 +104,72 @@ class MapPreviewViewModel : ViewModel() {
     }
 
     /**
-     * 核心改进：若直接读取 FTP，我们不需要执行慢速的 SimpleStorage SAF 拷贝，直接将 world_input 作为路径即可！
+     * 在物理底层彻底抹除一个区块的所有数据，使 Minecraft 在下次进入时自动重生成
      */
+    suspend fun deleteChunk(chunk: ChunkCoordPair): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                if (isBedrock) {
+                    val dbDir = File(worldDirUri, "db")
+                    if (!dbDir.exists()) return@withContext false
+                    
+                    File(dbDir, "LOCK").delete()
+                    val options = Options().createIfMissing(false)
+                    Iq80DBFactory.factory.open(dbDir, options).use { db ->
+                        val batch = db.createWriteBatch()
+                        
+                        // 遍历抹除所有基岩版区块的各种 Tag 层级数据
+                        for (type in LevelDBChunkType.values()) {
+                            if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
+                                // 垂直清空所有的地形 SubChunk (Y:-64..320)
+                                for (y in -64..64) {
+                                    batch.delete(LevelDBKey.key(Dimension.OVERWORLD, chunk, y.toByte(), type))
+                                }
+                            } else {
+                                batch.delete(LevelDBKey.key(Dimension.OVERWORLD, chunk, type))
+                            }
+                        }
+                        db.write(batch)
+                    }
+                } else {
+                    // Java MCA 删除逻辑: 清零 FAT 表偏移
+                    val regionX = chunk.chunkX() shr 5
+                    val regionZ = chunk.chunkZ() shr 5
+                    val dirs = listOf("region", "entities", "poi")
+                    var deletedAny = false
+                    
+                    dirs.forEach { dirName ->
+                        val mcaFile = File(worldDirUri, "$dirName/r.$regionX.$regionZ.mca")
+                        if (mcaFile.exists()) {
+                            RandomAccessFile(mcaFile, "rw").use { raf ->
+                                val index = (chunk.chunkX() and 31) + (chunk.chunkZ() and 31) * 32
+                                raf.seek(index * 4L)
+                                raf.writeInt(0) // 将 Offset 和 Size 彻底归零
+                                deletedAny = true
+                            }
+                        }
+                    }
+                    if (!deletedAny) return@withContext false
+                }
+
+                // 更新内存中的 UI 地图缓存，让被删除的区块立刻变成深渊色
+                val regionPos = chunk.region
+                val regionMap = regionRGBAData[regionPos]
+                if (regionMap != null) {
+                    regionMap.remove(chunk)
+                    val newBitmap = PreviewMapGenerator.generateRegionBitmap(regionMap)
+                    withContext(Dispatchers.Main) {
+                        regionBitmaps[regionPos] = newBitmap
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch {
             isLoading = true
@@ -128,7 +195,6 @@ class MapPreviewViewModel : ViewModel() {
                         return@withContext
                     }
                     statusMessage = "正在迁移世界存档至高速预览缓存以防读写受阻..."
-                    // 修改点 1：地图预览专享 world_preview 目录，绝不污染 world_input
                     val localPreviewPath = File(worldsDir, "world_preview")
                     if (localPreviewPath.exists()) {
                         localPreviewPath.deleteRecursively()
