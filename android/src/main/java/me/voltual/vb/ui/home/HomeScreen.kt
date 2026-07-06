@@ -1,9 +1,9 @@
 package me.voltual.vb.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke // 修复：补全 BorderStroke 导入
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -31,7 +31,6 @@ import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.core.ui.theme.BBQButton
-import me.voltual.vb.core.ui.theme.BBQOutlinedButton
 import me.voltual.vb.ui.FtpSettings
 import me.voltual.vb.ui.LocalNavigator
 import org.koin.compose.viewmodel.koinViewModel
@@ -186,18 +185,22 @@ fun HomeScreen(
                         Spacer(modifier = Modifier.height(32.dp))
 
                         AnimatedVisibility(visible = viewModel.selectedFolder != null || viewModel.useExistingInput) {
+                            // 修复：显式传递 text 参数，解决编译错误
                             BBQButton(
                                 onClick = {
                                     scope.launch {
                                         pagerState.animateScrollToPage(1)
                                     }
                                 },
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text("NEXT_PHASE // 确认源文件", fontWeight = FontWeight.Bold)
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Icon(imageVector = Icons.Default.NavigateNext, contentDescription = "下一步")
-                            }
+                                modifier = Modifier.fillMaxWidth(),
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("NEXT_PHASE // 确认源文件", fontWeight = FontWeight.Bold)
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Icon(imageVector = Icons.Default.NavigateNext, contentDescription = "下一步")
+                                    }
+                                }
+                            )
                         }
                     }
                 }
@@ -290,6 +293,7 @@ fun HomeScreen(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        // 修复：显式传递 text 参数，解决编译错误
                         BBQButton(
                             onClick = {
                                 viewModel.startCopyAndNavigate(context, navigator)
@@ -297,10 +301,11 @@ fun HomeScreen(
                             enabled = viewModel.selectedFormat != null && !viewModel.isCopying,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(54.dp)
-                        ) {
-                            Text("EXECUTE // 启动重构转换", fontWeight = FontWeight.Black)
-                        }
+                                .height(54.dp),
+                            text = {
+                                Text("EXECUTE // 启动重构转换", fontWeight = FontWeight.Black)
+                            }
+                        )
                     }
                 }
             }
