@@ -191,28 +191,31 @@ fun BBQNavDisplay(
                         }
                         
                         is ChunkNbtEditorDest -> {
-                            val context = LocalContext.current
-                            val editableNbt = remember(key) {
-                                val uri = android.net.Uri.parse(key.worldDirUri)
-                                val docFile = DocumentFileCompat.fromUri(context, uri)
-                                val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
-                                ChunkEditableNbt(
-                                    worldDir = rawFile,
-                                    chunkX = key.chunkX,
-                                    chunkZ = key.chunkZ,
-                                    dimension = Dimension.valueOf(key.dimensionName), // 转换维度
-                                    isEntity = key.isEntity,
-                                    isBedrock = key.isBedrock
-                                )
-                            }
+    val context = LocalContext.current
+    val editableNbt = remember(key) {
+        val uri = android.net.Uri.parse(key.worldDirUri)
+        val docFile = DocumentFileCompat.fromUri(context, uri)
+        val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
+        
+        // Chunker 的 Dimension 是自定义类，应通过 getDimension 获取
+        val dim = Dimension.getDimension(key.dimensionName) ?: Dimension.OVERWORLD
+        ChunkEditableNbt(
+            worldDir = rawFile,
+            chunkX = key.chunkX,
+            chunkZ = key.chunkZ,
+            dimension = dim,
+            isEntity = key.isEntity,
+            isBedrock = key.isBedrock
+        )
+    }
 
-                            me.voltual.vb.ui.nbt.NbtEditorScreen(
-                                editableNbt = editableNbt,
-                                onBack = onBack,
-                                snackbarHostState = snackbarHostState,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        }
+    me.voltual.vb.ui.nbt.NbtEditorScreen(
+        editableNbt = editableNbt,
+        onBack = onBack,
+        snackbarHostState = snackbarHostState,
+        modifier = Modifier.fillMaxSize()
+    )
+}
 
                         else -> {
                             Box(

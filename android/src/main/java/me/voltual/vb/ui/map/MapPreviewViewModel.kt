@@ -12,6 +12,7 @@ package me.voltual.vb.ui.map
 import android.content.Context
 import android.graphics.Bitmap
 import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -60,11 +61,9 @@ class MapPreviewViewModel : ViewModel() {
     var isLoading by mutableStateOf(false)
         private set
 
-    // 提升的维度数据支持
     val availableDimensions = mutableStateListOf<Dimension>()
     var selectedDimension by mutableStateOf(Dimension.OVERWORLD)
 
-    // 将映射扩展至包含维度
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
     private val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
 
@@ -79,12 +78,10 @@ class MapPreviewViewModel : ViewModel() {
     var isLoaded by mutableStateOf(false)
         private set
 
-    // 视口状态
     var mapScale by mutableStateOf(1f)
     var mapOffset by mutableStateOf(Offset.Zero)
     var isMapCentered by mutableStateOf(false)
 
-    // 控制网格线绘制
     var showGrid by mutableStateOf(false)
 
     var hasExistingFtpInput by mutableStateOf(false)
@@ -103,16 +100,13 @@ class MapPreviewViewModel : ViewModel() {
                 worldDirUri = worldDirUri,
                 chunkX = chunk.chunkX(),
                 chunkZ = chunk.chunkZ(),
-                dimensionName = selectedDimension.name,
+                dimensionName = selectedDimension.getIdentifier(), // Chunker 维度获取字符串名使用 getIdentifier()
                 isEntity = isEntity,
                 isBedrock = isBedrock
             )
         )
     }
 
-    /**
-     * 在物理底层彻底抹除一个区块的所有数据，使 Minecraft 在下次进入时自动重生成
-     */
     suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {
         return withContext(Dispatchers.IO) {
             try {
@@ -191,6 +185,7 @@ class MapPreviewViewModel : ViewModel() {
             mapOffset = Offset.Zero
             regionBitmaps.clear()
             regionRGBAData.clear()
+            availableDimensions.clear()
 
             withContext(Dispatchers.Default) {
                 val externalDir = context.getExternalFilesDir(null)
@@ -235,10 +230,9 @@ class MapPreviewViewModel : ViewModel() {
                         ).flowOn(Dispatchers.IO).collect { result: SingleFolderResult ->
                             when (result) {
                                 is SingleFolderResult.Completed -> {
-                                // 复制完成后在后台线程静默执行数据库修复，去除 .bin
-                                FileRepairUtil.repairCopiedDatabaseFiles(localPreviewPath)
-                                countDownLatch.countDown()
-                            }
+                                    FileRepairUtil.repairCopiedDatabaseFiles(localPreviewPath)
+                                    countDownLatch.countDown()
+                                }
                                 is SingleFolderResult.Error -> {
                                     copyError = true
                                     countDownLatch.countDown()
@@ -311,64 +305,32 @@ class MapPreviewViewModel : ViewModel() {
                     statusMessage = "检测到 ${levelReader.encodingType.name} 格式 (版本: ${levelReader.version})"
                 }
 
-                val previewWriter = object : LevelWriter {
-                    override fun writeLevel(chunkerLevel: ChunkerLevel?): WorldWriter {
-                        return object : WorldWriter {
-                            override fun writeWorld(chunkerWorld: ChunkerWorld?): ColumnWriter {
-                                val currentDim = chunkerWorld?.dimension ?: Dimension.OVERWORLD
-                                viewModelScope.launch(Dispatchers.Main) {
-                                    if (!availableDimensions.contains(currentDim)) {
-                                        availableDimensions.add(currentDim)
-                                    }
-                                }
-                                return object : ColumnWriter {
-                                    override fun writeColumn(chunkerColumn: ChunkerColumn): Task<Void> {
-                                        val argb = IntArray(256)
-                                        var hasContent = false
-                                        for (x in 0 until 16) {
-                                            for (z in 0 until 16) {
-                                                val block = chunkerColumn.getHighestBlock(x, z, Predicate { identifier ->
-                                                    identifier.hasRGBColor()
-                                                })
-                                                if (block != null) {
-                                                    hasContent = true
-                                                    val rgb = block.value().rgbColor
-                                                    argb[(z shl 4) or x] = if (rgb == 0) 0 else (0xFF000000.toInt() or rgb)
-                                                }
-                                            }
-                                        }
-
-                                        if (hasContent) {
-                                            val regionPos = chunkerColumn.position.region
-                                            val dimRegion = Pair(currentDim, regionPos)
-                                            val chunkMap = regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }
-                                            chunkMap[chunkerColumn.position] = argb
-                                        }
-                                        return FutureTask(CompletableFuture.completedFuture(null))
-                                    }
-
-                                    override fun flushRegion(regionCoordPair: RegionCoordPair) {
-                                        val dimRegion = Pair(currentDim, regionCoordPair)
-                                        val chunkMap = regionRGBAData[dimRegion]
-                                        if (chunkMap != null) {
-                                            val bitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
-                                            viewModelScope.launch(Dispatchers.Main) {
-                                                regionBitmaps[dimRegion] = bitmap
-                                            }
-                                        }
-                                    }
-
-                                    override fun flushColumns() {}
-                                }
+                // 统一使用封装好的 ComposeMapPreviewWriter 写入器解决匿名继承的编译错误
+                val previewWriter = ComposeMapPreviewWriter(
+                    onColumnRendered = { region, chunk, argb ->
+                        // 检测并向 availableDimensions 中注入新的维度
+                        val currentDim = selectedDimension
+                        viewModelScope.launch(Dispatchers.Main) {
+                            if (!availableDimensions.contains(currentDim)) {
+                                availableDimensions.add(currentDim)
                             }
-                            override fun flushWorld(world: ChunkerWorld?) {}
-                            override fun flushWorlds() {}
+                        }
+                        val dimRegion = Pair(currentDim, region)
+                        val chunksInRegion = regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }
+                        chunksInRegion[chunk] = argb
+                    },
+                    onFlushRegion = { region ->
+                        val currentDim = selectedDimension
+                        val dimRegion = Pair(currentDim, region)
+                        val chunkMap = regionRGBAData[dimRegion]
+                        if (chunkMap != null) {
+                            val bitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
+                            viewModelScope.launch(Dispatchers.Main) {
+                                regionBitmaps[dimRegion] = bitmap
+                            }
                         }
                     }
-                    override fun getEncodingType() = EncodingType.PREVIEW
-                    override fun getVersion() = Version(1, 0, 0)
-                    override fun getSupportedBiomes() = emptySet<ChunkerBiome.ChunkerVanillaBiome>()
-                }
+                )
 
                 val exceptionHandler = java.util.function.Consumer<Throwable> { it.printStackTrace() }
                 val environment = Task.environment(

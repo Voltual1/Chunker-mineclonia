@@ -41,6 +41,7 @@ import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.utils.WorldExporter
 import me.voltual.vb.ui.LocalTopAppBarController
@@ -63,7 +64,8 @@ fun MapPreviewScreen(
     val topAppBarController = LocalTopAppBarController.current
     val coroutineScope = rememberCoroutineScope()
 
-    val composeBitmaps = remember { mutableStateMapOfMap<Pair<Dimension, RegionCoordPair>, ImageBitmap> }
+    // 修复：使用正确的 mutableStateMapOf 泛型映射
+    val composeBitmaps = remember { mutableStateMapOf<Pair<Dimension, RegionCoordPair>, ImageBitmap>() }
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
 
@@ -84,7 +86,6 @@ fun MapPreviewScreen(
         }
     }
 
-    // 移除 currentRoute 监听，仅对配置状态进行响应式刷新
     LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri) {
         topAppBarController.updateActions(
             listOf(
@@ -193,15 +194,49 @@ fun MapPreviewScreen(
                         }
                     }
 
-                    if (composeBitmaps.isNotEmpty()) {
-                        InteractiveMapCanvas(
-                            regionBitmaps = composeBitmaps,
-                            viewModel = viewModel,
-                            onChunkTap = { chunkPair ->
-                                selectedChunk = chunkPair
-                                showActionMenu = true
+                    // 修复：正确解构过滤当前选择维度的地图瓦片数据
+                    val filteredBitmaps = composeBitmaps
+                        .filterKeys { it.first == viewModel.selectedDimension }
+                        .mapKeys { it.key.second }
+
+                    if (filteredBitmaps.isNotEmpty()) {
+                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                            InteractiveMapCanvas(
+                                regionBitmaps = filteredBitmaps,
+                                viewModel = viewModel,
+                                onChunkTap = { chunkPair ->
+                                    selectedChunk = chunkPair
+                                    showActionMenu = true
+                                }
+                            )
+
+                            // 悬浮维度切换面板
+                            if (viewModel.availableDimensions.size > 1) {
+                                FloatingActionButton(
+                                    onClick = {
+                                        val currentIndex = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
+                                        val nextIndex = (currentIndex + 1) % viewModel.availableDimensions.size
+                                        viewModel.selectedDimension = viewModel.availableDimensions[nextIndex]
+                                        viewModel.isMapCentered = false
+                                    },
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(24.dp),
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                ) {
+                                    val dimLabel = when (viewModel.selectedDimension) {
+                                        Dimension.OVERWORLD -> "主世界"
+                                        Dimension.NETHER -> "下界"
+                                        Dimension.THE_END -> "末地"
+                                        else -> viewModel.selectedDimension.getIdentifier()
+                                    }
+                                    Text(
+                                        text = dimLabel,
+                                        modifier = Modifier.padding(horizontal = 12.dp)
+                                    )
+                                }
                             }
-                        )
+                        }
                     }
                 }
             }
@@ -329,49 +364,6 @@ fun InteractiveMapCanvas(
                     }
                 }
             }
-            
-            val filteredBitmaps = composeBitmaps
-                        .filterKeys { it.first == viewModel.selectedDimension }
-                        .mapKeys { it.key.second }
-
-                    if (filteredBitmaps.isNotEmpty()) {
-                        InteractiveMapCanvas(
-                            regionBitmaps = filteredBitmaps,
-                            viewportWidth = constraints.maxWidth.toFloat(),
-                            viewportHeight = constraints.maxHeight.toFloat(),
-                            viewModel = viewModel,
-                            onChunkTap = { chunkPair ->
-                                selectedChunk = chunkPair
-                                showActionMenu = true
-                            }
-                        )
-                        
-                        // 维度切换按钮
-                        if (viewModel.availableDimensions.size > 1) {
-                            FloatingActionButton(
-                                onClick = {
-                                    val currentIndex = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
-                                    val nextIndex = (currentIndex + 1) % viewModel.availableDimensions.size
-                                    viewModel.selectedDimension = viewModel.availableDimensions[nextIndex]
-                                    viewModel.isMapCentered = false // 切换维度自动居中
-                                },
-                                modifier = Modifier
-                                    .align(Alignment.TopEnd)
-                                    .padding(24.dp),
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            ) {
-                                Text(
-                                    text = when (viewModel.selectedDimension) {
-                                        Dimension.OVERWORLD -> "主世界"
-                                        Dimension.NETHER -> "下界"
-                                        Dimension.THE_END -> "末地"
-                                        else -> viewModel.selectedDimension.name
-                                    },
-                                    modifier = Modifier.padding(horizontal = 12.dp)
-                                )
-                            }
-                        }
-                    }
 
             FloatingActionButton(
                 onClick = { viewModel.isMapCentered = false },
@@ -471,7 +463,7 @@ fun ChunkActionMenu(
 private fun ActionMenuItem(
     icon: ImageVector,
     label: String,
-    textColor: Color = MaterialTheme.colorScheme.onSurfaceVariant, // 增强：支持自定义颜色
+    textColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     onClick: () -> Unit,
 ) {
     Surface(modifier = Modifier.fillMaxWidth().clickable { onClick() }, color = Color.Transparent) {
