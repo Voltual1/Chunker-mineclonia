@@ -61,6 +61,7 @@ data class TerminalExec(
     val worldDirUri: String,
     val chunkX: Int,
     val chunkZ: Int,
+    val dimensionName: String, // 传入 Dimension 枚举的 name
     val isEntity: Boolean,
     val isBedrock: Boolean
 ) : AppDestination

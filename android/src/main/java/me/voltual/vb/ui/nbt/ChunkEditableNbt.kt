@@ -12,7 +12,7 @@ package me.voltual.vb.ui.nbt
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
-import com.hivemc.chunker.conversion.intermediate.world.Dimension as ChunkerDimension
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import com.hivemc.chunker.nbt.TagType
 import com.hivemc.chunker.nbt.io.Reader
 import com.hivemc.chunker.nbt.io.Writer
@@ -31,14 +31,11 @@ import java.io.RandomAccessFile
 import java.util.zip.Deflater
 import java.util.zip.DeflaterOutputStream
 
-/**
- * 终极外科手术式区块 NBT 编辑器。
- * 修复了基岩版多个 NBT 连缀导致 EOFException 崩溃的问题，实现了完全符合 LevelDB 规范的区块读写。
- */
 class ChunkEditableNbt(
     private val worldDir: File,
     private val chunkX: Int,
     private val chunkZ: Int,
+    private val dimension: Dimension, // 引入维度
     private val isEntity: Boolean,
     private val isBedrock: Boolean
 ) : EditableNbt() {
@@ -50,27 +47,8 @@ class ChunkEditableNbt(
         loadData()
     }
     
-    private fun findMcaFile(directory: File, targetName: String): File? {
-        val files = directory.listFiles() ?: return null
-        for (file in files) {
-            if (file.isFile && file.name.equals(targetName, ignoreCase = true)) {
-                return file
-            }
-        }
-        for (file in files) {
-            if (file.isDirectory && !file.name.startsWith(".")) {
-                val found = findMcaFile(file, targetName)
-                if (found != null) return found
-            }
-        }
-        return null
-    }
-
     private fun loadData() {
         if (isBedrock) {
-            // ==========================================
-            // 基岩版 LevelDB 流式 NBT 加载机制
-            // ==========================================
             val dbDir = File(worldDir, "db")
             if (!dbDir.exists()) {
                 rootTag.put("DB_NOT_FOUND", StringTag("未能在 ${worldDir.name} 下找到 db 目录！"))
@@ -78,7 +56,6 @@ class ChunkEditableNbt(
             }
 
             try {
-                // 删除可能残留的锁，防锁冲突
                 File(dbDir, "LOCK").delete()
                 val options = Options().createIfMissing(false)
                 
@@ -86,13 +63,11 @@ class ChunkEditableNbt(
                     val chunkPair = ChunkCoordPair(chunkX, chunkZ)
                     val chunkType = if (isEntity) LevelDBChunkType.ENTITY else LevelDBChunkType.BLOCK_ENTITY
                     
-                    // 生成绝对 Key
-                    val key = LevelDBKey.key(ChunkerDimension.OVERWORLD, chunkPair, chunkType)
+                    // 完美结合：Bedrock 的 LevelDBKey 自带维度识别
+                    val key = LevelDBKey.key(dimension, chunkPair, chunkType)
                     val bytes = db.get(key)
                     
                     if (bytes != null && bytes.isNotEmpty()) {
-                        // 核心修复：基岩版区块实体是以连缀无名 Compound 形式排布的。
-                        // 使用流式 decodeNamed 逐一读取解析，直到文件流尽。
                         val listTag = ListTag<CompoundTag, Map<String, Tag<*>>>()
                         ByteArrayInputStream(bytes).use { bais ->
                             DataInputStream(bais).use { dis ->
@@ -103,7 +78,6 @@ class ChunkEditableNbt(
                                 }
                             }
                         }
-                        
                         rootTag.put(if (isEntity) "Entities" else "BlockEntities", listTag)
                     } else {
                         rootTag.put("EMPTY_CHUNK_DATA", StringTag("该区块 (${chunkX}, ${chunkZ}) 暂无${if (isEntity) "实体" else "方块实体"}数据。"))
@@ -111,25 +85,36 @@ class ChunkEditableNbt(
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                rootTag.put("EXCEPTION", StringTag("LevelDB 读取失败: " + e.localizedMessage + "\n" + e.stackTraceToString()))
+                rootTag.put("EXCEPTION", StringTag("LevelDB 读取失败: " + e.localizedMessage))
             }
             return
         }
 
-        // Java MCA 寻址逻辑
+        // Java MCA 多维度精确物理寻址
         val regionX = chunkX shr 5
         val regionZ = chunkZ shr 5
-        val targetFileName = "r.$regionX.$regionZ.mca"
-        val foundFile = findMcaFile(worldDir, targetFileName)
-        mcaFile = foundFile
+        val dimFolder = when (dimension) {
+            Dimension.NETHER -> "DIM-1"
+            Dimension.THE_END -> "DIM1"
+            else -> ""
+        }
+        val typeFolder = if (isEntity) "entities" else "region"
+        
+        val targetPath = if (dimFolder.isEmpty()) {
+            File(worldDir, "$typeFolder/r.$regionX.$regionZ.mca")
+        } else {
+            File(worldDir, "$dimFolder/$typeFolder/r.$regionX.$regionZ.mca")
+        }
 
-        if (foundFile == null || !foundFile.exists()) {
-            rootTag.put("FILE_NOT_FOUND", StringTag("无法在子目录中定位区域文件: $targetFileName"))
+        mcaFile = targetPath
+
+        if (!targetPath.exists()) {
+            rootTag.put("FILE_NOT_FOUND", StringTag("无法定位区域文件: ${targetPath.absolutePath}"))
             return
         }
 
         try {
-            RandomAccessFile(foundFile, "r").use { raf ->
+            RandomAccessFile(targetPath, "r").use { raf ->
                 val reader = Reader.toJavaReader(raf)
                 val offsets = IntArray(1024)
                 val temp = ByteArray(4096)
@@ -148,8 +133,7 @@ class ChunkEditableNbt(
                 if (offset > 0) {
                     raf.seek(offset * 4096L)
                     val chunkLength = reader.readInt() - 1
-                    val rawType = reader.readByte()
-                    val compressionType = (rawType.toInt() and 0x7F).toByte()
+                    val compressionType = (reader.readByte().toInt() and 0x7F).toByte()
                     
                     val compressedColumn = ByteArray(chunkLength)
                     reader.readBytes(compressedColumn)
@@ -164,7 +148,6 @@ class ChunkEditableNbt(
                             null
                         }
                     }
-                    
                     if (tag != null) {
                         rootTag = tag
                     } else if (!rootTag.contains("COMPRESSION_ERROR")) {
@@ -176,7 +159,7 @@ class ChunkEditableNbt(
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            rootTag.put("EXCEPTION", StringTag(e.toString() + "\n" + e.stackTraceToString()))
+            rootTag.put("EXCEPTION", StringTag(e.toString()))
         }
     }
 
@@ -187,9 +170,6 @@ class ChunkEditableNbt(
     @Suppress("UNCHECKED_CAST")
     override fun save(): Boolean {
         if (isBedrock) {
-            // ==========================================
-            // 基岩版 LevelDB 流式 NBT 序列化写入机制
-            // ==========================================
             val dbDir = File(worldDir, "db")
             if (!dbDir.exists()) return false
 
@@ -200,13 +180,12 @@ class ChunkEditableNbt(
                 Iq80DBFactory.factory.open(dbDir, options).use { db ->
                     val chunkPair = ChunkCoordPair(chunkX, chunkZ)
                     val chunkType = if (isEntity) LevelDBChunkType.ENTITY else LevelDBChunkType.BLOCK_ENTITY
-                    val key = LevelDBKey.key(ChunkerDimension.OVERWORLD, chunkPair, chunkType)
+                    val key = LevelDBKey.key(dimension, chunkPair, chunkType)
                     
                     val listName = if (isEntity) "Entities" else "BlockEntities"
                     val listTag = rootTag.get(listName) as? ListTag<CompoundTag, *>
                     
                     if (listTag != null && listTag.size() > 0) {
-                        // 流式连缀写入二进制字节流
                         val bytes = ByteArrayOutputStream().use { baos ->
                             DataOutputStream(baos).use { dos ->
                                 val writer = Writer.toBedrockWriter(dos)
@@ -218,7 +197,6 @@ class ChunkEditableNbt(
                         }
                         db.put(key, bytes)
                     } else {
-                        // 如果没有实体数据，则直接删除该 KV 键值，避免残留脏数据
                         db.delete(key)
                     }
                 }
@@ -229,7 +207,6 @@ class ChunkEditableNbt(
                 false
             }
         } else {
-            // Java MCA 保存逻辑
             val file = mcaFile ?: return false
             if (!file.exists()) return false
             
@@ -251,7 +228,7 @@ class ChunkEditableNbt(
                     val newOffsetSector = (raf.filePointer / 4096).toInt()
                     
                     raf.writeInt(compressedData.size + 1)
-                    raf.writeByte(2) // 2 = Zlib
+                    raf.writeByte(2)
                     raf.write(compressedData)
                     
                     val chunkPad = (4096 - (raf.filePointer % 4096)) % 4096
@@ -262,7 +239,8 @@ class ChunkEditableNbt(
                     
                     val index = (chunkX and 31) + (chunkZ and 31) * 32
                     raf.seek(index * 4L)
-                    raf.writeByte((newOffsetSector shr 16) and 0xFF)
+                    val isSaved = (newOffsetSector shr 16) and 0xFF
+                    raf.writeByte(isSaved)
                     raf.writeByte((newOffsetSector shr 8) and 0xFF)
                     raf.writeByte(newOffsetSector and 0xFF)
                     raf.writeByte(sectorCount and 0xFF)
@@ -276,9 +254,7 @@ class ChunkEditableNbt(
         }
     }
 
-    override fun getRootTitle(): String {
-        return "区块 ($chunkX, $chunkZ) ${if (isEntity) "实体" else "信息"}"
-    }
+    override fun getRootTitle(): String = "区块 ($chunkX, $chunkZ) ${if (isEntity) "实体" else "信息"}"
 
     override fun addRootTag(name: String, tag: Tag<*>) {
         rootTag.put(name, tag)

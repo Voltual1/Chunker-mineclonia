@@ -42,6 +42,7 @@ import com.hivemc.chunker.nbt.tags.Tag
 import java.io.File
 import me.voltual.vb.ui.nbt.ChunkEditableNbt
 import com.anggrayudi.storage.file.toRawFile
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import com.anggrayudi.storage.file.DocumentFileCompat
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -199,12 +200,13 @@ fun BBQNavDisplay(
                                     worldDir = rawFile,
                                     chunkX = key.chunkX,
                                     chunkZ = key.chunkZ,
+                                    dimension = Dimension.valueOf(key.dimensionName), // 转换维度
                                     isEntity = key.isEntity,
                                     isBedrock = key.isBedrock
                                 )
                             }
 
-                            NbtEditorScreen(
+                            me.voltual.vb.ui.nbt.NbtEditorScreen(
                                 editableNbt = editableNbt,
                                 onBack = onBack,
                                 snackbarHostState = snackbarHostState,

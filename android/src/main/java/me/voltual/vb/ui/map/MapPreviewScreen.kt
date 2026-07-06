@@ -63,7 +63,7 @@ fun MapPreviewScreen(
     val topAppBarController = LocalTopAppBarController.current
     val coroutineScope = rememberCoroutineScope()
 
-    val composeBitmaps = remember { mutableStateMapOf<RegionCoordPair, ImageBitmap>() }
+    val composeBitmaps = remember { mutableStateMapOfMap<Pair<Dimension, RegionCoordPair>, ImageBitmap> }
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
 
@@ -218,7 +218,7 @@ fun MapPreviewScreen(
                     "block_entities" -> viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
                     "delete_chunk" -> {
                         coroutineScope.launch {
-                            val success = viewModel.deleteChunk(chunkPair)
+                            val success = viewModel.deleteChunk(chunkPair, viewModel.selectedDimension)
                             if (success) {
                                 snackbarHostState.showSnackbar("区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 已彻底抹除")
                             } else {
@@ -329,6 +329,49 @@ fun InteractiveMapCanvas(
                     }
                 }
             }
+            
+            val filteredBitmaps = composeBitmaps
+                        .filterKeys { it.first == viewModel.selectedDimension }
+                        .mapKeys { it.key.second }
+
+                    if (filteredBitmaps.isNotEmpty()) {
+                        InteractiveMapCanvas(
+                            regionBitmaps = filteredBitmaps,
+                            viewportWidth = constraints.maxWidth.toFloat(),
+                            viewportHeight = constraints.maxHeight.toFloat(),
+                            viewModel = viewModel,
+                            onChunkTap = { chunkPair ->
+                                selectedChunk = chunkPair
+                                showActionMenu = true
+                            }
+                        )
+                        
+                        // 维度切换按钮
+                        if (viewModel.availableDimensions.size > 1) {
+                            FloatingActionButton(
+                                onClick = {
+                                    val currentIndex = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
+                                    val nextIndex = (currentIndex + 1) % viewModel.availableDimensions.size
+                                    viewModel.selectedDimension = viewModel.availableDimensions[nextIndex]
+                                    viewModel.isMapCentered = false // 切换维度自动居中
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(24.dp),
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer
+                            ) {
+                                Text(
+                                    text = when (viewModel.selectedDimension) {
+                                        Dimension.OVERWORLD -> "主世界"
+                                        Dimension.NETHER -> "下界"
+                                        Dimension.THE_END -> "末地"
+                                        else -> viewModel.selectedDimension.name
+                                    },
+                                    modifier = Modifier.padding(horizontal = 12.dp)
+                                )
+                            }
+                        }
+                    }
 
             FloatingActionButton(
                 onClick = { viewModel.isMapCentered = false },
