@@ -299,7 +299,7 @@ fun pasteOverwrite(node: NbtUiNode): Boolean {
             
             for ((k, v) in backupList) {
                 if (k == node.key) {
-                    root.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
+                    root.put(clipboardKey.ifEmpty { node.key }, copiedTag)
                 } else if (v != null) {
                     root.put(k, v)
                 }
@@ -319,7 +319,7 @@ fun pasteOverwrite(node: NbtUiNode): Boolean {
                 
                 for ((k, v) in backupList) {
                     if (k == node.key) {
-                        parent.put(clipboardKey.ifEmpty { node.key ?: "" }, copiedTag)
+                        parent.put(clipboardKey.ifEmpty { node.key }, copiedTag)
                     } else if (v != null) {
                         parent.put(k, v)
                     }
