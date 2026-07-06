@@ -82,7 +82,8 @@ fun MapPreviewScreen(
     }
 
     LaunchedEffect(initialFolderUri) {
-        viewModel.checkExistingInput(context)
+        // 修复：使用 ViewModel 中正确的函数名
+        viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
             val doc = com.anggrayudi.storage.file.DocumentFileCompat.fromFullPath(context, initialFolderUri)
             if (doc != null) viewModel.loadAndRenderWorld(context, doc)
@@ -141,7 +142,7 @@ fun MapPreviewScreen(
                 modifier = modifier
                     .fillMaxSize()
                     .padding(padding)
-                    .background(Color(0xFF090A0E)) // 暗色声呐雷达背景
+                    .background(Color(0xFF090A0E)) 
             ) {
                 if (viewModel.worldDirUri.isEmpty()) {
                     Column(
@@ -164,24 +165,32 @@ fun MapPreviewScreen(
                         Spacer(modifier = Modifier.height(24.dp))
                         
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            BBQButton(onClick = { folderPicker.launch() }) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.FolderOpen, null)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("SELECT_DIR", fontWeight = FontWeight.Bold)
-                                }
-                            }
-
-                            if (viewModel.hasExistingFtpInput) {
-                                BBQOutlinedButton(onClick = {
-                                    viewModel.loadAndRenderWorld(context, null, useFtpInput = true)
-                                }) {
+                            // 修复：明确使用命名参数以解决编译 lambda 错位问题
+                            BBQButton(
+                                onClick = { folderPicker.launch() },
+                                text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.Wifi, null)
+                                        Icon(Icons.Default.FolderOpen, null)
                                         Spacer(Modifier.width(8.dp))
-                                        Text("PREVIEW_FTP", fontWeight = FontWeight.Bold)
+                                        Text("SELECT_DIR", fontWeight = FontWeight.Bold)
                                     }
                                 }
+                            )
+
+                            if (viewModel.hasExistingFtpInput) {
+                                // 修复：明确使用命名参数
+                                BBQOutlinedButton(
+                                    onClick = {
+                                        viewModel.loadAndRenderWorld(context, null, useFtpInput = true)
+                                    },
+                                    text = {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.Wifi, null)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("PREVIEW_FTP", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                )
                             }
                         }
                     }
@@ -226,7 +235,6 @@ fun MapPreviewScreen(
                                 }
                             )
 
-                            // 战术悬浮维度控制按钮
                             if (viewModel.availableDimensions.size > 1) {
                                 Surface(
                                     modifier = Modifier
@@ -367,9 +375,8 @@ fun InteractiveMapCanvas(
                         )
                         
                         if (viewModel.showGrid) {
-                            // 战术雷达网格
                             drawRect(
-                                color = Color(0xFF3B82F6).copy(alpha = 0.3f), // 雷达感应蓝边
+                                color = Color(0xFF3B82F6).copy(alpha = 0.3f),
                                 topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f),
                                 size = Size(512f, 512f),
                                 style = Stroke(width = 1.5f)
@@ -397,7 +404,6 @@ fun InteractiveMapCanvas(
                 }
             }
 
-            // 雷达准心复位按键
             FloatingActionButton(
                 onClick = { viewModel.isMapCentered = false },
                 modifier = Modifier
@@ -441,11 +447,11 @@ fun ChunkActionMenu(
                 modifier = Modifier
                     .width(280.dp)
                     .padding(16.dp)
-                    .border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small), // 强对比硬边
+                    .border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
                 shape = AppShapes.small,
                 color = MaterialTheme.colorScheme.surface,
                 tonalElevation = 0.dp,
-                shadowElevation = 0.dp, // 扁平化
+                shadowElevation = 0.dp,
             ) {
                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                     Text(
