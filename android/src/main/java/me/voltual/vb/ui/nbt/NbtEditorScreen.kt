@@ -20,6 +20,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.Redo
+import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -73,14 +75,14 @@ fun NbtEditorScreen(
         )
         actionsList.add(
             TopAppBarAction(
-                icon = { tint -> Icon(Icons.Default.Undo, contentDescription = "撤销", tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
+                icon = { tint -> Icon(Icons.AutoMirrored.Filled.Undo, contentDescription = "撤销", tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
                 description = "撤销",
                 onClick = { viewModel.performUndo() }
             )
         )
         actionsList.add(
             TopAppBarAction(
-                icon = { tint -> Icon(Icons.Default.Redo, contentDescription = "重做", tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
+                icon = { tint -> Icon(Icons.AutoMirrored.Filled.Redo, contentDescription = "重做", tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
                 description = "重做",
                 onClick = { viewModel.performRedo() }
             )
@@ -507,7 +509,7 @@ fun AddSubTagDialog(
 
                 ExposedDropdownMenuBox(
                     expanded = expanded,
-                    onExpandedChange = { expanded = !expanded }
+                    onExpandedChange = { expanded = it }
                 ) {
                     OutlinedTextField(
                         value = selectedType.tagClass?.simpleName ?: "Unknown",
@@ -517,7 +519,10 @@ fun AddSubTagDialog(
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .menuAnchor()
+                            .menuAnchor(
+                                type = ExposedDropdownMenuAnchorType.PrimaryNotEditable,
+                                enabled = true
+                            )
                     )
                     ExposedDropdownMenu(
                         expanded = expanded,

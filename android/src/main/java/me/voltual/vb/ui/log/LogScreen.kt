@@ -41,6 +41,7 @@ import me.voltual.vb.core.ui.theme.billing_income
 import me.voltual.vb.core.ui.theme.billing_income_dark
 import kotlinx.coroutines.launch
 
+@Suppress("DEPRECATION")
 @Composable
 fun LogScreen(
     viewModel: LogViewModel,
