@@ -1,18 +1,27 @@
 package me.voltual.vb.ui.decoder
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.SettingsInputComponent
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import kotlinx.coroutines.launch
+import me.voltual.vb.core.ui.theme.AppShapes
+import me.voltual.vb.core.ui.theme.BBQButton
 import me.voltual.vb.core.ui.theme.BBQCard
 import org.koin.compose.viewmodel.koinViewModel
 
@@ -42,101 +51,130 @@ fun DecoderScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp)
+                .padding(20.dp)
                 .verticalScroll(scrollState),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-
-            Text(
-                text = "一键将特定损坏或由于格式特殊无法直接读取的基岩版世界存档（免责声明:不一定能成功），还原为标准国际基岩版支持的正常存档格式。",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            HorizontalDivider()
-
-            // 1. 输入文件夹选择
-            Text(
-                text = "第一步：选择待还原的基岩版世界存档根目录",
-                style = MaterialTheme.typography.titleMedium,
+            // 1. 系统警告与说明面板
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                shape = AppShapes.small,
                 modifier = Modifier.fillMaxWidth()
-            )
-            BBQCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(90.dp),
-                onClick = {
-                    if (!viewModel.isProcessing) {
-                        folderInputPicker.launch()
-                    }
-                }
             ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "选择待还原存档",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary))
+                        Spacer(Modifier.width(8.dp))
                         Text(
-                            text = viewModel.selectedInputFolder?.name ?: "点击选择需要还原的存档文件夹 (包含db)",
-                            style = MaterialTheme.typography.bodyLarge
+                            "SYS_NOTICE // 核心功能说明",
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Black, letterSpacing = 1.sp),
+                            color = MaterialTheme.colorScheme.primary
                         )
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "本模块通过执行 [ LayerV2_Stream_Codec ] 逻辑，尝试对非标准或受损的 Bedrock 存档进行字节流对齐与智能还原。不保证 100% 的重组成功率。",
+                        style = MaterialTheme.typography.bodySmall,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.1f))
+
+            // 2. PHASE 01: 输入路径选择
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "PHASE 01 // SOURCE_BINARY",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                BBQCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(90.dp),
+                    onClick = {
+                        if (!viewModel.isProcessing) {
+                            folderInputPicker.launch()
+                        }
+                    }
+                ) {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Text(
+                                text = viewModel.selectedInputFolder?.name ?: "MOUNT_INPUT_SOURCE // 选择待还原存档",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (viewModel.selectedInputFolder != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
                 }
             }
 
-            // 2. 输出文件夹选择
-            Text(
-                text = "第二步：选择还原目标导出目录",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.fillMaxWidth()
-            )
-            BBQCard(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(90.dp),
-                onClick = {
-                    if (!viewModel.isProcessing) {
-                        folderOutputPicker.launch()
+            // 3. PHASE 02: 输出路径选择
+            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    text = "PHASE 02 // RECONSTRUCTION_PATH",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Black),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                BBQCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(90.dp),
+                    onClick = {
+                        if (!viewModel.isProcessing) {
+                            folderOutputPicker.launch()
+                        }
                     }
-                }
-            ) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.FolderOpen,
-                            contentDescription = "选择输出文件夹",
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                        Text(
-                            text = viewModel.selectedOutputFolder?.name ?: "点击选择还原完成后的导出目标文件夹",
-                            style = MaterialTheme.typography.bodyLarge
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 20.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.FolderOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(Modifier.width(16.dp))
+                            Text(
+                                text = viewModel.selectedOutputFolder?.name ?: "MOUNT_OUTPUT_TARGET // 选择还原目标目录",
+                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                color = if (viewModel.selectedOutputFolder != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.outline
+                            )
+                        }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            Button(
+            // 执行按钮
+            BBQButton(
                 onClick = {
                     viewModel.startDecoding { success, msg ->
                         scope.launch {
-                            snackbarHostState.showSnackbar(msg)
+                            snackbarHostState.showSnackbar(if (success) "COMPLETED // $msg" else "ABORTED // $msg")
                         }
                     }
                 },
@@ -145,31 +183,57 @@ fun DecoderScreen(
                         !viewModel.isProcessing,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(50.dp)
-            ) {
-                Text("一键智能还原")
-            }
-        }
-
-        if (viewModel.isProcessing) {
-            AlertDialog(
-                onDismissRequest = {},
-                confirmButton = {},
-                title = { Text("正在处理存档") },
+                    .height(56.dp),
                 text = {
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(text = viewModel.progressText)
-                        LinearProgressIndicator(
-                            progress = { viewModel.progressVal },
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.SettingsInputComponent, null)
+                        Spacer(Modifier.width(12.dp))
+                        Text("INITIATE_RECONSTRUCTION // 启动智能重组", fontWeight = FontWeight.Black)
                     }
                 }
             )
+            
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+
+        // 4. 战术进度覆盖面板
+        if (viewModel.isProcessing) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize().padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Terminal, 
+                        contentDescription = null, 
+                        modifier = Modifier.size(48.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Text(
+                        text = "CORE_DECRYPTION_IN_PROGRESS",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, letterSpacing = 2.sp),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    LinearProgressIndicator(
+                        progress = { viewModel.progressVal },
+                        modifier = Modifier.fillMaxWidth().height(2.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "■ STATUS: ${viewModel.progressText}",
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = androidx.compose.ui.text.font.FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+            }
         }
     }
 }
