@@ -1,11 +1,7 @@
 // Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
-// 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证 of the License.
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
+// 本程序 is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License.
 
 package me.voltual.vb.ui.nbt
 
@@ -35,9 +31,7 @@ class NbtEditorViewModel : ViewModel() {
     private var clipboardTag: Tag<*>? = null
     private var clipboardKey: String = ""
 
-    // ==========================================
-    // NBT 历史快照撤销/重做管理栈 (限制最大历史为 50 次)
-    // ==========================================
+    // 历史撤销重做栈
     private val maxHistorySize = 50
     private val undoStack = ArrayDeque<CompoundTag>()
     private val redoStack = ArrayDeque<CompoundTag>()
@@ -47,27 +41,35 @@ class NbtEditorViewModel : ViewModel() {
     var canRedo by mutableStateOf(false)
         private set
 
+    // ==========================================
+    // 搜索与节点定位状态
+    // ==========================================
+    var searchQuery by mutableStateOf("")
+        private set
+    var searchResults = mutableStateListOf<String>() // 匹配节点的绝对路径列表
+    var currentSearchIndex by mutableStateOf(-1)
+    val expandedPaths = mutableStateListOf<String>() // 存储需要展开的节点绝对路径
+
     fun loadNbt(nbt: EditableNbt) {
         this.editableNbt = nbt
         undoStack.clear()
         redoStack.clear()
+        searchResults.clear()
+        expandedPaths.clear()
+        expandedPaths.add("root")
+        searchQuery = ""
+        currentSearchIndex = -1
         updateHistoryStates()
         refreshTree()
     }
 
-    /**
-     * 在发生任何数据突变前，克隆并保存快照到撤销栈
-     */
     private fun saveSnapshot() {
         val root = getRootCompound() ?: return
-        // 执行深克隆，以保存完全独立的历史备份
         val snapshot = root.clone() as CompoundTag
-        
         if (undoStack.size >= maxHistorySize) {
             undoStack.removeLast()
         }
         undoStack.push(snapshot)
-        // 任何新写入动作发生时，都清空重做栈
         redoStack.clear()
         updateHistoryStates()
     }
@@ -77,9 +79,6 @@ class NbtEditorViewModel : ViewModel() {
         canRedo = redoStack.isNotEmpty()
     }
 
-    /**
-     * 撤销操作：弹出最新历史快照，并将当前状态压入重做栈
-     */
     fun performUndo() {
         val nbt = editableNbt ?: return
         val root = getRootCompound() ?: return
@@ -97,9 +96,6 @@ class NbtEditorViewModel : ViewModel() {
         refreshTree()
     }
 
-    /**
-     * 重做操作：弹出重做快照，并将当前状态压回撤销栈
-     */
     fun performRedo() {
         val nbt = editableNbt ?: return
         val root = getRootCompound() ?: return
@@ -143,21 +139,25 @@ class NbtEditorViewModel : ViewModel() {
         val nbt = editableNbt ?: return
         visibleNodes.clear()
 
-        fun traverse(key: String?, tag: Tag<*>?, parent: Tag<*>?, depth: Int, isListElement: Boolean) {
+        fun traverse(key: String?, tag: Tag<*>?, parent: Tag<*>?, depth: Int, isListElement: Boolean, parentPath: String) {
             if (tag == null) return
-            val node = NbtUiNode(key, tag, parent, depth, isListElement)
+            // 构造唯一的绝对路径标识
+            val currentPath = if (parentPath == "root") "root.${key ?: ""}" else "$parentPath.${key ?: ""}"
+            
+            val node = NbtUiNode(key, tag, parent, depth, isListElement, id = currentPath)
+            node.isExpanded = expandedPaths.contains(currentPath)
             visibleNodes.add(node)
 
             if (node.isContainer && node.isExpanded) {
                 when (tag) {
                     is CompoundTag -> {
                         tag.value?.forEach { (subKey, subTag) ->
-                            traverse(subKey, subTag, tag, depth + 1, false)
+                            traverse(subKey, subTag, tag, depth + 1, false, currentPath)
                         }
                     }
                     is ListTag<*, *> -> {
                         tag.value?.forEachIndexed { index, subTag ->
-                            traverse("[$index]", subTag, tag, depth + 1, true)
+                            traverse("[$index]", subTag, tag, depth + 1, true, currentPath)
                         }
                     }
                 }
@@ -165,19 +165,100 @@ class NbtEditorViewModel : ViewModel() {
         }
 
         nbt.getTags().forEach { (key, tag) ->
-            traverse(key, tag, null, 0, false)
+            traverse(key, tag, null, 0, false, "root")
         }
     }
 
-    fun toggleNodeExpansion(node: NbtUiNode) {
-        if (!node.isContainer) return
-        node.isExpanded = !node.isExpanded
+    fun toggleNode(path: String) {
+        if (expandedPaths.contains(path)) {
+            expandedPaths.remove(path)
+        } else {
+            expandedPaths.add(path)
+        }
+        refreshTree()
+    }
+
+    // ==========================================
+    // 搜索执行与高亮自动展开逻辑 (DFS)
+    // ==========================================
+    fun performSearch(query: String) {
+        searchQuery = query
+        searchResults.clear()
+        currentSearchIndex = -1
+        if (query.isBlank()) {
+            refreshTree()
+            return
+        }
+
+        val root = getRootCompound() ?: return
+
+        // 递归搜索满足条件的节点并记录路径
+        fun searchDfs(key: String, tag: Tag<*>, path: String) {
+            val isMatch = key.contains(query, ignoreCase = true) || 
+                          (!tag.type.let { it == TagType.COMPOUND || it == TagType.LIST } && 
+                           tag.boxedValue?.toString()?.contains(query, ignoreCase = true) == true)
+            
+            if (isMatch) {
+                searchResults.add(path)
+            }
+
+            when (tag) {
+                is CompoundTag -> {
+                    tag.value?.forEach { (subKey, subTag) ->
+                        searchDfs(subKey, subTag, "$path.$subKey")
+                    }
+                }
+                is ListTag<*, *> -> {
+                    tag.value?.forEachIndexed { index, subTag ->
+                        searchDfs("[$index]", subTag, "$path.[$index]")
+                    }
+                }
+            }
+        }
+
+        root.value?.forEach { (k, v) ->
+            searchDfs(k, v, "root.$k")
+        }
+
+        if (searchResults.isNotEmpty()) {
+            currentSearchIndex = 0
+            navigateToSearchResult(searchResults[0])
+        }
+        refreshTree()
+    }
+
+    /**
+     * 自动展开找到的搜索结果所有层级的父节点，并使节点可见
+     */
+    private fun navigateToSearchResult(path: String) {
+        val parts = path.split(".")
+        var runningPath = "root"
+        // 依次展开每一层父容器
+        for (i in 1 until parts.size) {
+            runningPath += "." + parts[i]
+            if (!expandedPaths.contains(runningPath)) {
+                expandedPaths.add(runningPath)
+            }
+        }
+    }
+
+    fun nextSearchResult() {
+        if (searchResults.isEmpty()) return
+        currentSearchIndex = (currentSearchIndex + 1) % searchResults.size
+        navigateToSearchResult(searchResults[currentSearchIndex])
+        refreshTree()
+    }
+
+    fun previousSearchResult() {
+        if (searchResults.isEmpty()) return
+        currentSearchIndex = if (currentSearchIndex - 1 < 0) searchResults.size - 1 else currentSearchIndex - 1
+        navigateToSearchResult(searchResults[currentSearchIndex])
         refreshTree()
     }
 
     fun updateTagValue(node: NbtUiNode, value: Any) {
         try {
-            saveSnapshot() // 保存快照
+            saveSnapshot()
             when (val tag = node.tag) {
                 is ByteTag -> tag.setValue((value as Number).toByte())
                 is ShortTag -> tag.setValue((value as Number).toShort())
@@ -209,7 +290,7 @@ class NbtEditorViewModel : ViewModel() {
         val copiedTag = clipboardTag?.clone() ?: return false
         val parent = node.parent
 
-        saveSnapshot() // 保存快照
+        saveSnapshot()
         if (parent == null) {
             editableNbt?.let { nbt ->
                 val root = getRootCompound() ?: return false
@@ -271,7 +352,7 @@ class NbtEditorViewModel : ViewModel() {
         val copiedTag = clipboardTag?.clone() ?: return false
         val tag = node.tag
 
-        saveSnapshot() // 保存快照
+        saveSnapshot()
         when (tag) {
             is CompoundTag -> {
                 val targetKey = if (clipboardKey.startsWith("[")) "PastedTag" else clipboardKey
@@ -297,7 +378,7 @@ class NbtEditorViewModel : ViewModel() {
 
     fun deleteNode(node: NbtUiNode) {
         val parent = node.parent
-        saveSnapshot() // 保存快照
+        saveSnapshot()
         if (parent == null) {
             editableNbt?.removeRootTag(node.key ?: "")
         } else {
@@ -318,7 +399,7 @@ class NbtEditorViewModel : ViewModel() {
         if (newName.isEmpty() || newName == node.key) return false
         val parent = node.parent
 
-        saveSnapshot() // 保存快照
+        saveSnapshot()
         if (parent == null) {
             editableNbt?.let { nbt ->
                 val root = getRootCompound() ?: return false
@@ -370,7 +451,7 @@ class NbtEditorViewModel : ViewModel() {
         val newTag = constructor.get()
 
         val target = node.tag
-        saveSnapshot() // 保存快照
+        saveSnapshot()
         when (target) {
             is CompoundTag -> {
                 if (name.isEmpty()) return false
@@ -398,7 +479,6 @@ class NbtEditorViewModel : ViewModel() {
     fun saveChanges(): Boolean {
         val success = editableNbt?.save() ?: false
         if (success) {
-            // 保存成功后清空历史，减少多余内存占用
             undoStack.clear()
             redoStack.clear()
             updateHistoryStates()

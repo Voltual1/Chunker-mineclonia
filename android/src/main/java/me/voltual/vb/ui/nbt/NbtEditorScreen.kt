@@ -64,17 +64,25 @@ fun NbtEditorScreen(
     }
 
     val isModified = viewModel.editableNbt?.isModified == true
-    var expandedPaths by remember { mutableStateOf(setOf("root")) }
+    var showSearchBar by remember { mutableStateOf(false) }
 
+    // 上下文与对话框状态
     var activeMenuNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showRenameDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var showAddTagDialogNode by remember { mutableStateOf<NbtUiNode?>(null) }
     var editingValueNode by remember { mutableStateOf<NbtUiNode?>(null) }
 
-    // 移除了 currentRoute 监听，仅在内部数值、快照等脏状态发生修改时更新顶部 Actions
+    // 动态在 TopAppBar 注册动作
     LaunchedEffect(isModified, viewModel.editableNbt, viewModel.canUndo, viewModel.canRedo) {
         val actionsList = mutableListOf<TopAppBarAction>()
         
+        actionsList.add(
+            TopAppBarAction(
+                icon = { tint -> Icon(Icons.Default.Search, contentDescription = "搜索属性", tint = tint) },
+                description = "搜索属性",
+                onClick = { showSearchBar = !showSearchBar }
+            )
+        )
         actionsList.add(
             TopAppBarAction(
                 icon = { tint -> Icon(Icons.Default.Undo, contentDescription = "撤销", tint = if (viewModel.canUndo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
@@ -82,7 +90,6 @@ fun NbtEditorScreen(
                 onClick = { viewModel.performUndo() }
             )
         )
-        
         actionsList.add(
             TopAppBarAction(
                 icon = { tint -> Icon(Icons.Default.Redo, contentDescription = "重做", tint = if (viewModel.canRedo) MaterialTheme.colorScheme.primary else tint.copy(alpha = 0.3f)) },
@@ -90,7 +97,6 @@ fun NbtEditorScreen(
                 onClick = { viewModel.performRedo() }
             )
         )
-
         if (isModified) {
             actionsList.add(
                 TopAppBarAction(
@@ -98,7 +104,7 @@ fun NbtEditorScreen(
                     description = "保存",
                     onClick = {
                         if (viewModel.saveChanges()) {
-                            coroutineScope.launch { snackbarHostState.showSnackbar("数据已成功保存！") }
+                            coroutineScope.launch { snackbarHostState.showSnackbar("数据已保存！") }
                         }
                     }
                 )
@@ -107,6 +113,12 @@ fun NbtEditorScreen(
 
         topAppBarController.updateActions(actionsList)
         topAppBarController.customTitle = viewModel.editableNbt?.getRootTitle() ?: "NBT 属性查看"
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            topAppBarController.clear()
+        }
     }
 
     Box(
@@ -120,36 +132,77 @@ fun NbtEditorScreen(
             prop.get(it) as? CompoundTag
         }
         
-        if (rootTag == null || rootTag.size() == 0) {
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("当前区块无 NBT 属性", color = Color(0xFF94A3B8))
-            }
-        } else {
-            val verticalScrollState = rememberScrollState()
-            val horizontalScrollState = rememberScrollState()
-            
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(verticalScrollState)
-                    .horizontalScroll(horizontalScrollState)
-                    .padding(16.dp)
-            ) {
-                key(viewModel.treeVersion) {
-                    NbtTreeViewer(
-                        rootTag = rootTag,
-                        expandedPaths = expandedPaths,
-                        onToggleNode = { path ->
-                            expandedPaths = if (expandedPaths.contains(path)) {
-                                expandedPaths - path
-                            } else {
-                                expandedPaths + path
+        Column(modifier = Modifier.fillMaxSize()) {
+            // 可折叠搜索条
+            AnimatedVisibility(visible = showSearchBar) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier.padding(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = viewModel.searchQuery,
+                            onValueChange = { viewModel.performSearch(it) },
+                            placeholder = { Text("搜索 Key / Value", fontSize = 14.sp) },
+                            singleLine = true,
+                            modifier = Modifier.weight(1f).height(50.dp),
+                            trailingIcon = {
+                                if (viewModel.searchQuery.isNotEmpty()) {
+                                    IconButton(onClick = { viewModel.performSearch("") }) {
+                                        Icon(Icons.Default.Clear, null)
+                                    }
+                                }
                             }
-                        },
-                        onNodeLongClick = { node ->
-                            activeMenuNode = node
+                        )
+                        if (viewModel.searchResults.isNotEmpty()) {
+                            Text(
+                                text = "${viewModel.currentSearchIndex + 1}/${viewModel.searchResults.size}",
+                                color = Color.White,
+                                fontSize = 13.sp
+                            )
+                            IconButton(onClick = { viewModel.previousSearchResult() }) {
+                                Icon(Icons.Default.KeyboardArrowUp, null, tint = Color.White)
+                            }
+                            IconButton(onClick = { viewModel.nextSearchResult() }) {
+                                Icon(Icons.Default.KeyboardArrowDown, null, tint = Color.White)
+                            }
                         }
-                    )
+                    }
+                }
+            }
+
+            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+                if (rootTag == null || rootTag.size() == 0) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("当前区块无 NBT 属性", color = Color(0xFF94A3B8))
+                    }
+                } else {
+                    val verticalScrollState = rememberScrollState()
+                    val horizontalScrollState = rememberScrollState()
+                    
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(verticalScrollState)
+                            .horizontalScroll(horizontalScrollState)
+                            .padding(16.dp)
+                    ) {
+                        key(viewModel.treeVersion, viewModel.searchQuery) {
+                            NbtTreeViewer(
+                                rootTag = rootTag,
+                                expandedPaths = viewModel.expandedPaths.toSet(),
+                                onToggleNode = { path -> viewModel.toggleNode(path) },
+                                onNodeLongClick = { node ->
+                                    activeMenuNode = node
+                                },
+                                searchQuery = viewModel.searchQuery
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -246,7 +299,7 @@ fun NbtNodeContextMenu(
     val isContainer = node.tag.type == TagType.COMPOUND || node.tag.type == TagType.LIST
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = "操作: ${node.key?.ifEmpty { "Root" } ?: "Root"}") }, // 修复：处理可空 key
+        title = { Text(text = "操作: ${node.key?.ifEmpty { "Root" } ?: "Root"}") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
                 if (!isContainer) {
@@ -354,7 +407,6 @@ fun EditValueDialog(
 ) {
     var textValue by remember { mutableStateOf(node.tag.boxedValue?.toString() ?: "") }
     var checked by remember { mutableStateOf(if (node.tag.boxedValue is Byte) (node.tag.boxedValue == 1.toByte()) else false) }
-    // 修复：处理可空 key
     val isBoolean = node.key?.startsWith("is") == true || node.key?.startsWith("has") == true
 
     AlertDialog(

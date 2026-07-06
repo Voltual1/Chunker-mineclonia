@@ -32,6 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
@@ -51,6 +52,7 @@ fun NbtTreeViewer(
     expandedPaths: Set<String>,
     onToggleNode: (String) -> Unit,
     onNodeLongClick: (NbtUiNode) -> Unit,
+    searchQuery: String,
     modifier: Modifier = Modifier
 ) {
     val syntaxColors = LocalNbtSyntaxColors.current
@@ -69,7 +71,8 @@ fun NbtTreeViewer(
             onNodeLongClick = onNodeLongClick,
             depth = 0,
             isLast = true,
-            syntaxColors = syntaxColors
+            syntaxColors = syntaxColors,
+            searchQuery = searchQuery
         )
     }
 }
@@ -84,21 +87,30 @@ private fun NbtNode(
     onNodeLongClick: (NbtUiNode) -> Unit,
     depth: Int,
     isLast: Boolean,
-    syntaxColors: NbtSyntaxColorPalette
+    syntaxColors: NbtSyntaxColorPalette,
+    searchQuery: String
 ) {
     val paddingStart = (depth * 16).dp
     val isExpanded = expandedPaths.contains(path)
     val isContainer = tag.type == TagType.COMPOUND || tag.type == TagType.LIST
 
+    // 计算当前节点名称或值是否匹配搜索文本
+    val isMatched = searchQuery.isNotEmpty() && (
+            (key?.contains(searchQuery, ignoreCase = true) == true) || 
+            (!isContainer && tag.boxedValue?.toString()?.contains(searchQuery, ignoreCase = true) == true)
+    )
+    val itemBgColor = if (isMatched) Color(0xFFFFEB3B).copy(alpha = 0.3f) else Color.Transparent
+
     Row(
         verticalAlignment = Alignment.Top,
         modifier = Modifier
             .padding(start = paddingStart, top = 2.dp, bottom = 2.dp)
+            .background(itemBgColor)
             .clickable {
                 if (isContainer) {
                     onToggleNode(path)
                 } else {
-                    onNodeLongClick(NbtUiNode(key ?: "", tag, null, depth, false))
+                    onNodeLongClick(NbtUiNode(key ?: "", tag, null, depth, false, id = path))
                 }
             }
     ) {
@@ -157,11 +169,12 @@ private fun NbtNode(
                                 tag = entry.value,
                                 path = "$path.${entry.key}",
                                 expandedPaths = expandedPaths,
-                                onToggleNode = onToggleNode,
+                                onToggleNode = { onToggleNode(it) },
                                 onNodeLongClick = onNodeLongClick,
                                 depth = depth + 1,
                                 isLast = index == entries.lastIndex,
-                                syntaxColors = syntaxColors
+                                syntaxColors = syntaxColors,
+                                searchQuery = searchQuery
                             )
                         }
                         Text(
@@ -202,11 +215,12 @@ private fun NbtNode(
                                 tag = childElement,
                                 path = "$path[$index]",
                                 expandedPaths = expandedPaths,
-                                onToggleNode = onToggleNode,
+                                onToggleNode = { onToggleNode(it) },
                                 onNodeLongClick = onNodeLongClick,
                                 depth = depth + 1,
                                 isLast = index == listValues.lastIndex,
-                                syntaxColors = syntaxColors
+                                syntaxColors = syntaxColors,
+                                searchQuery = searchQuery
                             )
                         }
                         Text(
@@ -218,7 +232,6 @@ private fun NbtNode(
                     }
                 }
                 else -> {
-                    // 原子节点类型高亮渲染
                     val text = buildAnnotatedString {
                         if (key != null) {
                             withStyle(SpanStyle(color = syntaxColors.key)) { 
