@@ -16,6 +16,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -46,15 +47,17 @@ import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQButton
-import me.voltual.vb.core.ui.theme.BBQCard
 import me.voltual.vb.core.ui.theme.BBQOutlinedButton
 import me.voltual.vb.core.utils.WorldExporter
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.TopAppBarAction
+import me.voltual.vb.ui.Export
 import org.koin.compose.viewmodel.koinViewModel
 import java.io.File
 import kotlin.math.floor
+import kotlin.math.max
+import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -81,6 +84,11 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
+    // 新增：缝合目标文件夹选择器
+    val targetStitchPicker = rememberLauncherForFolderPicker { targetFolder ->
+        viewModel.startStitchToTarget(context, targetFolder)
+    }
+
     LaunchedEffect(initialFolderUri) {
         viewModel.checkExistingFtpInput(context)
         if (initialFolderUri.isNotEmpty() && viewModel.worldDirUri.isEmpty()) {
@@ -89,9 +97,18 @@ fun MapPreviewScreen(
         }
     }
 
-    LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri) {
+    // 更新菜单项，添加裁剪(选区)工具
+    LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri, viewModel.isSelectionMode) {
         topAppBarController.updateActions(
             listOf(
+                TopAppBarAction(
+                    icon = { tint -> Icon(Icons.Default.Crop, contentDescription = "框选区域", tint = if (viewModel.isSelectionMode) MaterialTheme.colorScheme.primary else tint) },
+                    description = "框选区域",
+                    onClick = {
+                        viewModel.isSelectionMode = !viewModel.isSelectionMode
+                        if (!viewModel.isSelectionMode) viewModel.clearSelection()
+                    }
+                ),
                 TopAppBarAction(
                     icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
                     description = "网格线",
@@ -144,6 +161,7 @@ fun MapPreviewScreen(
                     .background(Color(0xFF090A0E)) 
             ) {
                 if (viewModel.worldDirUri.isEmpty()) {
+                    // Empty state UI...
                     Column(
                         modifier = Modifier.fillMaxSize().padding(32.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -177,9 +195,7 @@ fun MapPreviewScreen(
 
                             if (viewModel.hasExistingFtpInput) {
                                 BBQOutlinedButton(
-                                    onClick = {
-                                        viewModel.loadAndRenderWorld(context, null, useFtpInput = true)
-                                    },
+                                    onClick = { viewModel.loadAndRenderWorld(context, null, useFtpInput = true) },
                                     text = {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.Wifi, null)
@@ -272,6 +288,57 @@ fun MapPreviewScreen(
                                     }
                                 }
                             }
+
+                            // 新增：底部悬浮操作面板 (缝合)
+                            AnimatedVisibility(
+                                visible = viewModel.selectionStartBlock != null && viewModel.selectionEndBlock != null,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(bottom = 80.dp),
+                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                            ) {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxWidth(0.9f)
+                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium),
+                                    shape = AppShapes.medium,
+                                    color = MaterialTheme.colorScheme.surface,
+                                    shadowElevation = 8.dp
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        val s = viewModel.selectionStartBlock!!
+                                        val e = viewModel.selectionEndBlock!!
+                                        val minX = min(s.first, e.first)
+                                        val minZ = min(s.second, e.second)
+                                        val maxX = max(s.first, e.first)
+                                        val maxZ = max(s.second, e.second)
+                                        val chunkCount = ((maxX - minX) / 16 + 1) * ((maxZ - minZ) / 16 + 1)
+                                        
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("SELECTION // 已框选区域", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Text("方块坐标: ($minX, $minZ) ~ ($maxX, $maxZ)", style = MaterialTheme.typography.bodyMedium)
+                                        Text("影响区块: 约 $chunkCount 个", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
+                                        
+                                        Spacer(Modifier.height(16.dp))
+                                        BBQButton(
+                                            onClick = { targetStitchPicker.launch() },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            text = {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    Icon(Icons.Default.ContentPaste, null)
+                                                    Spacer(Modifier.width(8.dp))
+                                                    Text("覆盖并缝合至目标存档...", fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -300,6 +367,35 @@ fun MapPreviewScreen(
                 }
             }
         )
+
+        // 缝合状态覆盖层
+        if (viewModel.isStitching || viewModel.stitchSuccess || viewModel.stitchError != null) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)) {
+                Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                    if (viewModel.stitchSuccess) {
+                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Text("缝合圆满完成！", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(24.dp))
+                        BBQButton(
+                            onClick = { navigator.navigate(Export) },
+                            text = { Text("前往导出") }
+                        )
+                    } else if (viewModel.stitchError != null) {
+                        Text("ERROR: ${viewModel.stitchError}", color = MaterialTheme.colorScheme.error)
+                        Button(onClick = { viewModel.stitchError = null }) { Text("返回") }
+                    } else {
+                        CircularProgressIndicator()
+                        Spacer(Modifier.height(16.dp))
+                        Text(viewModel.stitchStatus, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(24.dp))
+                        LinearProgressIndicator(progress = { viewModel.stitchProgress }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary)
+                        Spacer(Modifier.height(8.dp))
+                        Text("${(viewModel.stitchProgress * 100).toInt()}%", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -342,22 +438,44 @@ fun InteractiveMapCanvas(
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
-                        detectTapGestures(
-                            onTap = { tapOffset ->
-                                val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
-                                val worldZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                val chunkX = floor(worldX / 16f).toInt()
-                                val chunkZ = floor(worldZ / 16f).toInt()
-                                onChunkTap(ChunkCoordPair(chunkX, chunkZ))
-                            }
-                        )
+                    .pointerInput(viewModel.isSelectionMode) {
+                        if (viewModel.isSelectionMode) {
+                            // 裁剪模式：单指拖拽产生矩形选区
+                            detectDragGestures(
+                                onDragStart = { offset ->
+                                    val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                                    val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
+                                    viewModel.selectionStartBlock = Pair(mapX.toInt(), mapZ.toInt())
+                                    viewModel.selectionEndBlock = Pair(mapX.toInt(), mapZ.toInt())
+                                },
+                                onDrag = { change, _ ->
+                                    val offset = change.position
+                                    val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                                    val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
+                                    viewModel.selectionEndBlock = Pair(mapX.toInt(), mapZ.toInt())
+                                }
+                            )
+                        } else {
+                            // 浏览模式：单指点击探测区块
+                            detectTapGestures(
+                                onTap = { tapOffset ->
+                                    val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                                    val worldZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
+                                    val chunkX = floor(worldX / 16f).toInt()
+                                    val chunkZ = floor(worldZ / 16f).toInt()
+                                    onChunkTap(ChunkCoordPair(chunkX, chunkZ))
+                                }
+                            )
+                        }
                     }
-                    .pointerInput(Unit) {
-                        detectTransformGestures { centroid, pan, zoom, _ ->
-                            val oldScale = viewModel.mapScale
-                            viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
-                            viewModel.mapOffset = (viewModel.mapOffset + pan - centroid) * (viewModel.mapScale / oldScale) + centroid
+                    .pointerInput(viewModel.isSelectionMode) {
+                        if (!viewModel.isSelectionMode) {
+                            // 浏览模式：支持双指平移和缩放
+                            detectTransformGestures { centroid, pan, zoom, _ ->
+                                val oldScale = viewModel.mapScale
+                                viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
+                                viewModel.mapOffset = (viewModel.mapOffset + pan - centroid) * (viewModel.mapScale / oldScale) + centroid
+                            }
                         }
                     }
             ) {
@@ -397,6 +515,28 @@ fun InteractiveMapCanvas(
                                 )
                             }
                         }
+                    }
+
+                    // 绘制裁切模式的选区框
+                    if (viewModel.selectionStartBlock != null && viewModel.selectionEndBlock != null) {
+                        val start = viewModel.selectionStartBlock!!
+                        val end = viewModel.selectionEndBlock!!
+                        val minX = min(start.first, end.first).toFloat()
+                        val minZ = min(start.second, end.second).toFloat()
+                        val maxX = max(start.first, end.first).toFloat()
+                        val maxZ = max(start.second, end.second).toFloat()
+
+                        drawRect(
+                            color = Color(0xFF3B82F6).copy(alpha = 0.4f),
+                            topLeft = Offset(minX, minZ),
+                            size = Size(maxX - minX, maxZ - minZ)
+                        )
+                        drawRect(
+                            color = Color(0xFF3B82F6),
+                            topLeft = Offset(minX, minZ),
+                            size = Size(maxX - minX, maxZ - minZ),
+                            style = Stroke(width = 2f / viewModel.mapScale) // 保持描边在缩放时粗细一致
+                        )
                     }
                 }
             }

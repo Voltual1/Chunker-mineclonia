@@ -19,12 +19,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.ViewModel
-import me.voltual.vb.core.utils.FileRepairUtil
 import androidx.lifecycle.viewModelScope
+import androidx.work.*
+import com.anggrayudi.storage.callback.SingleFolderConflictCallback
+import com.anggrayudi.storage.file.copyFolderTo
+import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.encoding.base.Version
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.bedrock.util.LevelDBChunkType
 import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
 import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
@@ -41,21 +43,23 @@ import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
 import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
 import com.hivemc.chunker.scheduling.task.FutureTask
 import com.hivemc.chunker.scheduling.task.Task
-import com.anggrayudi.storage.file.toRawFile
-import com.anggrayudi.storage.file.copyFolderTo
-import com.anggrayudi.storage.result.SingleFolderResult
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import me.voltual.vb.core.utils.FileRepairUtil
+import me.voltual.vb.ui.stitch.StitchWorker
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.File
 import java.io.RandomAccessFile
 import java.util.Optional
+import java.util.UUID
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Predicate
+import kotlin.math.max
+import kotlin.math.min
 
 class MapPreviewViewModel : ViewModel() {
 
@@ -88,10 +92,132 @@ class MapPreviewViewModel : ViewModel() {
     var hasExistingFtpInput by mutableStateOf(false)
         private set
 
-    fun checkExistingFtpInput(context: Context) {
+    // --- 新增：框选与缝合相关状态 ---
+    var isSelectionMode by mutableStateOf(false)
+    var selectionStartBlock by mutableStateOf<Pair<Int, Int>?>(null)
+    var selectionEndBlock by mutableStateOf<Pair<Int, Int>?>(null)
+
+    var isStitching by mutableStateOf(false)
+    var stitchStatus by mutableStateOf("")
+    var stitchProgress by mutableStateOf(0f)
+    var stitchSuccess by mutableStateOf(false)
+    var stitchError by mutableStateOf<String?>(null)
+
+    fun clearSelection() {
+        selectionStartBlock = null
+        selectionEndBlock = null
+        isSelectionMode = false
+    }
+
+    private fun getWorldsDir(context: Context): File {
         val externalDir = context.getExternalFilesDir(null)
         val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
-        val inputDir = File(worldsDir, "world_input")
+        if (!worldsDir.exists()) worldsDir.mkdirs()
+        return worldsDir
+    }
+
+    fun startStitchToTarget(context: Context, destDoc: DocumentFile) {
+        val start = selectionStartBlock ?: return
+        val end = selectionEndBlock ?: return
+
+        // 坐标换算：方块 -> 区块
+        val chunkMinX = min(start.first, end.first) shr 4
+        val chunkMinZ = min(start.second, end.second) shr 4
+        val chunkMaxX = max(start.first, end.first) shr 4
+        val chunkMaxZ = max(start.second, end.second) shr 4
+
+        isStitching = true
+        stitchSuccess = false
+        stitchError = null
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val rootDir = getWorldsDir(context)
+            // 源目录就是当前正在预览的缓存目录
+            val sourceInternal = File(worldDirUri)
+            val outputInternal = File(rootDir, "world_output")
+
+            outputInternal.deleteRecursively()
+            outputInternal.mkdirs()
+
+            // 拷贝目标世界到底图
+            withContext(Dispatchers.Main) { stitchStatus = "正在拷贝目标世界至沙盒..." }
+            val countDownLatch = java.util.concurrent.CountDownLatch(1)
+            var copySuccess = false
+
+            destDoc.copyFolderTo(
+                context = context,
+                targetParentFolder = DocumentFile.fromFile(rootDir),
+                newFolderNameInTargetPath = outputInternal.name,
+                skipEmptyFiles = false,
+                onConflict = object : SingleFolderConflictCallback(viewModelScope) {
+                    override fun onParentConflict(destinationFolder: DocumentFile, action: ParentFolderConflictAction, canMerge: Boolean) {
+                        action.confirmResolution(ConflictResolution.REPLACE)
+                    }
+                }
+            ).collect { result ->
+                when (result) {
+                    is SingleFolderResult.InProgress -> {
+                        withContext(Dispatchers.Main) { stitchProgress = result.progress / 100f }
+                    }
+                    is SingleFolderResult.Completed -> {
+                        copySuccess = true
+                        countDownLatch.countDown()
+                    }
+                    is SingleFolderResult.Error -> {
+                        countDownLatch.countDown()
+                    }
+                    else -> {}
+                }
+            }
+
+            countDownLatch.await()
+
+            if (!copySuccess) {
+                withContext(Dispatchers.Main) {
+                    isStitching = false
+                    stitchError = "目标世界读取失败"
+                }
+                return@launch
+            }
+
+            FileRepairUtil.repairCopiedDatabaseFiles(outputInternal)
+
+            withContext(Dispatchers.Main) {
+                stitchStatus = "启动缝合引擎..."
+                val inputData = workDataOf(
+                    "sourcePath" to sourceInternal.absolutePath,
+                    "destPath" to outputInternal.absolutePath,
+                    "dimension" to selectedDimension.getIdentifier(),
+                    "minX" to chunkMinX,
+                    "minZ" to chunkMinZ,
+                    "maxX" to chunkMaxX,
+                    "maxZ" to chunkMaxZ
+                )
+
+                val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
+                WorkManager.getInstance(context).enqueue(workRequest)
+
+                launch {
+                    WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+                        if (workInfo != null) {
+                            stitchProgress = workInfo.progress.getFloat("progress", 0f)
+                            if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                                isStitching = false
+                                stitchSuccess = true
+                            } else if (workInfo.state == WorkInfo.State.FAILED) {
+                                isStitching = false
+                                stitchError = workInfo.outputData.getString("error") ?: "核心缝合引擎异常"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    // --- 新增结束 ---
+
+    fun checkExistingFtpInput(context: Context) {
+        val inputDir = File(getWorldsDir(context), "world_input")
         hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
     }
 
@@ -119,8 +245,8 @@ class MapPreviewViewModel : ViewModel() {
                     val options = Options().createIfMissing(false)
                     Iq80DBFactory.factory.open(dbDir, options).use { db ->
                         val batch = db.createWriteBatch()
-                        for (type in LevelDBChunkType.values()) {
-                            if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
+                        for (type in com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType.values()) {
+                            if (type == com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType.SUB_CHUNK_PREFIX) {
                                 for (y in -64..64) {
                                     batch.delete(LevelDBKey.key(dimension, chunk, y.toByte(), type))
                                 }
@@ -184,6 +310,7 @@ class MapPreviewViewModel : ViewModel() {
             isMapCentered = false
             mapScale = 1f
             mapOffset = Offset.Zero
+            clearSelection() // 清理旧选区
             regionBitmaps.clear()
             regionRGBAData.clear()
             
@@ -192,8 +319,7 @@ class MapPreviewViewModel : ViewModel() {
             }
 
             withContext(Dispatchers.Default) {
-                val externalDir = context.getExternalFilesDir(null)
-                val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
+                val worldsDir = getWorldsDir(context)
                 
                 val finalWorldDirectory = if (useFtpInput) {
                     statusMessage = "正在直接读取中转站 (FTP) 存档数据..."
@@ -222,7 +348,7 @@ class MapPreviewViewModel : ViewModel() {
                             targetParentFolder = targetParentDoc,
                             skipEmptyFiles = false,
                             newFolderNameInTargetPath = "world_preview",
-                            onConflict = object : com.anggrayudi.storage.callback.SingleFolderConflictCallback(viewModelScope) {
+                            onConflict = object : SingleFolderConflictCallback(viewModelScope) {
                                 override fun onParentConflict(
                                     destinationFolder: DocumentFile,
                                     action: ParentFolderConflictAction,
