@@ -76,7 +76,6 @@ class StitchWorker(
         try {
             val env = stitcher.stitch(dimension, pruningConfig)
             
-            // 修复：在 CoroutineWorker 的作用域内正确 launch 并调用 setProgress
             val progressJob = launch {
                 var lastP = -1.0
                 while (!env.future().isDone) {
@@ -92,6 +91,10 @@ class StitchWorker(
             env.future().get()
             progressJob.join()
             setProgress(workDataOf("progress" to 100f))
+
+            // 核心提示：打印出确切被影响的区块数量！
+            val totalProcessed = stitcher.processedChunks.get()
+            log("STITCH_SUCCESS // 操作完成，共成功覆盖了 $totalProcessed 个物理区块！")
 
             database.logDao().insert(LogEntry(
                 type = "STITCH", requestBody = "Source: $sourcePath", 

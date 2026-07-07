@@ -75,14 +75,15 @@ fun StitchScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = viewModel.minX, onValueChange = { viewModel.minX = it }, label = { Text("Min X") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = viewModel.maxX, onValueChange = { viewModel.maxX = it }, label = { Text("Max X") }, modifier = Modifier.weight(1f))
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = viewModel.minZ, onValueChange = { viewModel.minZ = it }, label = { Text("Min Z") }, modifier = Modifier.weight(1f))
-                OutlinedTextField(value = viewModel.maxZ, onValueChange = { viewModel.maxZ = it }, label = { Text("Max Z") }, modifier = Modifier.weight(1f))
-            }
+Text("Bounding Box [方块坐标 Block Coordinates]:\n(系统将自动换算为 16x16 的区块坐标)", style = MaterialTheme.typography.labelMedium)
+Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    OutlinedTextField(value = viewModel.minX, onValueChange = { viewModel.minX = it }, label = { Text("坐标 X1") }, modifier = Modifier.weight(1f), shape = AppShapes.small, singleLine = true)
+    OutlinedTextField(value = viewModel.maxX, onValueChange = { viewModel.maxX = it }, label = { Text("坐标 X2") }, modifier = Modifier.weight(1f), shape = AppShapes.small, singleLine = true)
+}
+Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+    OutlinedTextField(value = viewModel.minZ, onValueChange = { viewModel.minZ = it }, label = { Text("坐标 Z1") }, modifier = Modifier.weight(1f), shape = AppShapes.small, singleLine = true)
+    OutlinedTextField(value = viewModel.maxZ, onValueChange = { viewModel.maxZ = it }, label = { Text("坐标 Z2") }, modifier = Modifier.weight(1f), shape = AppShapes.small, singleLine = true)
+}
 
             BBQButton(
                 onClick = { viewModel.startStitch() },

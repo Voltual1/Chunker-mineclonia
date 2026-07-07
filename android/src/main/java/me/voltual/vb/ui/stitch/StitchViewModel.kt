@@ -17,6 +17,8 @@ import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
 import java.io.File
 import java.util.UUID
+import kotlin.math.max
+import kotlin.math.min
 
 class StitchViewModel(private val context: Context) : ViewModel() {
 
@@ -26,8 +28,8 @@ class StitchViewModel(private val context: Context) : ViewModel() {
     var dimension by mutableStateOf("minecraft:overworld")
     var minX by mutableStateOf("0")
     var minZ by mutableStateOf("0")
-    var maxX by mutableStateOf("31")
-    var maxZ by mutableStateOf("31")
+    var maxX by mutableStateOf("100")
+    var maxZ by mutableStateOf("100")
 
     var isPreparing by mutableStateOf(false)
     var prepareStatus by mutableStateOf("")
@@ -39,9 +41,6 @@ class StitchViewModel(private val context: Context) : ViewModel() {
     var stitchSuccess by mutableStateOf(false)
     var stitchError by mutableStateOf<String?>(null)
 
-    /**
-     * 统一获取 worlds 根目录，确保与 ExportViewModel 路径对齐
-     */
     private fun getWorldsDir(): File {
         val externalDir = context.getExternalFilesDir(null)
         val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
@@ -53,10 +52,16 @@ class StitchViewModel(private val context: Context) : ViewModel() {
         val sourceDoc = sourceFolder ?: return
         val destDoc = destFolder ?: return
         
-        val minXVal = minX.toIntOrNull() ?: 0
-        val minZVal = minZ.toIntOrNull() ?: 0
-        val maxXVal = maxX.toIntOrNull() ?: 31
-        val maxZVal = maxZ.toIntOrNull() ?: 31
+        // 核心修复：接收方块坐标，自动转换为区块坐标 (shr 4) 并处理大小容错
+        val x1 = minX.toIntOrNull() ?: 0
+        val z1 = minZ.toIntOrNull() ?: 0
+        val x2 = maxX.toIntOrNull() ?: 0
+        val z2 = maxZ.toIntOrNull() ?: 0
+
+        val chunkMinX = min(x1, x2) shr 4
+        val chunkMinZ = min(z1, z2) shr 4
+        val chunkMaxX = max(x1, x2) shr 4
+        val chunkMaxZ = max(z1, z2) shr 4
 
         isPreparing = true
         stitchSuccess = false
@@ -64,9 +69,7 @@ class StitchViewModel(private val context: Context) : ViewModel() {
 
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir()
-            // 缝合源：临时存储
             val sourceInternal = File(rootDir, "stitch_source")
-            // 缝合目标：直接使用 world_output，这样 Export 页面就能直接看到
             val outputInternal = File(rootDir, "world_output")
 
             sourceInternal.deleteRecursively()
@@ -74,7 +77,6 @@ class StitchViewModel(private val context: Context) : ViewModel() {
             sourceInternal.mkdirs()
             outputInternal.mkdirs()
 
-            // 1. 拷贝源存档 (只提供区块数据)
             withContext(Dispatchers.Main) { prepareStatus = "正在拷贝源世界至沙盒..." }
             val sourceCopied = copyToInternal(sourceDoc, sourceInternal)
             if (!sourceCopied) {
@@ -86,7 +88,6 @@ class StitchViewModel(private val context: Context) : ViewModel() {
             }
             FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
 
-            // 2. 拷贝目标存档 (作为被覆盖的底图)
             withContext(Dispatchers.Main) { prepareStatus = "正在拷贝目标世界至沙盒..." }
             val destCopied = copyToInternal(destDoc, outputInternal)
             if (!destCopied) {
@@ -98,11 +99,10 @@ class StitchViewModel(private val context: Context) : ViewModel() {
             }
             FileRepairUtil.repairCopiedDatabaseFiles(outputInternal)
 
-            // 3. 启动缝合 Worker
             withContext(Dispatchers.Main) {
                 isPreparing = false
                 isStitching = true
-                launchStitchWorker(sourceInternal.absolutePath, outputInternal.absolutePath, minXVal, minZVal, maxXVal, maxZVal)
+                launchStitchWorker(sourceInternal.absolutePath, outputInternal.absolutePath, chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ)
             }
         }
     }

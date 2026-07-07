@@ -18,9 +18,9 @@ import com.hivemc.chunker.conversion.handlers.WorldConversionHandler;
 import com.hivemc.chunker.conversion.handlers.pretransform.ColumnPreTransformConversionHandler;
 import com.hivemc.chunker.conversion.handlers.pretransform.ColumnPreTransformWriterConversionHandler;
 import com.hivemc.chunker.conversion.handlers.writer.ColumnWriterConversionHandler;
+import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
-import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
 import com.hivemc.chunker.pruning.PruningConfig;
@@ -40,12 +40,10 @@ import java.util.Collections;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
-/**
- * WorldStitcher 引擎 - 修复了接口实现与方法引用问题。
- */
 public class WorldStitcher {
     private final UUID sessionID;
     private final File sourceDir;
@@ -57,6 +55,7 @@ public class WorldStitcher {
     private Environment environment = null;
     private StitchConverter converter = null;
     private DB destBedrockDb = null;
+    public final AtomicInteger processedChunks = new AtomicInteger(0);
 
     public WorldStitcher(UUID sessionID, File sourceDir, File destDir, int threadCount, Consumer<Throwable> exceptionHandler, BiConsumer<String, Object> signalConsumer) {
         this.sessionID = sessionID;
@@ -68,32 +67,22 @@ public class WorldStitcher {
     }
 
     public void cancel() {
-        if (converter != null) {
-            converter.cancel();
-        }
-        if (environment != null) {
-            environment.cancel(null);
-        }
+        if (converter != null) converter.cancel();
+        if (environment != null) environment.cancel(null);
     }
 
     public TrackedTask<Void> stitch(Dimension dimension, PruningConfig pruningConfig) throws Exception {
         converter = new StitchConverter(sessionID, dimension, pruningConfig);
         converter.setCompactionSignal(signal -> {
-            if (signalConsumer != null) {
-                signalConsumer.accept(WorldConverter.SIGNAL_COMPACTION, signal);
-            }
+            if (signalConsumer != null) signalConsumer.accept(WorldConverter.SIGNAL_COMPACTION, signal);
         });
 
         Optional<? extends LevelReader> sourceReaderOpt = EncodingType.findReader(sourceDir, converter);
-        if (sourceReaderOpt.isEmpty()) {
-            throw new Exception("Unable to detect source world format.");
-        }
+        if (sourceReaderOpt.isEmpty()) throw new Exception("Unable to detect source world format.");
         LevelReader sourceReader = sourceReaderOpt.get();
 
         Optional<? extends LevelReader> destReaderDetectorOpt = EncodingType.findReader(destDir, converter);
-        if (destReaderDetectorOpt.isEmpty()) {
-            throw new Exception("Unable to detect destination world format.");
-        }
+        if (destReaderDetectorOpt.isEmpty()) throw new Exception("Unable to detect destination world format.");
         LevelReader destReaderDetector = destReaderDetectorOpt.get();
 
         if (sourceReader.getEncodingType() != destReaderDetector.getEncodingType()) {
@@ -151,12 +140,19 @@ public class WorldStitcher {
                                 try {
                                     ColumnWriter columnWriter = targetWorldWriter.writeWorld(world);
 
-                                    // 修复：通过获取到的 columnWriter 实例来引用 getPreTransformManager
-                                    ColumnConversionHandler baseHandler = new ColumnWriterConversionHandler(columnWriter, converter);
+                                    // 加入计数器，统计真正被覆写的区块数量
+                                    ColumnConversionHandler baseHandler = new ColumnWriterConversionHandler(columnWriter, converter) {
+                                        @Override
+                                        public Task<Void> convertColumn(ChunkerColumn column) {
+                                            processedChunks.incrementAndGet();
+                                            return super.convertColumn(column);
+                                        }
+                                    };
+                                    
                                     ColumnConversionHandler preTransformWriter = new ColumnPreTransformWriterConversionHandler(
                                             columnWriter::getPreTransformManager, 
                                             baseHandler, 
-                                            true
+                                            false // 完全关闭预处理缓存
                                     );
                                     ColumnConversionHandler finalHandler = new ColumnPreTransformConversionHandler(preTransformWriter, world);
                                     

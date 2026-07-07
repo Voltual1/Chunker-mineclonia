@@ -68,7 +68,7 @@ public class StitchConverter implements Converter {
     @Override
     public boolean shouldLevelDBCompaction() { return true; }
     @Override
-    public boolean shouldProcessMaps() { return false; } // 缝合时不处理地图
+    public boolean shouldProcessMaps() { return false; } 
     @Override
     public boolean shouldProcessItems() { return true; }
     @Override
@@ -81,14 +81,17 @@ public class StitchConverter implements Converter {
     public boolean shouldProcessBiomes() { return true; }
     @Override
     public boolean shouldProcessHeightMap() { return true; }
+
+    // 极其重要：必须关闭跨区块预处理，否则被裁剪掉边界外的区块会导致边界内的区块发生互相等待的死锁！
     @Override
-    public boolean shouldProcessColumnPreTransform() { return true; }
+    public boolean shouldProcessColumnPreTransform() { return false; } 
+
     @Override
     public boolean shouldProcessLighting() { return true; }
     @Override
     public boolean shouldPreventYBiomeBlending() { return false; }
     @Override
-    public boolean shouldAllowNBTCopying() { return true; } // 相同平台缝合，允许原样复制 NBT 以保真
+    public boolean shouldAllowNBTCopying() { return true; } 
     @Override
     public boolean shouldAllowCustomIdentifiers() { return true; }
     @Override
