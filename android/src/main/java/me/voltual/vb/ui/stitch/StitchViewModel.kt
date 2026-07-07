@@ -12,7 +12,6 @@ import com.anggrayudi.storage.callback.SingleFolderConflictCallback
 import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
@@ -40,11 +39,14 @@ class StitchViewModel(private val context: Context) : ViewModel() {
     var stitchSuccess by mutableStateOf(false)
     var stitchError by mutableStateOf<String?>(null)
 
-    private fun getInternalDir(folderName: String): File {
+    /**
+     * 统一获取 worlds 根目录，确保与 ExportViewModel 路径对齐
+     */
+    private fun getWorldsDir(): File {
         val externalDir = context.getExternalFilesDir(null)
-        val dir = if (externalDir != null) File(externalDir, folderName) else File(context.filesDir, folderName)
-        if (!dir.exists()) dir.mkdirs()
-        return dir
+        val worldsDir = if (externalDir != null) File(externalDir, "worlds") else File(context.filesDir, "worlds")
+        if (!worldsDir.exists()) worldsDir.mkdirs()
+        return worldsDir
     }
 
     fun startStitch() {
@@ -61,15 +63,18 @@ class StitchViewModel(private val context: Context) : ViewModel() {
         stitchError = null
 
         viewModelScope.launch(Dispatchers.IO) {
-            val sourceInternal = getInternalDir("stitch_source")
-            val destInternal = getInternalDir("stitch_dest")
+            val rootDir = getWorldsDir()
+            // 缝合源：临时存储
+            val sourceInternal = File(rootDir, "stitch_source")
+            // 缝合目标：直接使用 world_output，这样 Export 页面就能直接看到
+            val outputInternal = File(rootDir, "world_output")
 
             sourceInternal.deleteRecursively()
-            destInternal.deleteRecursively()
+            outputInternal.deleteRecursively()
             sourceInternal.mkdirs()
-            destInternal.mkdirs()
+            outputInternal.mkdirs()
 
-            // 拷贝源文件
+            // 1. 拷贝源存档 (只提供区块数据)
             withContext(Dispatchers.Main) { prepareStatus = "正在拷贝源世界至沙盒..." }
             val sourceCopied = copyToInternal(sourceDoc, sourceInternal)
             if (!sourceCopied) {
@@ -81,9 +86,9 @@ class StitchViewModel(private val context: Context) : ViewModel() {
             }
             FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
 
-            // 拷贝目标文件
+            // 2. 拷贝目标存档 (作为被覆盖的底图)
             withContext(Dispatchers.Main) { prepareStatus = "正在拷贝目标世界至沙盒..." }
-            val destCopied = copyToInternal(destDoc, destInternal)
+            val destCopied = copyToInternal(destDoc, outputInternal)
             if (!destCopied) {
                 withContext(Dispatchers.Main) { 
                     isPreparing = false
@@ -91,12 +96,13 @@ class StitchViewModel(private val context: Context) : ViewModel() {
                 }
                 return@launch
             }
-            FileRepairUtil.repairCopiedDatabaseFiles(destInternal)
+            FileRepairUtil.repairCopiedDatabaseFiles(outputInternal)
 
+            // 3. 启动缝合 Worker
             withContext(Dispatchers.Main) {
                 isPreparing = false
                 isStitching = true
-                launchStitchWorker(sourceInternal.absolutePath, destInternal.absolutePath, minXVal, minZVal, maxXVal, maxZVal)
+                launchStitchWorker(sourceInternal.absolutePath, outputInternal.absolutePath, minXVal, minZVal, maxXVal, maxZVal)
             }
         }
     }
@@ -148,7 +154,6 @@ class StitchViewModel(private val context: Context) : ViewModel() {
 
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>()
             .setInputData(inputData)
-            .setExpedited(OutOfQuotaPolicy.RUN_AS_NON_EXPEDITED_WORK_REQUEST)
             .build()
 
         stitchWorkId = workRequest.id
@@ -160,28 +165,12 @@ class StitchViewModel(private val context: Context) : ViewModel() {
                     stitchProgress = workInfo.progress.getFloat("progress", 0f)
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
-                        exportStitchedWorld()
+                        stitchSuccess = true
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isStitching = false
-                        stitchError = workInfo.outputData.getString("error") ?: "未知错误"
+                        stitchError = workInfo.outputData.getString("error") ?: "核心缝合引擎异常"
                     }
                 }
-            }
-        }
-    }
-
-    private fun exportStitchedWorld() {
-        isPreparing = true
-        prepareStatus = "打包导出中，请进入FTP或世界导出查看..."
-        viewModelScope.launch(Dispatchers.IO) {
-            val destInternal = getInternalDir("stitch_dest")
-            val outputDir = getInternalDir("world_output")
-            outputDir.deleteRecursively()
-            destInternal.renameTo(outputDir)
-            
-            withContext(Dispatchers.Main) {
-                isPreparing = false
-                stitchSuccess = true
             }
         }
     }
