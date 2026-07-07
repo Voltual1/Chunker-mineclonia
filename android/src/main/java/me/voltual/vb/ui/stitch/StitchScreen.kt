@@ -2,6 +2,7 @@ package me.voltual.vb.ui.stitch
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -9,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.WarningAmber
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -137,15 +139,14 @@ fun StitchScreen(
 
             Spacer(Modifier.height(16.dp))
 
-BBQButton(
-    onClick = { viewModel.startStitch() },
-    enabled = viewModel.sourceFolder != null && viewModel.destFolder != null && !viewModel.isPreparing && !viewModel.isStitching && !viewModel.stitchSuccess,
-    modifier = Modifier.fillMaxWidth().height(56.dp),
-    text = {
-        Text("EXECUTE STITCH // 启动移植缝合", fontWeight = FontWeight.Black)
-    }
-)
-            }
+            BBQButton(
+                onClick = { viewModel.startStitch() },
+                enabled = viewModel.sourceFolder != null && viewModel.destFolder != null && !viewModel.isPreparing && !viewModel.isStitching && !viewModel.stitchSuccess,
+                modifier = Modifier.fillMaxWidth().height(56.dp),
+                text = {
+                    Text("EXECUTE STITCH // 启动移植缝合", fontWeight = FontWeight.Black)
+                }
+            )
         }
 
         // 状态遮罩层
@@ -159,18 +160,18 @@ BBQButton(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-if (viewModel.stitchSuccess) {
-    Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
-    Spacer(Modifier.height(16.dp))
-    Text("缝合圆满完成！", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-    Spacer(Modifier.height(24.dp))
-    BBQButton(
-        onClick = { navigator.navigate(Export) },
-        text = {
-            Text("前往导出界面")
-        }
-    )
-} else if (viewModel.stitchError != null) {
+                    if (viewModel.stitchSuccess) {
+                        Icon(Icons.Default.CheckCircle, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(64.dp))
+                        Spacer(Modifier.height(16.dp))
+                        Text("缝合圆满完成！", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                        Spacer(Modifier.height(24.dp))
+                        BBQButton(
+                            onClick = { navigator.navigate(Export) },
+                            text = {
+                                Text("前往导出界面")
+                            }
+                        )
+                    } else if (viewModel.stitchError != null) {
                         Text("ERROR // 缝合故障", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
                         Spacer(Modifier.height(8.dp))
                         Text(viewModel.stitchError!!, color = MaterialTheme.colorScheme.onErrorContainer)

@@ -36,7 +36,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.data.DrawerMenuDataStore
-import org.koin.inject.KoinInject // 修复错误声明，如果不用注解就直接注入
+import org.koin.compose.koinInject 
 
 sealed class IconSource {
     data class Vector(val imageVector: ImageVector) : IconSource()

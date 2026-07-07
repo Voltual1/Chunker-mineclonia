@@ -17,8 +17,9 @@ import com.hivemc.chunker.pruning.PruningConfig
 import com.hivemc.chunker.pruning.PruningRegion
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
+import me.voltual.vb.core.database.AppDatabase
 import me.voltual.vb.core.database.entity.LogEntry
-import me.voltual.vb.core.database.repository.LogRepository
 import me.voltual.vb.ui.chunker.ConversionLogBridge
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
@@ -30,7 +31,8 @@ class StitchWorker(
     private val params: WorkerParameters
 ) : CoroutineWorker(context, params), KoinComponent {
 
-    private val logRepository: LogRepository by inject()
+    // 绕过未匹配签名的 LogRepository，直接注入 AppDatabase 操作 Dao
+    private val database: AppDatabase by inject()
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -111,7 +113,8 @@ class StitchWorker(
             val environment = stitcher.stitch(dimension, pruningConfig)
             
             var progressLoopRunning = true
-            val progressJob = kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
+            // 在与 doWork 匹配的 Dispatchers.IO 协程作用域下进行 Progress 更新
+            val progressJob = launch(Dispatchers.Default) {
                 var lastProgress = -1.0
                 while (progressLoopRunning && !environment.future().isDone) {
                     val p = environment.progress
@@ -130,8 +133,7 @@ class StitchWorker(
             log("STITCH_SUCCESS // 区块缝合操作彻底完成。")
             setProgress(workDataOf("progress" to 100f))
 
-            // 写入日志记录，符合 LogEntry 结构
-            logRepository.insertLog(
+            database.logDao().insert(
                 LogEntry(
                     id = 0,
                     type = "WORLD_STITCH",
@@ -146,7 +148,7 @@ class StitchWorker(
             log("STITCH_FAILED // 缝合失败: ${e.message}")
             e.printStackTrace()
             
-            logRepository.insertLog(
+            database.logDao().insert(
                 LogEntry(
                     id = 0,
                     type = "WORLD_STITCH",
