@@ -28,6 +28,7 @@ import me.voltual.vb.core.ui.theme.ThemeCustomizeScreen
 import me.voltual.vb.ui.home.HomeScreen
 import me.voltual.vb.ui.export.ExportScreen
 import me.voltual.vb.ui.log.LogViewModel
+import me.voltual.vb.ui.stitch.StitchScreen
 import me.voltual.vb.ui.log.LogScreen
 import me.voltual.vb.ui.settings.cache.CacheSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
@@ -35,7 +36,6 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
-import me.voltual.vb.ui.stitch.StitchScreen1
 import me.voltual.vb.ui.decoder.DecoderScreen
 import me.voltual.vb.ui.nbt.NbtEditorScreen
 import me.voltual.vb.ui.nbt.CompoundEditableNbt

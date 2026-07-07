@@ -16,9 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.*
-Icons.Default.MergeType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -38,7 +36,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.data.DrawerMenuDataStore
-import org.koin.compose.koinInject 
+import org.koin.inject.KoinInject // 修复错误声明，如果不用注解就直接注入
 
 sealed class IconSource {
     data class Vector(val imageVector: ImageVector) : IconSource()
@@ -53,7 +51,6 @@ data class DrawerItem(
 
 @Composable
 fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
-    // 战术终端不需要复杂头图，改为紧凑的数据面板装饰
     Box(
         modifier = modifier
             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
@@ -90,9 +87,9 @@ fun NavigationDrawerItems(
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页 // HOME", IconSource.Vector(IcMenuHome), Home),
+            DrawerItem("stitch", "存档缝合 // STITCH", IconSource.Vector(Icons.Default.MergeType), StitchDest),
             DrawerItem("map_preview", "地图预览 // MAP", IconSource.Vector(Icons.Default.Map), MapPreviewDest()),
             DrawerItem("pack_converter", "材质转换 // PACK", IconSource.Vector(Icons.Default.Build), PackConverterDest),
-            DrawerItem("stitch", "存档缝合 // STITCH", IconSource.Vector(Icons.Default.MergeType), StitchDest), 
             DrawerItem("decoder", "存档还原 // DECODE", IconSource.Vector(healing), DecoderDest),
             DrawerItem("logs", "系统日志 // LOGS", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理 // FTP", IconSource.Vector(Icons.Default.Share), FtpSettings),
@@ -108,7 +105,7 @@ fun NavigationDrawerItems(
     var draggedItem by remember { mutableStateOf<DrawerItem?>(null) }
     var dragOffsetY by remember { mutableStateOf(0f) }
     var itemHeight by remember { mutableStateOf(0) }
-    val drawerMenuDataStore: DrawerMenuDataStore = koinInject()
+    val drawerMenuDataStore: DrawerMenuDataStore = org.koin.compose.koinInject()
 
     var selectedItemId by remember { mutableStateOf("home") }
 
@@ -238,7 +235,6 @@ private fun ItemContent(
 ) {
     val isSelected = selectedItemId == item.id
 
-    // 选中状态带有硬边框高亮线和透明主色填充
     val itemBorder = if (isSelected) {
         BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary)
     } else {
@@ -274,7 +270,7 @@ private fun ItemContent(
             .padding(vertical = 2.dp)
             .border(itemBorder, AppShapes.small)
             .graphicsLayer { alpha = if (isDragged) 0f else 1f },
-        shape = AppShapes.small, // 硬切角
+        shape = AppShapes.small,
         colors = NavigationDrawerItemDefaults.colors(
             selectedContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
             unselectedContainerColor = Color.Transparent,

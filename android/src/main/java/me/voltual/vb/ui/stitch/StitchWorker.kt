@@ -73,17 +73,17 @@ class StitchWorker(
             listOf(PruningRegion(minX, minZ, maxX, maxZ))
         )
 
-        val sessionId = UUID.randomWork()
+        val sessionId = UUID.randomUUID()
         val logBuilder = StringBuilder()
         
-        fun log(msg: String, isError: Boolean = false) {
+        fun log(msg: String) {
             logBuilder.appendLine(msg)
-            ConversionLogBridge.sendLog(msg)
+            ConversionLogBridge.println(msg)
         }
 
         val exceptionHandler = java.util.function.Consumer<Throwable> { error ->
             val msg = "异常: ${error.message}"
-            log(msg, true)
+            log(msg)
             error.printStackTrace()
         }
 
@@ -111,7 +111,7 @@ class StitchWorker(
             val environment = stitcher.stitch(dimension, pruningConfig)
             
             var progressLoopRunning = true
-            val progressJob = kotlinx.coroutines.GlobalScope.launch {
+            val progressJob = kotlinx.coroutines.CoroutineScope(Dispatchers.Default).launch {
                 var lastProgress = -1.0
                 while (progressLoopRunning && !environment.future().isDone) {
                     val p = environment.progress
@@ -130,28 +130,29 @@ class StitchWorker(
             log("STITCH_SUCCESS // 区块缝合操作彻底完成。")
             setProgress(workDataOf("progress" to 100f))
 
+            // 写入日志记录，符合 LogEntry 结构
             logRepository.insertLog(
                 LogEntry(
                     id = 0,
-                    timestamp = System.currentTimeMillis(),
-                    taskType = "Archive Stitching",
-                    details = "Source: $sourcePath\nDest: $destPath\nBounds: ($minX, $minZ) to ($maxX, $maxZ)",
-                    fullLog = logBuilder.toString()
+                    type = "WORLD_STITCH",
+                    requestBody = "Source: $sourcePath | Dest: $destPath\nBounds: ($minX, $minZ) to ($maxX, $maxZ)",
+                    responseBody = logBuilder.toString(),
+                    status = "SUCCESS"
                 )
             )
 
             Result.success()
         } catch (e: Exception) {
-            log("STITCH_FAILED // 缝合失败: ${e.message}", true)
+            log("STITCH_FAILED // 缝合失败: ${e.message}")
             e.printStackTrace()
             
             logRepository.insertLog(
                 LogEntry(
                     id = 0,
-                    timestamp = System.currentTimeMillis(),
-                    taskType = "Archive Stitching",
-                    details = "FAILED: Source: $sourcePath | Dest: $destPath",
-                    fullLog = logBuilder.toString()
+                    type = "WORLD_STITCH",
+                    requestBody = "Source: $sourcePath | Dest: $destPath",
+                    responseBody = logBuilder.toString() + "\n" + (e.message ?: ""),
+                    status = "FAILURE"
                 )
             )
             Result.failure(workDataOf("error" to (e.message ?: "Unknown error")))
