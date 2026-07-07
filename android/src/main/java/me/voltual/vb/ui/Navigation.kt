@@ -45,6 +45,8 @@ data class TerminalExec(
 /** 存档解码还原界面 */
 @Serializable data object DecoderDest : AppDestination
 
+@Serializable data object StitchDest : AppDestination
+
 /** NBT 编辑器目标 */
 @Serializable data class NbtEditorDest(
     val filePath: String,

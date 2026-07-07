@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.*
+Icons.Default.MergeType
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -90,6 +92,7 @@ fun NavigationDrawerItems(
             DrawerItem("home", "首页 // HOME", IconSource.Vector(IcMenuHome), Home),
             DrawerItem("map_preview", "地图预览 // MAP", IconSource.Vector(Icons.Default.Map), MapPreviewDest()),
             DrawerItem("pack_converter", "材质转换 // PACK", IconSource.Vector(Icons.Default.Build), PackConverterDest),
+            DrawerItem("stitch", "存档缝合 // STITCH", IconSource.Vector(Icons.Default.MergeType), StitchDest), 
             DrawerItem("decoder", "存档还原 // DECODE", IconSource.Vector(healing), DecoderDest),
             DrawerItem("logs", "系统日志 // LOGS", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理 // FTP", IconSource.Vector(Icons.Default.Share), FtpSettings),

@@ -22,6 +22,7 @@ import androidx.datastore.preferences.core.Preferences
 import me.voltual.vb.core.ftp.FtpServerManager
 import me.voltual.vb.ui.packconverter.PackConverterViewModel
 import me.voltual.vb.ui.decoder.DecoderViewModel
+import me.voltual.vb.ui.stitch.StitchViewModel
 import me.voltual.vb.ui.nbt.NbtEditorViewModel
 import me.voltual.vb.ui.map.MapPreviewViewModel
 
@@ -43,6 +44,7 @@ val appModule = module {
     viewModel { DecoderViewModel(androidContext()) }
     viewModel { NbtEditorViewModel() }
     viewModel { MapPreviewViewModel() } 
+    viewModel { StitchViewModel(androidContext()) } 
    
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }

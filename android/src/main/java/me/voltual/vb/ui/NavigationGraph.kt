@@ -35,6 +35,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
+import me.voltual.vb.ui.stitch.StitchScreen1
 import me.voltual.vb.ui.decoder.DecoderScreen
 import me.voltual.vb.ui.nbt.NbtEditorScreen
 import me.voltual.vb.ui.nbt.CompoundEditableNbt
@@ -117,6 +118,12 @@ fun BBQNavDisplay(
 
                         is Export -> {
                             ExportScreen(modifier = Modifier.fillMaxSize())
+                        }
+                        
+                        is StitchDest -> {
+                            StitchScreen(
+                                modifier = Modifier.fillMaxSize()
+                            )
                         }
 
                         is CacheSettings -> {
