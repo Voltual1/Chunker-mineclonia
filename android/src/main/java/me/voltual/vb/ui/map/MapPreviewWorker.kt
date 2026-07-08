@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import androidx.work.workDataOf
-import androidx.work.Data
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -108,12 +107,9 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                         override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
                             val columnWriter = worldWriter.writeWorld(world ?: throw NullPointerException())
                             return FutureTask(CompletableFuture.completedFuture(object : ColumnConversionHandler {
-                                // 修复：明确指定返回 Task<java.lang.Void>
-                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> {
-                                    return columnWriter.writeColumn(column)
-                                }
-                                override fun flushRegion(regionCoordPair: RegionCoordPair): Task<java.lang.Void> {
-                                    columnWriter.flushRegion(regionCoordPair)
+                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> = columnWriter.writeColumn(column)
+                                override fun flushRegion(region: RegionCoordPair): Task<java.lang.Void> {
+                                    columnWriter.flushRegion(region)
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
                                 override fun flushColumns(): Task<java.lang.Void> {
@@ -128,8 +124,14 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                 }
                 override fun flushLevel() { previewWriter.flushLevel() }
             })
+            
+            // 必须先 close 才能访问 future()
+            environment.close()
             environment.future().get()
-        } finally { environment.close() }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext Result.failure(workDataOf("error" to (e.message ?: "解析失败")))
+        }
 
         Result.success(workDataOf("isBedrock" to (levelReader.encodingType == EncodingType.BEDROCK)))
     }

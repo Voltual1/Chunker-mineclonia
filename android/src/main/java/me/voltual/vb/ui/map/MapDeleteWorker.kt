@@ -22,7 +22,7 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
         val isBedrock = inputData.getBoolean("isBedrock", false)
         val dimId = inputData.getString("dimension") ?: "minecraft:overworld"
         
-        // 修复：DimensionRegistry().dimensions 改为 getDimensions()
+        // 修正 DimensionRegistry 获取方式
         val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
         val chunkMinX = inputData.getInt("minX", 0)
@@ -52,6 +52,7 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
                     db.write(batch)
                 }
             } else {
+                // Java 逻辑保持
                 val dimFolder = when (dimension) {
                     Dimension.NETHER -> "DIM-1"
                     Dimension.THE_END -> "DIM1"
@@ -60,10 +61,8 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
                 val dirs = listOf("region", "entities", "poi")
                 for (cx in chunkMinX..chunkMaxX) {
                     for (cz in chunkMinZ..chunkMaxZ) {
-                        val rx = cx shr 5
-                        val rz = cz shr 5
                         dirs.forEach { dirName ->
-                            val targetPath = if (dimFolder.isEmpty()) File(worldDirUri, "$dirName/r.$rx.$rz.mca") else File(worldDirUri, "$dimFolder/$dirName/r.$rx.$rz.mca")
+                            val targetPath = if (dimFolder.isEmpty()) File(worldDirUri, "$dirName/r.${cx shr 5}.${cz shr 5}.mca") else File(worldDirUri, "$dimFolder/$dirName/r.${cx shr 5}.${cz shr 5}.mca")
                             if (targetPath.exists()) {
                                 RandomAccessFile(targetPath, "rw").use { raf ->
                                     val index = (cx and 31) + (cz and 31) * 32

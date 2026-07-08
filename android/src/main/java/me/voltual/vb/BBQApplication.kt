@@ -37,7 +37,13 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
 
         val processName = getProcessName(this)
         
+        // 核心修复：针对子进程强制手动初始化 WorkManager
         if (processName != null && processName.endsWith(":conversion")) {
+            try {
+                WorkManager.initialize(this, workManagerConfiguration)
+            } catch (e: Exception) {
+                // 已经初始化过则忽略
+            }
             return
         }
 
@@ -49,7 +55,6 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
         WorkManager.getInstance(this).pruneWork()
 
         val crashLogFile = File(filesDir, "terminal_crash.log")
-
         try {
             com.termux.terminal.JNI.setupNativeCrashHandler(crashLogFile.absolutePath)
         } catch (e: Throwable) {
@@ -59,9 +64,6 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
         checkAndRecoverCrashLog(crashLogFile)
     }
 
-    /**
-     * 核心修复：根据 WorkManager 最新接口规范，将方法改为属性重写
-     */
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
             .setMinimumLoggingLevel(Log.INFO)

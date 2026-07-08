@@ -361,7 +361,7 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            // 核心修复：使用 getDimensions()
+            // 修正引用
             val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
