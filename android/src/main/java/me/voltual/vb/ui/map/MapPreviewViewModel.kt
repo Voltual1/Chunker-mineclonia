@@ -125,6 +125,76 @@ class MapPreviewViewModel : ViewModel() {
         return worldsDir
     }
 
+    // --- 补全：删除单个区块方法 ---
+    suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                if (isBedrock) {
+                    val dbDir = File(worldDirUri, "db")
+                    if (!dbDir.exists()) return@withContext false
+                    
+                    File(dbDir, "LOCK").delete()
+                    val options = Options().createIfMissing(false)
+                    Iq80DBFactory.factory.open(dbDir, options).use { db ->
+                        val batch = db.createWriteBatch()
+                        for (type in LevelDBChunkType.values()) {
+                            if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
+                                for (y in -64..64) {
+                                    batch.delete(LevelDBKey.key(dimension, chunk, y.toByte(), type))
+                                }
+                            } else {
+                                batch.delete(LevelDBKey.key(dimension, chunk, type))
+                            }
+                        }
+                        db.write(batch)
+                    }
+                } else {
+                    val regionX = chunk.chunkX() shr 5
+                    val regionZ = chunk.chunkZ() shr 5
+                    val dimFolder = when (dimension) {
+                        Dimension.NETHER -> "DIM-1"
+                        Dimension.THE_END -> "DIM1"
+                        else -> ""
+                    }
+                    val dirs = listOf("region", "entities", "poi")
+                    var deletedAny = false
+                    
+                    dirs.forEach { dirName ->
+                        val targetPath = if (dimFolder.isEmpty()) {
+                            File(worldDirUri, "$dirName/r.$regionX.$regionZ.mca")
+                        } else {
+                            File(worldDirUri, "$dimFolder/$dirName/r.$regionX.$regionZ.mca")
+                        }
+                        
+                        if (targetPath.exists()) {
+                            RandomAccessFile(targetPath, "rw").use { raf ->
+                                val index = (chunk.chunkX() and 31) + (chunk.chunkZ() and 31) * 32
+                                raf.seek(index * 4L)
+                                raf.writeInt(0)
+                                deletedAny = true
+                            }
+                        }
+                    }
+                    if (!deletedAny) return@withContext false
+                }
+
+                val dimRegion = Pair(dimension, chunk.region)
+                val chunkMap = regionRGBAData[dimRegion]
+                if (chunkMap != null) {
+                    chunkMap.remove(chunk)
+                    val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
+                    withContext(Dispatchers.Main) {
+                        regionBitmaps[dimRegion] = newBitmap
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
+    }
+
     fun prepareDestinationAndLoad(context: Context, destDoc: DocumentFile) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
@@ -159,7 +229,6 @@ class MapPreviewViewModel : ViewModel() {
             FileRepairUtil.repairCopiedDatabaseFiles(outputInternal)
             
             withContext(Dispatchers.Main) {
-                // 清理并渲染目标世界
                 internalLoadAndRender(context, outputInternal.absolutePath)
             }
         }
@@ -170,7 +239,6 @@ class MapPreviewViewModel : ViewModel() {
         val end = sourceSelectionEnd ?: return
         val target = pasteTargetPoint ?: return
 
-        // 方块坐标 -> 区块坐标
         val chunkMinX = min(start.first, end.first) shr 4
         val chunkMinZ = min(start.second, end.second) shr 4
         val chunkMaxX = max(start.first, end.first) shr 4
@@ -246,7 +314,6 @@ class MapPreviewViewModel : ViewModel() {
                 countDownLatch.await()
                 FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
             } else if (useFtpInput) {
-                // 直接使用 ftp 作为源
                 val ftpDir = File(rootDir, "world_input")
                 sourceInternal.deleteRecursively()
                 ftpDir.renameTo(sourceInternal)
@@ -359,7 +426,6 @@ class MapPreviewViewModel : ViewModel() {
         statusMessage = "预览加载完成！"
     }
 
-    // 保持不相干逻辑一致（删区块等）
     fun checkExistingFtpInput(context: Context) {
         val inputDir = File(getWorldsDir(context), "world_input")
         hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
