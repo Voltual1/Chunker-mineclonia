@@ -40,7 +40,6 @@
             android:process=":conversion"
             tools:node="merge" />
 
-        <!-- 默认的 WorkManager 初始化器配置 -->
         <provider
             android:name="androidx.startup.InitializationProvider"
             android:authorities="${applicationId}.androidx-startup"
@@ -49,8 +48,7 @@
             <meta-data
                 android:name="androidx.work.WorkManagerInitializer"
                 android:value="androidx.startup"
-                tools:node="merge" />
-        </provider>
+                tools:node="remove" /> </provider>
 
     </application>
 </manifest>
