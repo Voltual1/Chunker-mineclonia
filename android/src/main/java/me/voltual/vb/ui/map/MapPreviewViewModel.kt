@@ -103,6 +103,10 @@ class MapPreviewViewModel : ViewModel() {
     var stitchSuccess by mutableStateOf(false)
     var stitchError by mutableStateOf<String?>(null)
 
+    // --- 新增：检测中转站独立目标世界列表与缝合目标路径缓存 ---
+    var localTargetWorlds = mutableStateListOf<File>()
+    var currentDestPath by mutableStateOf("")
+
     fun toggleSourceSelectionMode() {
         if (previewState == PreviewState.IDLE) {
             previewState = PreviewState.SOURCE_SELECT
@@ -125,94 +129,55 @@ class MapPreviewViewModel : ViewModel() {
         return worldsDir
     }
 
-    // --- 补全：删除单个区块方法 ---
-    suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {
-        return withContext(Dispatchers.IO) {
-            try {
-                if (isBedrock) {
-                    val dbDir = File(worldDirUri, "db")
-                    if (!dbDir.exists()) return@withContext false
-                    
-                    File(dbDir, "LOCK").delete()
-                    val options = Options().createIfMissing(false)
-                    Iq80DBFactory.factory.open(dbDir, options).use { db ->
-                        val batch = db.createWriteBatch()
-                        for (type in LevelDBChunkType.values()) {
-                            if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
-                                for (y in -64..64) {
-                                    batch.delete(LevelDBKey.key(dimension, chunk, y.toByte(), type))
-                                }
-                            } else {
-                                batch.delete(LevelDBKey.key(dimension, chunk, type))
-                            }
-                        }
-                        db.write(batch)
-                    }
-                } else {
-                    val regionX = chunk.chunkX() shr 5
-                    val regionZ = chunk.chunkZ() shr 5
-                    val dimFolder = when (dimension) {
-                        Dimension.NETHER -> "DIM-1"
-                        Dimension.THE_END -> "DIM1"
-                        else -> ""
-                    }
-                    val dirs = listOf("region", "entities", "poi")
-                    var deletedAny = false
-                    
-                    dirs.forEach { dirName ->
-                        val targetPath = if (dimFolder.isEmpty()) {
-                            File(worldDirUri, "$dirName/r.$regionX.$regionZ.mca")
-                        } else {
-                            File(worldDirUri, "$dimFolder/$dirName/r.$regionX.$regionZ.mca")
-                        }
-                        
-                        if (targetPath.exists()) {
-                            RandomAccessFile(targetPath, "rw").use { raf ->
-                                val index = (chunk.chunkX() and 31) + (chunk.chunkZ() and 31) * 32
-                                raf.seek(index * 4L)
-                                raf.writeInt(0)
-                                deletedAny = true
-                            }
-                        }
-                    }
-                    if (!deletedAny) return@withContext false
-                }
-
-                val dimRegion = Pair(dimension, chunk.region)
-                val chunkMap = regionRGBAData[dimRegion]
-                if (chunkMap != null) {
-                    chunkMap.remove(chunk)
-                    val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
-                    withContext(Dispatchers.Main) {
-                        regionBitmaps[dimRegion] = newBitmap
-                    }
-                }
-                true
-            } catch (e: Exception) {
-                e.printStackTrace()
-                false
+    /**
+     * 扫描中转站（除临时及源目录外）可作为缝合目标的已有世界文件夹
+     */
+    fun scanLocalTargetWorlds(context: Context) {
+        val rootDir = getWorldsDir(context)
+        val files = rootDir.listFiles() ?: emptyArray()
+        localTargetWorlds.clear()
+        localTargetWorlds.addAll(
+            files.filter { 
+                it.isDirectory && 
+                it.name != "stitch_source" && 
+                it.name != "world_preview" && 
+                it.name != "stitch_dest_temp"
             }
+        )
+    }
+
+    /**
+     * 情况 1：直接选中本地已有目标文件夹，将其作为粘贴底图载入
+     */
+    fun selectExistingLocalTarget(context: Context, targetFolder: File) {
+        currentDestPath = targetFolder.absolutePath
+        previewState = PreviewState.DEST_PASTE
+        viewModelScope.launch(Dispatchers.Main) {
+            internalLoadAndRender(context, currentDestPath)
         }
     }
 
-    fun prepareDestinationAndLoad(context: Context, destDoc: DocumentFile) {
+    /**
+     * 情况 2：使用 SAF 从外部复制，我们写入一个独立的目录 `stitch_dest_temp`
+     */
+    fun copyExternalTargetToTemp(context: Context, destDoc: DocumentFile) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
-            val outputInternal = File(rootDir, "world_output")
-            outputInternal.deleteRecursively()
-            outputInternal.mkdirs()
+            val tempDestDir = File(rootDir, "stitch_dest_temp")
+            tempDestDir.deleteRecursively()
+            tempDestDir.mkdirs()
 
-            withContext(Dispatchers.Main) { 
-                previewState = PreviewState.DEST_PASTE 
+            withContext(Dispatchers.Main) {
+                previewState = PreviewState.DEST_PASTE
                 isLoading = true
-                statusMessage = "正在迁移目标存档作为粘贴底图..."
+                statusMessage = "正在复制目标至临时缝合区..."
             }
 
             val countDownLatch = java.util.concurrent.CountDownLatch(1)
             destDoc.copyFolderTo(
                 context = context,
                 targetParentFolder = DocumentFile.fromFile(rootDir),
-                newFolderNameInTargetPath = outputInternal.name,
+                newFolderNameInTargetPath = tempDestDir.name,
                 skipEmptyFiles = false,
                 onConflict = object : SingleFolderConflictCallback(viewModelScope) {
                     override fun onParentConflict(destinationFolder: DocumentFile, action: ParentFolderConflictAction, canMerge: Boolean) {
@@ -226,10 +191,11 @@ class MapPreviewViewModel : ViewModel() {
             }
             countDownLatch.await()
 
-            FileRepairUtil.repairCopiedDatabaseFiles(outputInternal)
-            
+            FileRepairUtil.repairCopiedDatabaseFiles(tempDestDir)
+            currentDestPath = tempDestDir.absolutePath
+
             withContext(Dispatchers.Main) {
-                internalLoadAndRender(context, outputInternal.absolutePath)
+                internalLoadAndRender(context, currentDestPath)
             }
         }
     }
@@ -256,11 +222,10 @@ class MapPreviewViewModel : ViewModel() {
 
         val rootDir = getWorldsDir(context)
         val sourceInternalPath = File(rootDir, "stitch_source").absolutePath
-        val destInternalPath = File(rootDir, "world_output").absolutePath
 
         val inputData = workDataOf(
             "sourcePath" to sourceInternalPath,
-            "destPath" to destInternalPath,
+            "destPath" to currentDestPath,
             "dimension" to selectedDimension.getIdentifier(),
             "minX" to chunkMinX,
             "minZ" to chunkMinZ,
@@ -278,14 +243,22 @@ class MapPreviewViewModel : ViewModel() {
                 if (workInfo != null) {
                     stitchProgress = workInfo.progress.getFloat("progress", 0f)
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                        // 缝合成功后，若目标为 stitch_dest_temp，将其重命名为 world_output 提供导出，否则直接提供导出
+                        if (currentDestPath.endsWith("stitch_dest_temp")) {
+                            val outputDir = File(rootDir, "world_output")
+                            outputDir.deleteRecursively()
+                            File(currentDestPath).renameTo(outputDir)
+                        }
                         stitchSuccess = true
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
+                        isStitching = false
                         stitchError = workInfo.outputData.getString("error") ?: "核心缝合引擎异常"
                     }
                 }
             }
         }
     }
+    // --- 新增结束 ---
 
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -295,7 +268,7 @@ class MapPreviewViewModel : ViewModel() {
             withContext(Dispatchers.Main) {
                 previewState = PreviewState.IDLE
                 isLoading = true
-                statusMessage = "正在迁移源存档作为裁剪底图..."
+                statusMessage = "正在迁移源世界作为裁剪底图..."
             }
 
             if (!useFtpInput && docFolder != null) {
@@ -426,14 +399,72 @@ class MapPreviewViewModel : ViewModel() {
         statusMessage = "预览加载完成！"
     }
 
-    fun checkExistingFtpInput(context: Context) {
-        val inputDir = File(getWorldsDir(context), "world_input")
-        hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
-    }
+    suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                if (isBedrock) {
+                    val dbDir = File(worldDirUri, "db")
+                    if (!dbDir.exists()) return@withContext false
+                    
+                    File(dbDir, "LOCK").delete()
+                    val options = Options().createIfMissing(false)
+                    Iq80DBFactory.factory.open(dbDir, options).use { db ->
+                        val batch = db.createWriteBatch()
+                        for (type in LevelDBChunkType.values()) {
+                            if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
+                                for (y in -64..64) {
+                                    batch.delete(LevelDBKey.key(dimension, chunk, y.toByte(), type))
+                                }
+                            } else {
+                                batch.delete(LevelDBKey.key(dimension, chunk, type))
+                            }
+                        }
+                        db.write(batch)
+                    }
+                } else {
+                    val regionX = chunk.chunkX() shr 5
+                    val regionZ = chunk.chunkZ() shr 5
+                    val dimFolder = when (dimension) {
+                        Dimension.NETHER -> "DIM-1"
+                        Dimension.THE_END -> "DIM1"
+                        else -> ""
+                    }
+                    val dirs = listOf("region", "entities", "poi")
+                    var deletedAny = false
+                    
+                    dirs.forEach { dirName ->
+                        val targetPath = if (dimFolder.isEmpty()) {
+                            File(worldDirUri, "$dirName/r.$regionX.$regionZ.mca")
+                        } else {
+                            File(worldDirUri, "$dimFolder/$dirName/r.$regionX.$regionZ.mca")
+                        }
+                        
+                        if (targetPath.exists()) {
+                            RandomAccessFile(targetPath, "rw").use { raf ->
+                                val index = (chunk.chunkX() and 31) + (chunk.chunkZ() and 31) * 32
+                                raf.seek(index * 4L)
+                                raf.writeInt(0)
+                                deletedAny = true
+                            }
+                        }
+                    }
+                    if (!deletedAny) return@withContext false
+                }
 
-    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
-        navigator.navigate(
-            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
-        )
+                val dimRegion = Pair(dimension, chunk.region)
+                val chunkMap = regionRGBAData[dimRegion]
+                if (chunkMap != null) {
+                    chunkMap.remove(chunk)
+                    val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
+                    withContext(Dispatchers.Main) {
+                        regionBitmaps[dimRegion] = newBitmap
+                    }
+                }
+                true
+            } catch (e: Exception) {
+                e.printStackTrace()
+                false
+            }
+        }
     }
 }

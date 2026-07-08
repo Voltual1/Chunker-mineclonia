@@ -12,6 +12,8 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -44,6 +46,7 @@ import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.TopAppBarAction
 import me.voltual.vb.ui.Export
+import me.voltual.vb.ui.FtpSettings
 import org.koin.compose.viewmodel.koinViewModel
 import java.io.File
 import kotlin.math.abs
@@ -68,6 +71,9 @@ fun MapPreviewScreen(
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
 
+    // 弹窗状态
+    var showDestinationSelectDialog by remember { mutableStateOf(false) }
+
     val folderPicker = rememberLauncherForFolderPicker { folder ->
         viewModel.worldDirUri = folder.uri.toString()
         composeBitmaps.clear()
@@ -76,9 +82,10 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
+    // 独立的外部粘贴底图拷贝
     val targetStitchPicker = rememberLauncherForFolderPicker { targetFolder ->
         composeBitmaps.clear()
-        viewModel.prepareDestinationAndLoad(context, targetFolder)
+        viewModel.copyExternalTargetToTemp(context, targetFolder)
     }
 
     LaunchedEffect(initialFolderUri) {
@@ -104,8 +111,8 @@ fun MapPreviewScreen(
                         onClick = { viewModel.showGrid = !viewModel.showGrid }
                     ),
                     TopAppBarAction(
-                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
-                        description = "打开存档",
+                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开世界", tint = tint) },
+                        description = "打开世界",
                         onClick = { folderPicker.launch() }
                     )
                 )
@@ -196,8 +203,8 @@ fun MapPreviewScreen(
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         val s = viewModel.sourceSelectionStart!!
                                         val e = viewModel.sourceSelectionEnd!!
-                                        val w = kotlin.math.abs(e.first - s.first)
-                                        val h = kotlin.math.abs(e.second - s.second)
+                                        val w = abs(e.first - s.first)
+                                        val h = abs(e.second - s.second)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
@@ -207,8 +214,12 @@ fun MapPreviewScreen(
                                         Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
                                         Spacer(Modifier.height(16.dp))
                                         BBQButton(
-                                            onClick = { targetStitchPicker.launch() }, modifier = Modifier.fillMaxWidth(),
-                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("选择目标世界作为粘贴底图...", fontWeight = FontWeight.Bold) } }
+                                            onClick = {
+                                                viewModel.scanLocalTargetWorlds(context)
+                                                showDestinationSelectDialog = true
+                                            }, 
+                                            modifier = Modifier.fillMaxWidth(),
+                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("准备选择缝合覆盖的目标世界...", fontWeight = FontWeight.Bold) } }
                                         )
                                     }
                                 }
@@ -273,10 +284,98 @@ fun MapPreviewScreen(
                         Spacer(Modifier.height(24.dp))
                         LinearProgressIndicator(progress = { viewModel.stitchProgress }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(8.dp))
-                        Text("${(viewModel.stitchProgress * 100).toInt()}%", fontWeight = FontWeight.Bold)
+                        Text("${(viewModel.stitchProgress * 10).toInt()}%", fontWeight = FontWeight.Bold)
                     }
                 }
             }
+        }
+
+        // 新增：目标选择弹窗 (覆盖已有存档、外部SAF、或快捷导航到 FTP)
+        if (showDestinationSelectDialog) {
+            AlertDialog(
+                onDismissRequest = { showDestinationSelectDialog = false },
+                shape = AppShapes.medium,
+                containerColor = MaterialTheme.colorScheme.surface,
+                title = { Text("TARGET WORLD SELECT // 选择目标存档", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium) },
+                text = {
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+                        Text("请选择要覆盖缝合的已有世界目标，或从系统外载入：", style = MaterialTheme.typography.bodyMedium)
+
+                        // 本地已有存档列表
+                        if (viewModel.localTargetWorlds.isNotEmpty()) {
+                            Text("已检出中转站存档列表：", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                            LazyColumn(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 200.dp)
+                                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f), AppShapes.small)
+                                    .padding(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp)
+                            ) {
+                                items(viewModel.localTargetWorlds) { folder ->
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.surfaceVariant,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clickable {
+                                                composeBitmaps.clear()
+                                                viewModel.selectExistingLocalTarget(context, folder)
+                                                showDestinationSelectDialog = false
+                                            },
+                                        shape = AppShapes.small
+                                    ) {
+                                        Text(
+                                            text = folder.name,
+                                            modifier = Modifier.padding(12.dp),
+                                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            Text("（当前中转站没有其他可用存档）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+                        }
+
+                        Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                        // 从系统内以 SAF 复制
+                        Button(
+                            onClick = {
+                                showDestinationSelectDialog = false
+                                targetStitchPicker.launch()
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            shape = AppShapes.small
+                        ) {
+                            Icon(Icons.Default.FolderOpen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("SAF // 从系统加载全新目标", fontWeight = FontWeight.Bold)
+                        }
+
+                        // 导航至 FTP
+                        OutlinedButton(
+                            onClick = {
+                                showDestinationSelectDialog = false
+                                navigator.navigate(FtpSettings)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = AppShapes.small,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            Icon(Icons.Default.Wifi, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("ROUTE // 前往 FTP 导入存档", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                },
+                confirmButton = {},
+                dismissButton = {
+                    TextButton(onClick = { showDestinationSelectDialog = false }) {
+                        Text("ABORT")
+                    }
+                }
+            )
         }
     }
 }
