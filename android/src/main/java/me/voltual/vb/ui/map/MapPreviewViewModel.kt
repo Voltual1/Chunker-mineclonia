@@ -23,15 +23,38 @@ import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
+import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry // 核心修复：补全导入
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
 import me.voltual.vb.ui.stitch.StitchWorker
+import com.hivemc.chunker.conversion.encoding.EncodingType
+import com.hivemc.chunker.conversion.encoding.base.Converter
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
+import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
+import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
+import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
+import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
+import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings
+import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
+import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
+import com.hivemc.chunker.scheduling.task.FutureTask
+import com.hivemc.chunker.scheduling.task.Task
+import org.iq80.leveldb.Options
+import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.RandomAccessFile
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
 
@@ -54,6 +77,7 @@ class MapPreviewViewModel : ViewModel() {
     var selectedDimension by mutableStateOf(Dimension.OVERWORLD)
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
+    private val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
 
     var statusMessage by mutableStateOf("")
         private set
@@ -222,7 +246,8 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    stitchProgress = workInfo.progress.getFloat("progress", 0f)
+                    val rawProgress = workInfo.progress.getFloat("progress", 0f)
+                    stitchProgress = rawProgress / 10f
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
@@ -285,6 +310,7 @@ class MapPreviewViewModel : ViewModel() {
         mapScale = 1f
         mapOffset = Offset.Zero
         regionBitmaps.clear()
+        regionRGBAData.clear()
         availableDimensions.clear()
         worldDirUri = path
 
@@ -302,23 +328,25 @@ class MapPreviewViewModel : ViewModel() {
         val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
         RemoteWorkManager.getInstance(context).enqueueUniqueWork("map_preview", ExistingWorkPolicy.REPLACE, workRequest)
 
-        WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
-            if (workInfo != null) {
-                if (workInfo.state == WorkInfo.State.RUNNING) {
-                    val progStatus = workInfo.progress.getString("status")
-                    if (progStatus != null && progStatus == "FLUSHED") {
-                        statusMessage = "正在读取区块并构建图像数据..."
+        viewModelScope.launch {
+            WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+                if (workInfo != null) {
+                    if (workInfo.state == WorkInfo.State.RUNNING) {
+                        val progStatus = workInfo.progress.getString("status")
+                        if (progStatus != null && progStatus == "FLUSHED") {
+                            statusMessage = "正在读取区块并构建图像数据..."
+                            loadBitmapsFromDir(cacheMapDir)
+                        }
+                    } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                        isBedrock = workInfo.outputData.getBoolean("isBedrock", false)
                         loadBitmapsFromDir(cacheMapDir)
+                        isLoading = false
+                        isLoaded = true
+                        statusMessage = "预览加载完成！"
+                    } else if (workInfo.state == WorkInfo.State.FAILED) {
+                        isLoading = false
+                        statusMessage = "解析出错：" + (workInfo.outputData.getString("error") ?: "未知")
                     }
-                } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                    isBedrock = workInfo.outputData.getBoolean("isBedrock", false)
-                    loadBitmapsFromDir(cacheMapDir)
-                    isLoading = false
-                    isLoaded = true
-                    statusMessage = "预览加载完成！"
-                } else if (workInfo.state == WorkInfo.State.FAILED) {
-                    isLoading = false
-                    statusMessage = "解析出错：" + (workInfo.outputData.getString("error") ?: "未知")
                 }
             }
         }
@@ -333,10 +361,11 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            val dimension = DimensionRegistry().dimensions.find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
+            // 核心修复：使用 getDimensions()
+            val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
-            if (regionBitmaps.containsKey(dimRegion)) continue // 已加载
+            if (regionBitmaps.containsKey(dimRegion)) continue
 
             val pixels = IntArray(512 * 512)
             try {
@@ -351,7 +380,8 @@ class MapPreviewViewModel : ViewModel() {
     }
 
     fun checkExistingFtpInput(context: Context) {
-        val inputDir = File(getWorldsDir(context), "world_input")
+        val rootDir = getWorldsDir(context)
+        val inputDir = File(rootDir, "world_input")
         hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
     }
 
@@ -361,7 +391,6 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    // --- 在子进程执行 LevelDB 和 MCA 删除，并返回结果修改可变 Bitmap 以触发 Compose Canvas 热更新发黑 ---
     suspend fun deleteSelectedChunks(context: Context, startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>): Int = withContext(Dispatchers.IO) {
         val chunkMinX = min(startBlock.first, endBlock.first) shr 4
         val chunkMinZ = min(startBlock.second, endBlock.second) shr 4
@@ -371,7 +400,7 @@ class MapPreviewViewModel : ViewModel() {
         val inputData = Data.Builder()
             .putString("worldDirUri", worldDirUri)
             .putBoolean("isBedrock", isBedrock)
-            .putString("dimension", selectedDimension.identifier)
+            .putString("dimension", selectedDimension.getIdentifier())
             .putInt("minX", chunkMinX)
             .putInt("minZ", chunkMinZ)
             .putInt("maxX", chunkMaxX)
@@ -412,7 +441,6 @@ class MapPreviewViewModel : ViewModel() {
                         val startX = (cx and 31) * 16f
                         val startZ = (cz and 31) * 16f
                         canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
-                        
                         regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = mutableBmp
                     }

@@ -228,7 +228,7 @@ fun MapPreviewScreen(
                                         Button(
                                             onClick = {
                                                 coroutineScope.launch {
-                                                    val count = viewModel.deleteSelectedChunks(s, e)
+                                                    val count = viewModel.deleteSelectedChunks(context, s, e)
                                                     viewModel.clearSelection()
                                                     snackbarHostState.showSnackbar("SECTOR_PURGE // 成功物理抹除了 $count 个区块")
                                                 }
