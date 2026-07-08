@@ -27,6 +27,7 @@ import com.hivemc.chunker.pruning.PruningConfig;
 import com.hivemc.chunker.scheduling.task.Environment;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.scheduling.task.TrackedTask;
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
