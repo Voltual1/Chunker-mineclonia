@@ -92,24 +92,19 @@ class MapPreviewViewModel : ViewModel() {
     var hasExistingFtpInput by mutableStateOf(false)
         private set
 
-    // 选取坐标（方块系）
     var sourceSelectionStart by mutableStateOf<Pair<Int, Int>?>(null)
     var sourceSelectionEnd by mutableStateOf<Pair<Int, Int>?>(null)
 
-    // 粘贴左上角坐标（方块系）
     var pasteTargetPoint by mutableStateOf<Pair<Int, Int>?>(null)
 
-    // 缝合状态变量声明
     var isStitching by mutableStateOf(false)
     var stitchProgress by mutableStateOf(0f)
     var stitchSuccess by mutableStateOf(false)
     var stitchError by mutableStateOf<String?>(null)
 
-    // 检测中转站独立目标世界列表与缝合目标路径缓存
     val localTargetWorlds = mutableStateListOf<File>()
     var currentDestPath by mutableStateOf("")
 
-    // --- 核心修复：补全缺失的选区重置与清除方法 ---
     fun clearSelection() {
         sourceSelectionStart = null
         sourceSelectionEnd = null
@@ -243,7 +238,10 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    stitchProgress = workInfo.progress.getFloat("progress", 0f)
+                    // 修复：在这里同步除以 10f，确保界面显示的进度控制在合理的百份比内
+                    val rawProgress = workInfo.progress.getFloat("progress", 0f)
+                    stitchProgress = rawProgress / 10f
+                    
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
@@ -504,6 +502,8 @@ class MapPreviewViewModel : ViewModel() {
                 if (chunkMap != null) {
                     val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
                     withContext(Dispatchers.Main) {
+                        // 核心修复：通过重新赋值触发 Compose Canvas 重组重绘
+                        regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = newBitmap
                     }
                 }
@@ -572,6 +572,8 @@ class MapPreviewViewModel : ViewModel() {
                     chunkMap.remove(chunk)
                     val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
                     withContext(Dispatchers.Main) {
+                        // 通过重新赋值触发 Compose Canva用 重组重绘
+                        regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = newBitmap
                     }
                 }

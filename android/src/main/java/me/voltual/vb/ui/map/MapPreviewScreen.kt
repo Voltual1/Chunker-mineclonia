@@ -199,13 +199,14 @@ fun MapPreviewScreen(
                                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
                                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
+                                //安全解包，防止 AnimatedVisibility 尚未退出时被 clearSelection() 置空引起的 NPE
+                                val s = viewModel.sourceSelectionStart ?: return@AnimatedVisibility
+                                val e = viewModel.sourceSelectionEnd ?: return@AnimatedVisibility
+                                val w = abs(e.first - s.first)
+                                val h = abs(e.second - s.second)
+                                
                                 Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        val s = viewModel.sourceSelectionStart!!
-                                        val e = viewModel.sourceSelectionEnd!!
-                                        val w = abs(e.first - s.first)
-                                        val h = abs(e.second - s.second)
-                                        
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
@@ -213,9 +214,8 @@ fun MapPreviewScreen(
                                         }
                                         Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
                                         
-                                        Spacer(Modifier.height(8.dp))
+                                        Spacer(modifier = Modifier.height(8.dp))
                                         
-                                        // 缝合操作
                                         BBQButton(
                                             onClick = {
                                                 viewModel.scanLocalTargetWorlds(context)
@@ -225,7 +225,6 @@ fun MapPreviewScreen(
                                             text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("缝合复制到目标世界...", fontWeight = FontWeight.Bold) } }
                                         )
 
-                                        // 新增：批量物理销毁操作
                                         Button(
                                             onClick = {
                                                 coroutineScope.launch {
