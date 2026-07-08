@@ -17,8 +17,8 @@ import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
+import com.hivemc.chunker.conversion.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
 import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -108,6 +108,14 @@ class MapPreviewViewModel : ViewModel() {
     // 检测中转站独立目标世界列表与缝合目标路径缓存
     val localTargetWorlds = mutableStateListOf<File>()
     var currentDestPath by mutableStateOf("")
+
+    // --- 核心修复：补全缺失的选区重置与清除方法 ---
+    fun clearSelection() {
+        sourceSelectionStart = null
+        sourceSelectionEnd = null
+        pasteTargetPoint = null
+        previewState = PreviewState.IDLE
+    }
 
     fun toggleSourceSelectionMode() {
         if (previewState == PreviewState.IDLE) {
@@ -403,7 +411,6 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    // --- 新增：批量物理删除选区内所有区块的核心方法 ---
     suspend fun deleteSelectedChunks(startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>): Int = withContext(Dispatchers.IO) {
         var deletedCount = 0
         try {
@@ -433,7 +440,6 @@ class MapPreviewViewModel : ViewModel() {
                                 }
                             }
                             
-                            // 从渲染缓存中清理对应的坐标
                             val dimRegion = Pair(selectedDimension, chunk.region)
                             regionRGBAData[dimRegion]?.remove(chunk)
                             deletedCount++
@@ -442,7 +448,6 @@ class MapPreviewViewModel : ViewModel() {
                     db.write(batch)
                 }
             } else {
-                // Java / MCA 物理擦除
                 val regionXStart = chunkMinX shr 5
                 val regionZStart = chunkMinZ shr 5
                 val regionXEnd = chunkMaxX shr 5
@@ -471,7 +476,7 @@ class MapPreviewViewModel : ViewModel() {
                                             if ((cx shr 5) == rx && (cz shr 5) == rz) {
                                                 val index = (cx and 31) + (cz and 31) * 32
                                                 raf.seek(index * 4L)
-                                                raf.writeInt(0) // 擦除指针
+                                                raf.writeInt(0) 
                                                 
                                                 val chunk = ChunkCoordPair(cx, cz)
                                                 val dimRegion = Pair(selectedDimension, chunk.region)
@@ -487,7 +492,6 @@ class MapPreviewViewModel : ViewModel() {
                 }
             }
 
-            // 局部重绘受影响 Region 的图形
             val affectedRegions = mutableSetOf<RegionCoordPair>()
             for (cx in chunkMinX..chunkMaxX) {
                 for (cz in chunkMinZ..chunkMaxZ) {
