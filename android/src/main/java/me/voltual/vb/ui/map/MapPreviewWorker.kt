@@ -37,8 +37,16 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
         val worldDirUri = inputData.getString("worldDirUri") ?: return@withContext Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return@withContext Result.failure()
 
+        // 接收可能存在的局部网格限制参数
+        val targetDimId = inputData.getString("targetDimension")
+        val targetRegionX = inputData.getInt("targetRegionX", Int.MAX_VALUE)
+        val targetRegionZ = inputData.getInt("targetRegionZ", Int.MAX_VALUE)
+        val limitMode = targetRegionX != Int.MAX_VALUE && targetRegionZ != Int.MAX_VALUE
+
         val outputDir = File(outputPath)
-        outputDir.deleteRecursively()
+        if (!limitMode) {
+            outputDir.deleteRecursively()
+        }
         outputDir.mkdirs()
 
         val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
@@ -54,9 +62,29 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
             override fun shouldProcessHeightMap() = false
             override fun shouldProcessColumnPreTransform() = false
             override fun shouldProcessLighting() = false
-            override fun shouldProcessDimension(dimension: Dimension?) = true
-            override fun shouldProcessRegion(dimension: Dimension?, regionPair: RegionCoordPair?) = true
-            override fun shouldProcessColumn(dimension: Dimension?, columnPair: ChunkCoordPair?) = true
+            
+            override fun shouldProcessDimension(dimension: Dimension?): Boolean {
+                if (limitMode && targetDimId != null) {
+                    return dimension?.getIdentifier() == targetDimId
+                }
+                return true
+            }
+
+            override fun shouldProcessRegion(dimension: Dimension?, regionPair: RegionCoordPair?): Boolean {
+                if (limitMode && regionPair != null) {
+                    return regionPair.regionX() == targetRegionX && regionPair.regionZ() == targetRegionZ
+                }
+                return true
+            }
+
+            override fun shouldProcessColumn(dimension: Dimension?, columnPair: ChunkCoordPair?): Boolean {
+                if (limitMode && columnPair != null) {
+                    val r = columnPair.region
+                    return r.regionX() == targetRegionX && r.regionZ() == targetRegionZ
+                }
+                return true
+            }
+
             override fun shouldAllowNBTCopying() = false
             override fun shouldAllowCustomIdentifiers() = false
             override fun getBlockMappings(): MappingsFileResolvers? = null
@@ -97,7 +125,6 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                         }
                     }
                     val dimId = dimension.identifier.replace(":", "_")
-                    // 核心修改：使用原子重命名 (Atomic Rename) 避免 UI 层读取到未写入完整的半截文件
                     val tempFile = File(outputDir, "${dimId}_${region.regionX()}_${region.regionZ()}.tmp")
                     val finalFile = File(outputDir, "${dimId}_${region.regionX()}_${region.regionZ()}.bin")
                     

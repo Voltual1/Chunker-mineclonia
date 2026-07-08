@@ -12,6 +12,7 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
     companion object {
         val KEY_THREAD_COUNT = intPreferencesKey("thread_count")
         val KEY_PROCESS_MAPS = booleanPreferencesKey("process_maps")
+        val KEY_ENERGY_SAVING_MODE = booleanPreferencesKey("energy_saving_mode")
         
         // 获取系统推荐的最大核心数
         val maxAvailableCores: Int
@@ -28,6 +29,11 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
         preferences[KEY_PROCESS_MAPS] ?: false
     }
 
+    // 地图预览节能模式（点哪里亮哪里），默认开启以最大化防止内存崩溃
+    val energySavingMode: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_ENERGY_SAVING_MODE] ?: true
+    }
+
     suspend fun setThreadCount(count: Int) {
         dataStore.edit { preferences ->
             preferences[KEY_THREAD_COUNT] = count.coerceIn(1, maxAvailableCores)
@@ -37,6 +43,12 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
     suspend fun setProcessMaps(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_PROCESS_MAPS] = enabled
+        }
+    }
+
+    suspend fun setEnergySavingMode(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[KEY_ENERGY_SAVING_MODE] = enabled
         }
     }
 }

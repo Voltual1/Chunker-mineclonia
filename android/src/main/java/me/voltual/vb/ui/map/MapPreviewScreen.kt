@@ -1,3 +1,4 @@
+// [file name]: me/voltual/vb/ui/map/MapPreviewScreen.kt
 package me.voltual.vb.ui.map
 
 import androidx.compose.animation.*
@@ -71,7 +72,6 @@ fun MapPreviewScreen(
     var selectedChunk by remember { mutableStateOf<ChunkCoordPair?>(null) }
     var showActionMenu by remember { mutableStateOf(false) }
 
-    // 弹窗状态
     var showDestinationSelectDialog by remember { mutableStateOf(false) }
 
     val folderPicker = rememberLauncherForFolderPicker { folder ->
@@ -82,7 +82,6 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
-    // 独立的外部粘贴底图拷贝
     val targetStitchPicker = rememberLauncherForFolderPicker { targetFolder ->
         composeBitmaps.clear()
         viewModel.copyExternalTargetToTemp(context, targetFolder)
@@ -132,7 +131,6 @@ fun MapPreviewScreen(
 
     LaunchedEffect(viewModel.regionBitmaps.size, viewModel.mapUpdateTrigger) {
         viewModel.regionBitmaps.forEach { (key, bmp) ->
-            // 每次计数器变动，强制执行一次转换，把全新引用的 ImageBitmap 塞入渲染图层
             composeBitmaps[key] = bmp.asImageBitmap()
         }
     }
@@ -164,115 +162,119 @@ fun MapPreviewScreen(
                     }
 
                     val filteredBitmaps = composeBitmaps.filterKeys { it.first == viewModel.selectedDimension }.mapKeys { it.key.second }
-                    if (filteredBitmaps.isNotEmpty()) {
-                        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                            InteractiveMapCanvas(
-                                regionBitmaps = filteredBitmaps,
-                                viewModel = viewModel,
-                                onChunkTap = { chunkPair ->
-                                    if (viewModel.previewState == PreviewState.IDLE) {
+                    
+                    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                        InteractiveMapCanvas(
+                            regionBitmaps = filteredBitmaps,
+                            viewModel = viewModel,
+                            onChunkTap = { chunkPair ->
+                                if (viewModel.previewState == PreviewState.IDLE) {
+                                    val r = chunkPair.region
+                                    val dimRegion = Pair(viewModel.selectedDimension, r)
+                                    // 节能模式下如果未点亮，先触发点亮
+                                    if (!viewModel.litRegions.contains(dimRegion)) {
+                                        viewModel.lightUpRegionOnDemand(context, viewModel.selectedDimension, r)
+                                    } else {
                                         selectedChunk = chunkPair
                                         showActionMenu = true
                                     }
                                 }
-                            )
+                            }
+                        )
 
-                            if (viewModel.availableDimensions.size > 1) {
-                                Surface(
-                                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).clickable {
-                                        val cI = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
-                                        viewModel.selectedDimension = viewModel.availableDimensions[(cI + 1) % viewModel.availableDimensions.size]
-                                        viewModel.isMapCentered = false
-                                    }.border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
-                                    shape = AppShapes.small, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
-                                ) {
-                                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, shape = AppShapes.small))
+                        if (viewModel.availableDimensions.size > 1) {
+                            Surface(
+                                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).clickable {
+                                    val cI = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
+                                    viewModel.selectedDimension = viewModel.availableDimensions[(cI + 1) % viewModel.availableDimensions.size]
+                                    viewModel.isMapCentered = false
+                                }.border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
+                                shape = AppShapes.small, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                            ) {
+                                Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, shape = AppShapes.small))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(viewModel.selectedDimension.getIdentifier().uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                        }
+
+                        // 底部操作面板
+                        AnimatedVisibility(
+                            visible = viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
+                            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                        ) {
+                            val s = viewModel.sourceSelectionStart ?: return@AnimatedVisibility
+                            val e = viewModel.sourceSelectionEnd ?: return@AnimatedVisibility
+                            val w = abs(e.first - s.first)
+                            val h = abs(e.second - s.second)
+                            
+                            Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
                                         Spacer(Modifier.width(8.dp))
-                                        Text(viewModel.selectedDimension.getIdentifier().uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                        Text("SOURCE SELECTION // 源选区", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                                     }
-                                }
-                            }
+                                    Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
+                                    
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    
+                                    BBQButton(
+                                        onClick = {
+                                            viewModel.scanLocalTargetWorlds(context)
+                                            showDestinationSelectDialog = true
+                                        }, 
+                                        modifier = Modifier.fillMaxWidth(),
+                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("缝合复制到目标世界...", fontWeight = FontWeight.Bold) } }
+                                    )
 
-                            // 底部操作面板
-                            AnimatedVisibility(
-                                visible = viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null,
-                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
-                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                            ) {
-                                //安全解包，防止 AnimatedVisibility 尚未退出时被 clearSelection() 置空引起的 NPE
-                                val s = viewModel.sourceSelectionStart ?: return@AnimatedVisibility
-                                val e = viewModel.sourceSelectionEnd ?: return@AnimatedVisibility
-                                val w = abs(e.first - s.first)
-                                val h = abs(e.second - s.second)
-                                
-                                Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
-                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("SOURCE SELECTION // 源选区", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
-                                        }
-                                        Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
-                                        
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        
-                                        BBQButton(
-                                            onClick = {
-                                                viewModel.scanLocalTargetWorlds(context)
-                                                showDestinationSelectDialog = true
-                                            }, 
-                                            modifier = Modifier.fillMaxWidth(),
-                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("缝合复制到目标世界...", fontWeight = FontWeight.Bold) } }
-                                        )
-
-                                        Button(
-                                            onClick = {
-                                                // 瞬间执行乐观删除与静默后台 Worker 调度
-                                                viewModel.deleteSelectedChunksOptimistic(context, s, e) {
-                                                    viewModel.clearSelection()
-                                                    coroutineScope.launch {
-                                                        snackbarHostState.showSnackbar("SECTOR_PURGE // 正在后台安全销毁所选物理区块...")
-                                                    }
+                                    Button(
+                                        onClick = {
+                                            viewModel.deleteSelectedChunksOptimistic(context, s, e) {
+                                                viewModel.clearSelection()
+                                                coroutineScope.launch {
+                                                    snackbarHostState.showSnackbar("SECTOR_PURGE // 正在后台安全销毁所选物理区块...")
                                                 }
-                                            },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = MaterialTheme.colorScheme.error,
-                                                contentColor = MaterialTheme.colorScheme.onError
-                                            ),
-                                            shape = AppShapes.small
-                                        ) {
-                                            Icon(Icons.Default.DeleteForever, null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("PURGE SELECTION // 物理销毁所选区块", fontWeight = FontWeight.Bold)
-                                        }
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError
+                                        ),
+                                        shape = AppShapes.small
+                                    ) {
+                                        Icon(Icons.Default.DeleteForever, null)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("PURGE SELECTION // 物理销毁所选区块", fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
+                        }
 
-                            // 粘贴确认面板
-                            AnimatedVisibility(
-                                visible = viewModel.previewState == PreviewState.DEST_PASTE && viewModel.pasteTargetPoint != null,
-                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
-                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
-                            ) {
-                                Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.tertiary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
-                                        val t = viewModel.pasteTargetPoint!!
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.tertiary)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("CONFIRM PASTE // 确认覆盖位置", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.tertiary)
-                                        }
-                                        Spacer(Modifier.height(8.dp))
-                                        Text("左上角落点: (${t.first}, ${t.second})", style = MaterialTheme.typography.bodyMedium)
-                                        Spacer(Modifier.height(16.dp))
-                                        BBQButton(
-                                            onClick = { viewModel.confirmStitch(context) }, modifier = Modifier.fillMaxWidth(),
-                                            text = { Text("CONFIRM OVERWRITE // 确认覆盖并缝合", fontWeight = FontWeight.Black) }
-                                        )
+                        // 粘贴确认面板
+                        AnimatedVisibility(
+                            visible = viewModel.previewState == PreviewState.DEST_PASTE && viewModel.pasteTargetPoint != null,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
+                            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                        ) {
+                            Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.tertiary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    val t = viewModel.pasteTargetPoint!!
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.tertiary)
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("CONFIRM PASTE // 确认覆盖位置", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.tertiary)
                                     }
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("左上角落点: (${t.first}, ${t.second})", style = MaterialTheme.typography.bodyMedium)
+                                    Spacer(Modifier.height(16.dp))
+                                    BBQButton(
+                                        onClick = { viewModel.confirmStitch(context) }, modifier = Modifier.fillMaxWidth(),
+                                        text = { Text("CONFIRM OVERWRITE // 确认覆盖并缝合", fontWeight = FontWeight.Black) }
+                                    )
                                 }
                             }
                         }
@@ -290,7 +292,6 @@ fun MapPreviewScreen(
             }
         })
 
-        // 缝合状态覆盖层
         if (viewModel.previewState == PreviewState.STITCHING || viewModel.stitchSuccess || viewModel.stitchError != null) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)) {
                 Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
@@ -316,7 +317,6 @@ fun MapPreviewScreen(
             }
         }
 
-        // 新增：目标选择弹窗 (覆盖已有存档、外部SAF、或快捷导航到 FTP)
         if (showDestinationSelectDialog) {
             AlertDialog(
                 onDismissRequest = { showDestinationSelectDialog = false },
@@ -327,7 +327,6 @@ fun MapPreviewScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                         Text("请选择要覆盖缝合的已有世界目标，或从系统外载入：", style = MaterialTheme.typography.bodyMedium)
 
-                        // 本地已有存档列表
                         if (viewModel.localTargetWorlds.isNotEmpty()) {
                             Text("已检出中转站存档列表：", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
                             LazyColumn(
@@ -364,7 +363,6 @@ fun MapPreviewScreen(
 
                         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
 
-                        // 从系统内以 SAF 复制
                         Button(
                             onClick = {
                                 showDestinationSelectDialog = false
@@ -379,7 +377,6 @@ fun MapPreviewScreen(
                             Text("SAF // 从系统加载全新目标", fontWeight = FontWeight.Bold)
                         }
 
-                        // 导航至 FTP
                         OutlinedButton(
                             onClick = {
                                 showDestinationSelectDialog = false
@@ -492,10 +489,37 @@ fun InteractiveMapCanvas(
                     translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
                     scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
                 }) {
-                    regionBitmaps.forEach { (region, bitmap) ->
-                        drawImage(image = bitmap, topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f))
-                        if (viewModel.showGrid) {
-                            drawRect(color = Color(0xFF3B82F6).copy(alpha = 0.3f), topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f), size = Size(512f, 512f), style = Stroke(width = 1.5f))
+                    // 绘制全维度网格状态（若未加载，则绘制半透明遮罩指示用户点击它）
+                    val minRx = -4
+                    val maxRx = 4
+                    val minRz = -4
+                    val maxRz = 4
+                    
+                    for (rx in minRx..maxRx) {
+                        for (rz in minRz..maxRz) {
+                            val regionCoord = RegionCoordPair(rx, rz)
+                            val dimRegion = Pair(viewModel.selectedDimension, regionCoord)
+                            val bitmap = regionBitmaps[dimRegion]
+                            
+                            if (bitmap != null) {
+                                drawImage(image = bitmap, topLeft = Offset(rx * 512f, rz * 512f))
+                            } else {
+                                // 节能模式下的暗灰色引导
+                                drawRect(
+                                    color = Color.DarkGray.copy(alpha = 0.25f),
+                                    topLeft = Offset(rx * 512f, rz * 512f),
+                                    size = Size(512f, 512f)
+                                )
+                            }
+                            
+                            if (viewModel.showGrid) {
+                                drawRect(
+                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
+                                    topLeft = Offset(rx * 512f, rz * 512f),
+                                    size = Size(512f, 512f),
+                                    style = Stroke(width = 1.5f)
+                                )
+                            }
                         }
                     }
 

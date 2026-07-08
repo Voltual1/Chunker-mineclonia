@@ -36,6 +36,7 @@ fun ChunkerSettingsScreen(
     
     val threadCount by viewModel.threadCount.collectAsState()
     val processMaps by viewModel.processMaps.collectAsState()
+    val energySavingMode by viewModel.energySavingMode.collectAsState()
     
     val scrollState = rememberScrollState()
     var showClearDialog by remember { mutableStateOf(false) }
@@ -48,7 +49,6 @@ fun ChunkerSettingsScreen(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        // 顶部战术标题
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(modifier = Modifier.width(4.dp).height(24.dp).background(MaterialTheme.colorScheme.primary))
             Spacer(modifier = Modifier.width(12.dp))
@@ -67,7 +67,7 @@ fun ChunkerSettingsScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // 1. 核心线程数分配滑块 (CORES_ALLOCATION)
+        // 核心线程滑块
         BBQCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Row(
@@ -117,7 +117,40 @@ fun ChunkerSettingsScreen(
             }
         }
 
-        // 2. 地图转换参数控制 (PARAMETER_REGULATION)
+        // 新增：3. 地图预览战术节能模式（点哪里亮哪里）
+        BBQCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "PREVIEW_ENERGY_SAVING // 地图预览战术节能",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "启用时，地图初始处于灰暗状态，仅当点击某个512x512的局域网格时，才提取并渲染该局部的图像像素。这可以极致地防止因全盘地图扫描导致的 Android OOM 杀进程现象。",
+                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = energySavingMode,
+                    onCheckedChange = { viewModel.updateEnergySavingMode(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    )
+                )
+            }
+        }
+
+        // 地图项目
         BBQCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -150,7 +183,7 @@ fun ChunkerSettingsScreen(
             }
         }
 
-        // 3. 断点进度物理清空 (DESTRUCTIVE_COMMAND) - 红色警示区域
+        // 断点清空
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = AppShapes.medium,
@@ -193,7 +226,6 @@ fun ChunkerSettingsScreen(
         }
     }
 
-    // 二次高危操作确认对话框
     if (showClearDialog) {
         AlertDialog(
             onDismissRequest = { showClearDialog = false },
@@ -208,7 +240,7 @@ fun ChunkerSettingsScreen(
             },
             text = { 
                 Text(
-                    "注意：强制清空世界转换器的断点记录信息（BREAK_POINTS）将解除该文件的续转锁。下一次执行相同世界数据转码时，数据流将执行重头对齐（FROM_SCRATCH）。确定擦除？",
+                    "注意：强制清空世界转换器的断点记录记录（BREAK_POINTS）将解除该文件的续转锁。下一次执行相同世界数据转码时，数据流将执行重头对齐（FROM_SCRATCH）。确定擦除？",
                     style = MaterialTheme.typography.bodySmall
                 ) 
             },

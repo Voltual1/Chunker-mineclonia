@@ -1,3 +1,4 @@
+// [file name]: me/voltual/vb/ui/map/MapPreviewViewModel.kt
 package me.voltual.vb.ui.map
 
 import android.content.Context
@@ -58,6 +59,10 @@ import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import me.voltual.vb.data.ChunkerSettingsDataStore
+import org.koin.core.component.KoinComponent
+import org.koin.core.component.inject
 
 enum class PreviewState {
     IDLE,
@@ -66,7 +71,9 @@ enum class PreviewState {
     STITCHING
 }
 
-class MapPreviewViewModel : ViewModel() {
+class MapPreviewViewModel : ViewModel(), KoinComponent {
+
+    private val chunkerSettingsDataStore: ChunkerSettingsDataStore by inject()
 
     var previewState by mutableStateOf(PreviewState.IDLE)
         private set
@@ -78,7 +85,9 @@ class MapPreviewViewModel : ViewModel() {
     var selectedDimension by mutableStateOf(Dimension.OVERWORLD)
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
-    private val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
+    
+    // 跟踪被主动“点亮”或已被加载完毕的区域（防止重复提取）
+    val litRegions = mutableStateListOf<Pair<Dimension, RegionCoordPair>>()
 
     var mapUpdateTrigger by mutableStateOf(0)
         private set
@@ -253,8 +262,6 @@ class MapPreviewViewModel : ViewModel() {
             "offsetZ" to offsetZ
         )
 
-        // 核心修复：StitchWorker 必须在主进程执行，因为它需要 Koin 容器和数据库单例
-        // 撤销 RemoteWorkManager，改用普通的 WorkManager
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
         WorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
 
@@ -336,13 +343,35 @@ class MapPreviewViewModel : ViewModel() {
         mapScale = 1f
         mapOffset = Offset.Zero
         regionBitmaps.clear()
-        regionRGBAData.clear()
+        litRegions.clear()
         availableDimensions.clear()
         worldDirUri = path
 
         val cacheMapDir = File(context.cacheDir, "map_regions")
         cacheMapDir.deleteRecursively()
         cacheMapDir.mkdirs()
+
+        // 判断当前是否是节能模式
+        val modeEnergySaving = chunkerSettingsDataStore.energySavingMode.first()
+
+        if (modeEnergySaving) {
+            // 节能模式下不开启全局 Worker 自动读取全图，直接初始化虚拟的空位地图
+            isLoaded = true
+            isLoading = false
+            statusMessage = "【节能模式开启】点哪里，亮哪里！"
+            
+            // 简单检测格式
+            val tempDetectConverter = com.hivemc.chunker.conversion.WorldConverter(java.util.UUID.randomUUID())
+            val readerOptional = EncodingType.findReader(File(path), tempDetectConverter)
+            if (readerOptional.isPresent) {
+                isBedrock = readerOptional.get().encodingType == EncodingType.BEDROCK
+            }
+
+            // 初始化默认可选维度
+            availableDimensions.addAll(listOf(Dimension.OVERWORLD, Dimension.NETHER, Dimension.THE_END))
+            isMapCentered = false
+            return
+        }
 
         val pollJob = viewModelScope.launch(Dispatchers.IO) {
             while (isLoading) {
@@ -360,7 +389,6 @@ class MapPreviewViewModel : ViewModel() {
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
-        // 渲染继续留在子进程 (RemoteWorkManager)
         RemoteWorkManager.getInstance(context).enqueueUniqueWork("map_preview", ExistingWorkPolicy.REPLACE, workRequest)
 
         viewModelScope.launch {
@@ -374,6 +402,51 @@ class MapPreviewViewModel : ViewModel() {
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isLoading = false
                         statusMessage = "解析出错：" + (workInfo.outputData.getString("error") ?: "未知")
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 新增：战术局部点亮算法。用户点击某个暗色 Region column 时，仅将此 region 的渲染提取提交到 WorkManager
+     */
+    fun lightUpRegionOnDemand(context: Context, dimension: Dimension, region: RegionCoordPair) {
+        val dimRegion = Pair(dimension, region)
+        if (litRegions.contains(dimRegion) || isLoading) return
+
+        viewModelScope.launch(Dispatchers.IO) {
+            withContext(Dispatchers.Main) {
+                isLoading = true
+                statusMessage = "正在局部按需提取 Region (${region.regionX()}, ${region.regionZ()}) ..."
+            }
+
+            val cacheMapDir = File(context.cacheDir, "map_regions")
+            // 拼装临时的提取过滤参数。
+            // 注意：由于 Chunker 是并发扫描的，限制特定 region 会大幅减少提取时间
+            val inputData = Data.Builder()
+                .putString("worldDirUri", worldDirUri)
+                .putString("outputPath", cacheMapDir.absolutePath)
+                // 限制仅加载当前 region 的列
+                .putString("targetDimension", dimension.getIdentifier())
+                .putInt("targetRegionX", region.regionX())
+                .putInt("targetRegionZ", region.regionZ())
+                .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
+                .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
+                .build()
+
+            // 我们可以在 MapPreviewWorker 里接收这两个 filter 参数
+            val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
+            RemoteWorkManager.getInstance(context).enqueueUniqueWork("region_lightup_${region.regionX()}_${region.regionZ()}", ExistingWorkPolicy.REPLACE, workRequest)
+
+            val workManager = WorkManager.getInstance(context)
+            workManager.getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
+                if (workInfo != null && workInfo.state.isFinished) {
+                    loadBitmapsFromDir(cacheMapDir)
+                    withContext(Dispatchers.Main) {
+                        isLoading = false
+                        litRegions.add(dimRegion)
+                        statusMessage = "点亮完成！"
                     }
                 }
             }
@@ -404,6 +477,7 @@ class MapPreviewViewModel : ViewModel() {
                 withContext(Dispatchers.Main) {
                     regionBitmaps[dimRegion] = bitmap
                     if (!availableDimensions.contains(dimension)) availableDimensions.add(dimension)
+                    if (!litRegions.contains(dimRegion)) litRegions.add(dimRegion)
                     mapUpdateTrigger++
                 }
             } catch (e: Exception) { 

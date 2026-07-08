@@ -18,6 +18,9 @@ class ChunkerSettingsViewModel(
     val processMaps: StateFlow<Boolean> = dataStore.processMaps
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
+    val energySavingMode: StateFlow<Boolean> = dataStore.energySavingMode
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
     val maxCores = ChunkerSettingsDataStore.maxAvailableCores
 
     fun updateThreadCount(count: Int) {
@@ -29,6 +32,12 @@ class ChunkerSettingsViewModel(
     fun updateProcessMaps(enabled: Boolean) {
         viewModelScope.launch {
             dataStore.setProcessMaps(enabled)
+        }
+    }
+
+    fun updateEnergySavingMode(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.setEnergySavingMode(enabled)
         }
     }
 }
