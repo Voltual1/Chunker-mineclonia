@@ -1,4 +1,3 @@
-// [file name]: me/voltual/vb/ui/map/MapPreviewScreen.kt
 package me.voltual.vb.ui.map
 
 import androidx.compose.animation.*
@@ -161,7 +160,9 @@ fun MapPreviewScreen(
                         }
                     }
 
-                    val filteredBitmaps = composeBitmaps.filterKeys { it.first == viewModel.selectedDimension }.mapKeys { it.key.second }
+                    // 这里的过滤生成了以 RegionCoordPair 为键的 Map
+                    val filteredBitmaps = composeBitmaps.filter { it.key.first == viewModel.selectedDimension }
+                        .mapKeys { it.key.second }
                     
                     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                         InteractiveMapCanvas(
@@ -171,7 +172,6 @@ fun MapPreviewScreen(
                                 if (viewModel.previewState == PreviewState.IDLE) {
                                     val r = chunkPair.region
                                     val dimRegion = Pair(viewModel.selectedDimension, r)
-                                    // 节能模式下如果未点亮，先触发点亮
                                     if (!viewModel.litRegions.contains(dimRegion)) {
                                         viewModel.lightUpRegionOnDemand(context, viewModel.selectedDimension, r)
                                     } else {
@@ -489,22 +489,21 @@ fun InteractiveMapCanvas(
                     translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
                     scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
                 }) {
-                    // 绘制全维度网格状态（若未加载，则绘制半透明遮罩指示用户点击它）
-                    val minRx = -4
-                    val maxRx = 4
-                    val minRz = -4
-                    val maxRz = 4
+                    // 战术网格边界限定
+                    val minRx = -8
+                    val maxRx = 8
+                    val minRz = -8
+                    val maxRz = 8
                     
                     for (rx in minRx..maxRx) {
                         for (rz in minRz..maxRz) {
                             val regionCoord = RegionCoordPair(rx, rz)
-                            val dimRegion = Pair(viewModel.selectedDimension, regionCoord)
-                            val bitmap = regionBitmaps[dimRegion]
+                            // CAN Fix: 这里直接使用 regionCoord 键，不再使用 dimRegion Pair，解决类型推断冲突
+                            val bitmap = regionBitmaps[regionCoord]
                             
                             if (bitmap != null) {
                                 drawImage(image = bitmap, topLeft = Offset(rx * 512f, rz * 512f))
                             } else {
-                                // 节能模式下的暗灰色引导
                                 drawRect(
                                     color = Color.DarkGray.copy(alpha = 0.25f),
                                     topLeft = Offset(rx * 512f, rz * 512f),
@@ -517,7 +516,7 @@ fun InteractiveMapCanvas(
                                     color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
                                     topLeft = Offset(rx * 512f, rz * 512f),
                                     size = Size(512f, 512f),
-                                    style = Stroke(width = 1.5f)
+                                    style = Stroke(width = 1.5f / viewModel.mapScale)
                                 )
                             }
                         }
