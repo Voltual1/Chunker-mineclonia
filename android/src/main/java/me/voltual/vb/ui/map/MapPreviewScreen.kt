@@ -283,7 +283,7 @@ fun MapPreviewScreen(
             when (action) {
                 "entities" -> viewModel.openChunkNbt(chunkPair, true, navigator)
                 "block_entities" -> viewModel.openChunkNbt(chunkPair, false, navigator)
-                "delete_chunk" -> coroutineScope.launch { val success = viewModel.deleteChunk(chunkPair, viewModel.selectedDimension); snackbarHostState.showSnackbar(if(success) "已彻底抹除" else "抹除失败") }
+                "delete_chunk" -> coroutineScope.launch { val success = viewModel.deleteChunk(context, chunkPair, viewModel.selectedDimension); snackbarHostState.showSnackbar(if(success) "已彻底抹除" else "抹除失败") }
             }
         })
 

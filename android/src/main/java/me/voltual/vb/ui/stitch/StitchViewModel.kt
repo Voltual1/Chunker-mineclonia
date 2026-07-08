@@ -142,22 +142,24 @@ class StitchViewModel(private val context: Context) : ViewModel() {
     }
 
     private fun launchStitchWorker(sourcePath: String, destPath: String, xMin: Int, zMin: Int, xMax: Int, zMax: Int) {
-        val inputData = workDataOf(
-            "sourcePath" to sourcePath,
-            "destPath" to destPath,
-            "dimension" to dimension,
-            "minX" to xMin,
-            "minZ" to zMin,
-            "maxX" to xMax,
-            "maxZ" to zMax
-        )
+        val inputData = Data.Builder()
+            .putString("sourcePath", sourcePath)
+            .putString("destPath", destPath)
+            .putString("dimension", dimension)
+            .putInt("minX", xMin)
+            .putInt("minZ", zMin)
+            .putInt("maxX", xMax)
+            .putInt("maxZ", zMax)
+            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
+            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
+            .build()
 
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>()
             .setInputData(inputData)
             .build()
 
         stitchWorkId = workRequest.id
-        WorkManager.getInstance(context).enqueue(workRequest)
+        androidx.work.multiprocess.RemoteWorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
 
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
