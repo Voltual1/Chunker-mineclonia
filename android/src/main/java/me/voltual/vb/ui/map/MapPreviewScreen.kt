@@ -1,12 +1,3 @@
-// Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发 and/或 修改 it 的条款。
-// 本程序是基于希望 it 有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
-
 package me.voltual.vb.ui.map
 
 import androidx.compose.animation.*
@@ -55,6 +46,7 @@ import me.voltual.vb.ui.TopAppBarAction
 import me.voltual.vb.ui.Export
 import org.koin.compose.viewmodel.koinViewModel
 import java.io.File
+import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.min
@@ -84,9 +76,9 @@ fun MapPreviewScreen(
         viewModel.loadAndRenderWorld(context, folder)
     }
 
-    // 新增：缝合目标文件夹选择器
     val targetStitchPicker = rememberLauncherForFolderPicker { targetFolder ->
-        viewModel.startStitchToTarget(context, targetFolder)
+        composeBitmaps.clear()
+        viewModel.prepareDestinationAndLoad(context, targetFolder)
     }
 
     LaunchedEffect(initialFolderUri) {
@@ -97,244 +89,153 @@ fun MapPreviewScreen(
         }
     }
 
-    // 更新菜单项，添加裁剪(选区)工具
-    LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri, viewModel.isSelectionMode) {
-        topAppBarController.updateActions(
-            listOf(
-                TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.Crop, contentDescription = "框选区域", tint = if (viewModel.isSelectionMode) MaterialTheme.colorScheme.primary else tint) },
-                    description = "框选区域",
-                    onClick = {
-                        viewModel.isSelectionMode = !viewModel.isSelectionMode
-                        if (!viewModel.isSelectionMode) viewModel.clearSelection()
-                    }
-                ),
-                TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
-                    description = "网格线",
-                    onClick = { viewModel.showGrid = !viewModel.showGrid }
-                ),
-                TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.IosShare, contentDescription = "导出世界", tint = tint) },
-                    description = "导出世界",
-                    onClick = {
-                        coroutineScope.launch {
-                            val uri = viewModel.worldDirUri
-                            if (uri.isNotEmpty()) {
-                                snackbarHostState.showSnackbar("PACKING // 正在打包物理存档文件...")
-                                val file = File(uri)
-                                if (file.exists()) {
-                                    val success = WorldExporter.exportWorld(context, file)
-                                    snackbarHostState.showSnackbar(if (success) "EXPORT_OK // 存档已妥善保存至 Downloads 目录" else "PACK_ERR // 压缩封装异常")
-                                } else {
-                                    snackbarHostState.showSnackbar("FS_ERR // 无法访问物理介质")
-                                }
-                            } else {
-                                snackbarHostState.showSnackbar("MOUNT_ERR // 尚未挂载任何有效存档")
-                            }
-                        }
-                    }
-                ),
-                TopAppBarAction(
-                    icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
-                    description = "打开存档",
-                    onClick = { folderPicker.launch() }
+    // 动态更新 TopBar (仅在 IDLE 和 SOURCE_SELECT 阶段可交互)
+    LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri, viewModel.previewState) {
+        if (viewModel.previewState == PreviewState.IDLE || viewModel.previewState == PreviewState.SOURCE_SELECT) {
+            topAppBarController.updateActions(
+                listOf(
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.Crop, contentDescription = "裁切复制", tint = if (viewModel.previewState == PreviewState.SOURCE_SELECT) MaterialTheme.colorScheme.primary else tint) },
+                        description = "裁切复制",
+                        onClick = { viewModel.toggleSourceSelectionMode() }
+                    ),
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.GridOn, contentDescription = "网格线", tint = if (viewModel.showGrid) MaterialTheme.colorScheme.primary else tint) },
+                        description = "网格线",
+                        onClick = { viewModel.showGrid = !viewModel.showGrid }
+                    ),
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.FolderOpen, contentDescription = "打开存档", tint = tint) },
+                        description = "打开存档",
+                        onClick = { folderPicker.launch() }
+                    )
                 )
             )
-        )
+        } else if (viewModel.previewState == PreviewState.DEST_PASTE) {
+            topAppBarController.updateActions(
+                listOf(
+                    TopAppBarAction(
+                        icon = { tint -> Icon(Icons.Default.Close, contentDescription = "取消粘贴", tint = MaterialTheme.colorScheme.error) },
+                        description = "取消粘贴",
+                        onClick = { viewModel.abortPasting() }
+                    )
+                )
+            )
+        }
     }
 
     LaunchedEffect(viewModel.regionBitmaps.size) {
         viewModel.regionBitmaps.forEach { (region, bmp) ->
-            if (!composeBitmaps.containsKey(region)) {
-                composeBitmaps[region] = bmp.asImageBitmap()
-            }
+            if (!composeBitmaps.containsKey(region)) composeBitmaps[region] = bmp.asImageBitmap()
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold { padding ->
-            Box(
-                modifier = modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .background(Color(0xFF090A0E)) 
-            ) {
+            Box(modifier = modifier.fillMaxSize().padding(padding).background(Color(0xFF090A0E))) {
                 if (viewModel.worldDirUri.isEmpty()) {
-                    // Empty state UI...
-                    Column(
-                        modifier = Modifier.fillMaxSize().padding(32.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Map,
-                            contentDescription = null,
-                            modifier = Modifier.size(96.dp),
-                            tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "NO_WORLD_MOUNTED // 未读取世界介质",
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black),
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                        Spacer(modifier = Modifier.height(24.dp))
-                        
+                    // Empty UI...
+                    Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Icon(Icons.Default.Map, null, modifier = Modifier.size(96.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+                        Spacer(Modifier.height(16.dp))
+                        Text("NO_WORLD_MOUNTED // 未读取世界介质", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black), color = MaterialTheme.colorScheme.outline)
+                        Spacer(Modifier.height(24.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            BBQButton(
-                                onClick = { folderPicker.launch() },
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Icon(Icons.Default.FolderOpen, null)
-                                        Spacer(Modifier.width(8.dp))
-                                        Text("SELECT_DIR", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            )
-
+                            BBQButton(onClick = { folderPicker.launch() }, text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("SELECT_DIR", fontWeight = FontWeight.Bold) } })
                             if (viewModel.hasExistingFtpInput) {
-                                BBQOutlinedButton(
-                                    onClick = { viewModel.loadAndRenderWorld(context, null, useFtpInput = true) },
-                                    text = {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.Wifi, null)
-                                            Spacer(Modifier.width(8.dp))
-                                            Text("PREVIEW_FTP", fontWeight = FontWeight.Bold)
-                                        }
-                                    }
-                                )
+                                BBQOutlinedButton(onClick = { viewModel.loadAndRenderWorld(context, null, useFtpInput = true) }, text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.Wifi, null); Spacer(Modifier.width(8.dp)); Text("PREVIEW_FTP", fontWeight = FontWeight.Bold) } })
                             }
                         }
                     }
                 } else {
                     if (viewModel.isLoading) {
-                        Surface(
-                            modifier = Modifier
-                                .align(Alignment.TopCenter)
-                                .padding(top = 16.dp)
-                                .border(1.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
-                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                            shape = AppShapes.small
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
+                        Surface(modifier = Modifier.align(Alignment.TopCenter).padding(top = 16.dp).border(1.dp, MaterialTheme.colorScheme.primary, AppShapes.small), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f), shape = AppShapes.small) {
+                            Row(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                Text(
-                                    text = "SCANNING_CHUNKS: ${viewModel.statusMessage}", 
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                Text("SCANNING_CHUNKS: ${viewModel.statusMessage}", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                             }
                         }
                     }
 
-                    val filteredBitmaps = composeBitmaps
-                        .filterKeys { it.first == viewModel.selectedDimension }
-                        .mapKeys { it.key.second }
-
+                    val filteredBitmaps = composeBitmaps.filterKeys { it.first == viewModel.selectedDimension }.mapKeys { it.key.second }
                     if (filteredBitmaps.isNotEmpty()) {
                         BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
                             InteractiveMapCanvas(
                                 regionBitmaps = filteredBitmaps,
                                 viewModel = viewModel,
                                 onChunkTap = { chunkPair ->
-                                    selectedChunk = chunkPair
-                                    showActionMenu = true
+                                    if (viewModel.previewState == PreviewState.IDLE) {
+                                        selectedChunk = chunkPair
+                                        showActionMenu = true
+                                    }
                                 }
                             )
 
                             if (viewModel.availableDimensions.size > 1) {
                                 Surface(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(16.dp)
-                                        .clickable {
-                                            val currentIndex = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
-                                            val nextIndex = (currentIndex + 1) % viewModel.availableDimensions.size
-                                            viewModel.selectedDimension = viewModel.availableDimensions[nextIndex]
-                                            viewModel.isMapCentered = false
-                                        }
-                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
-                                    shape = AppShapes.small,
-                                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
+                                    modifier = Modifier.align(Alignment.TopEnd).padding(16.dp).clickable {
+                                        val cI = viewModel.availableDimensions.indexOf(viewModel.selectedDimension)
+                                        viewModel.selectedDimension = viewModel.availableDimensions[(cI + 1) % viewModel.availableDimensions.size]
+                                        viewModel.isMapCentered = false
+                                    }.border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.small),
+                                    shape = AppShapes.small, color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)
                                 ) {
-                                    val dimLabel = when (viewModel.selectedDimension.getIdentifier()) {
-                                        "minecraft:overworld" -> "主世界 OVERWORLD"
-                                        "minecraft:the_nether" -> "下界 NETHER"
-                                        "minecraft:the_end" -> "末地 THE_END"
-                                        else -> viewModel.selectedDimension.getIdentifier().uppercase()
+                                    Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, shape = AppShapes.small))
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(viewModel.selectedDimension.getIdentifier().uppercase(), fontSize = 12.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                                     }
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .background(MaterialTheme.colorScheme.primary, shape = AppShapes.small)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = dimLabel,
-                                            fontSize = 12.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = MaterialTheme.colorScheme.primary
+                                }
+                            }
+
+                            // 底部操作面板
+                            AnimatedVisibility(
+                                visible = viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.selectionStartBlock != null,
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
+                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                            ) {
+                                Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        val s = viewModel.selectionStartBlock!!
+                                        val e = viewModel.selectionEndBlock!!
+                                        val w = abs(e.first - s.first)
+                                        val h = abs(e.second - s.second)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("SOURCE SELECTION // 源选区", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                        }
+                                        Spacer(Modifier.height(8.dp))
+                                        Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
+                                        Spacer(Modifier.height(16.dp))
+                                        BBQButton(
+                                            onClick = { targetStitchPicker.launch() }, modifier = Modifier.fillMaxWidth(),
+                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.FolderOpen, null); Spacer(Modifier.width(8.dp)); Text("选择目标世界作为粘贴底图...", fontWeight = FontWeight.Bold) } }
                                         )
                                     }
                                 }
                             }
 
-                            // 新增：底部悬浮操作面板 (缝合)
+                            // 粘贴确认面板
                             AnimatedVisibility(
-                                visible = viewModel.selectionStartBlock != null && viewModel.selectionEndBlock != null,
-                                modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .padding(bottom = 80.dp),
-                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-                                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                                visible = viewModel.previewState == PreviewState.DEST_PASTE && viewModel.pasteTargetPoint != null,
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
+                                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
-                                Surface(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.9f)
-                                        .border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium),
-                                    shape = AppShapes.medium,
-                                    color = MaterialTheme.colorScheme.surface,
-                                    shadowElevation = 8.dp
-                                ) {
+                                Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.tertiary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        val s = viewModel.selectionStartBlock!!
-                                        val e = viewModel.selectionEndBlock!!
-                                        val minX = min(s.first, e.first)
-                                        val minZ = min(s.second, e.second)
-                                        val maxX = max(s.first, e.first)
-                                        val maxZ = max(s.second, e.second)
-                                        val chunkCount = ((maxX - minX) / 16 + 1) * ((maxZ - minZ) / 16 + 1)
-                                        
+                                        val t = viewModel.pasteTargetPoint!!
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
+                                            Icon(Icons.Default.ContentPaste, null, tint = MaterialTheme.colorScheme.tertiary)
                                             Spacer(Modifier.width(8.dp))
-                                            Text("SELECTION // 已框选区域", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                                            Text("CONFIRM PASTE // 确认覆盖位置", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.tertiary)
                                         }
                                         Spacer(Modifier.height(8.dp))
-                                        Text("方块坐标: ($minX, $minZ) ~ ($maxX, $maxZ)", style = MaterialTheme.typography.bodyMedium)
-                                        Text("影响区块: 约 $chunkCount 个", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.outline)
-                                        
+                                        Text("左上角落点: (${t.first}, ${t.second})", style = MaterialTheme.typography.bodyMedium)
                                         Spacer(Modifier.height(16.dp))
                                         BBQButton(
-                                            onClick = { targetStitchPicker.launch() },
-                                            modifier = Modifier.fillMaxWidth(),
-                                            text = {
-                                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                                    Icon(Icons.Default.ContentPaste, null)
-                                                    Spacer(Modifier.width(8.dp))
-                                                    Text("覆盖并缝合至目标存档...", fontWeight = FontWeight.Bold)
-                                                }
-                                            }
+                                            onClick = { viewModel.confirmStitch(context) }, modifier = Modifier.fillMaxWidth(),
+                                            text = { Text("CONFIRM OVERWRITE // 确认覆盖并缝合", fontWeight = FontWeight.Black) }
                                         )
                                     }
                                 }
@@ -345,31 +246,17 @@ fun MapPreviewScreen(
             }
         }
 
-        ChunkActionMenu(
-            visible = showActionMenu,
-            chunk = selectedChunk,
-            onDismiss = { showActionMenu = false },
-            onAction = { action, chunkPair ->
-                showActionMenu = false
-                when (action) {
-                    "entities" -> viewModel.openChunkNbt(chunkPair, isEntity = true, navigator = navigator)
-                    "block_entities" -> viewModel.openChunkNbt(chunkPair, isEntity = false, navigator = navigator)
-                    "delete_chunk" -> {
-                        coroutineScope.launch {
-                            val success = viewModel.deleteChunk(chunkPair, viewModel.selectedDimension)
-                            if (success) {
-                                snackbarHostState.showSnackbar("SECTOR_PURGE // 区块 (${chunkPair.chunkX()}, ${chunkPair.chunkZ()}) 已彻底抹除")
-                            } else {
-                                snackbarHostState.showSnackbar("PURGE_FAILED // 目标区块可能本来就是空的")
-                            }
-                        }
-                    }
-                }
+        ChunkActionMenu(visible = showActionMenu, chunk = selectedChunk, onDismiss = { showActionMenu = false }, onAction = { action, chunkPair ->
+            showActionMenu = false
+            when (action) {
+                "entities" -> viewModel.openChunkNbt(chunkPair, true, navigator)
+                "block_entities" -> viewModel.openChunkNbt(chunkPair, false, navigator)
+                "delete_chunk" -> coroutineScope.launch { val success = viewModel.deleteChunk(chunkPair, viewModel.selectedDimension); snackbarHostState.showSnackbar(if(success) "已彻底抹除" else "抹除失败") }
             }
-        )
+        })
 
         // 缝合状态覆盖层
-        if (viewModel.isStitching || viewModel.stitchSuccess || viewModel.stitchError != null) {
+        if (viewModel.previewState == PreviewState.STITCHING || viewModel.stitchSuccess || viewModel.stitchError != null) {
             Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background.copy(alpha = 0.95f)) {
                 Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                     if (viewModel.stitchSuccess) {
@@ -377,17 +264,14 @@ fun MapPreviewScreen(
                         Spacer(Modifier.height(16.dp))
                         Text("缝合圆满完成！", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Spacer(Modifier.height(24.dp))
-                        BBQButton(
-                            onClick = { navigator.navigate(Export) },
-                            text = { Text("前往导出") }
-                        )
+                        BBQButton(onClick = { navigator.navigate(Export) }, text = { Text("前往导出") })
                     } else if (viewModel.stitchError != null) {
                         Text("ERROR: ${viewModel.stitchError}", color = MaterialTheme.colorScheme.error)
-                        Button(onClick = { viewModel.stitchError = null }) { Text("返回") }
+                        Button(onClick = { viewModel.stitchError = null; viewModel.abortPasting() }) { Text("返回") }
                     } else {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(16.dp))
-                        Text(viewModel.stitchStatus, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
+                        Text("STITCHING IN PROGRESS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(24.dp))
                         LinearProgressIndicator(progress = { viewModel.stitchProgress }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(8.dp))
@@ -426,10 +310,7 @@ fun InteractiveMapCanvas(
                 val boundsCenterX = minX * 512f + mapWidth / 2f
                 val boundsCenterZ = minZ * 512f + mapHeight / 2f
 
-                viewModel.mapOffset = Offset(
-                    vWidth / 2f - boundsCenterX * viewModel.mapScale,
-                    vHeight / 2f - boundsCenterZ * viewModel.mapScale
-                )
+                viewModel.mapOffset = Offset(vWidth / 2f - boundsCenterX * viewModel.mapScale, vHeight / 2f - boundsCenterZ * viewModel.mapScale)
                 viewModel.isMapCentered = true
             }
         }
@@ -438,21 +319,30 @@ fun InteractiveMapCanvas(
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(viewModel.isSelectionMode) {
-                        if (viewModel.isSelectionMode) {
-                            // 裁剪模式：单指拖拽产生矩形选区
+                    .pointerInput(viewModel.previewState) {
+                        if (viewModel.previewState == PreviewState.SOURCE_SELECT) {
                             detectDragGestures(
                                 onDragStart = { offset ->
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    viewModel.selectionStartBlock = Pair(mapX.toInt(), mapZ.toInt())
-                                    viewModel.selectionEndBlock = Pair(mapX.toInt(), mapZ.toInt())
+                                    viewModel.sourceSelectionStart = Pair(mapX.toInt(), mapZ.toInt())
+                                    viewModel.sourceSelectionEnd = Pair(mapX.toInt(), mapZ.toInt())
                                 },
                                 onDrag = { change, _ ->
                                     val offset = change.position
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    viewModel.selectionEndBlock = Pair(mapX.toInt(), mapZ.toInt())
+                                    viewModel.sourceSelectionEnd = Pair(mapX.toInt(), mapZ.toInt())
+                                }
+                            )
+                        } else if (viewModel.previewState == PreviewState.DEST_PASTE) {
+                            // 目标选择模式，点击移动选区框
+                            detectTapGestures(
+                                onTap = { tapOffset ->
+                                    val mapX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
+                                    val mapZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
+                                    // 点击的位置作为左上角
+                                    viewModel.pasteTargetPoint = Pair(mapX.toInt(), mapZ.toInt())
                                 }
                             )
                         } else {
@@ -468,9 +358,9 @@ fun InteractiveMapCanvas(
                             )
                         }
                     }
-                    .pointerInput(viewModel.isSelectionMode) {
-                        if (!viewModel.isSelectionMode) {
-                            // 浏览模式：支持双指平移和缩放
+                    .pointerInput(viewModel.previewState) {
+                        if (viewModel.previewState != PreviewState.SOURCE_SELECT) {
+                            // 浏览或粘贴模式：支持双指平移和缩放
                             detectTransformGestures { centroid, pan, zoom, _ ->
                                 val oldScale = viewModel.mapScale
                                 viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
@@ -484,74 +374,44 @@ fun InteractiveMapCanvas(
                     scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
                 }) {
                     regionBitmaps.forEach { (region, bitmap) ->
-                        drawImage(
-                            image = bitmap,
-                            topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f)
-                        )
-                        
+                        drawImage(image = bitmap, topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f))
                         if (viewModel.showGrid) {
-                            drawRect(
-                                color = Color(0xFF3B82F6).copy(alpha = 0.3f),
-                                topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f),
-                                size = Size(512f, 512f),
-                                style = Stroke(width = 1.5f)
-                            )
-                            
-                            val startX = region.regionX() * 512f
-                            val startZ = region.regionZ() * 512f
-                            for (c in 1 until 32) {
-                                val offsetDist = c * 16f
-                                drawLine(
-                                    color = Color(0xFF3B82F6).copy(alpha = 0.1f),
-                                    start = Offset(startX + offsetDist, startZ),
-                                    end = Offset(startX + offsetDist, startZ + 512f),
-                                    strokeWidth = 0.5f
-                                )
-                                drawLine(
-                                    color = Color(0xFF3B82F6).copy(alpha = 0.1f),
-                                    start = Offset(startX, startZ + offsetDist),
-                                    end = Offset(startX + 512f, startZ + offsetDist),
-                                    strokeWidth = 0.5f
-                                )
-                            }
+                            drawRect(color = Color(0xFF3B82F6).copy(alpha = 0.3f), topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f), size = Size(512f, 512f), style = Stroke(width = 1.5f))
                         }
                     }
 
-                    // 绘制裁切模式的选区框
-                    if (viewModel.selectionStartBlock != null && viewModel.selectionEndBlock != null) {
-                        val start = viewModel.selectionStartBlock!!
-                        val end = viewModel.selectionEndBlock!!
-                        val minX = min(start.first, end.first).toFloat()
-                        val minZ = min(start.second, end.second).toFloat()
-                        val maxX = max(start.first, end.first).toFloat()
-                        val maxZ = max(start.second, end.second).toFloat()
+                    // 绘制裁切模式的选区框 (蓝色)
+                    if (viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null) {
+                        val s = viewModel.sourceSelectionStart!!
+                        val e = viewModel.sourceSelectionEnd!!
+                        val minX = min(s.first, e.first).toFloat()
+                        val minZ = min(s.second, e.second).toFloat()
+                        val maxX = max(s.first, e.first).toFloat()
+                        val maxZ = max(s.second, e.second).toFloat()
 
-                        drawRect(
-                            color = Color(0xFF3B82F6).copy(alpha = 0.4f),
-                            topLeft = Offset(minX, minZ),
-                            size = Size(maxX - minX, maxZ - minZ)
-                        )
-                        drawRect(
-                            color = Color(0xFF3B82F6),
-                            topLeft = Offset(minX, minZ),
-                            size = Size(maxX - minX, maxZ - minZ),
-                            style = Stroke(width = 2f / viewModel.mapScale) // 保持描边在缩放时粗细一致
-                        )
+                        drawRect(color = Color(0xFF3B82F6).copy(alpha = 0.4f), topLeft = Offset(minX, minZ), size = Size(maxX - minX, maxZ - minZ))
+                        drawRect(color = Color(0xFF3B82F6), topLeft = Offset(minX, minZ), size = Size(maxX - minX, maxZ - minZ), style = Stroke(width = 2f / viewModel.mapScale))
+                    }
+
+                    // 绘制粘贴模式的高亮悬浮框 (黄色/绿色虚框)
+                    if (viewModel.previewState == PreviewState.DEST_PASTE && viewModel.sourceSelectionStart != null && viewModel.pasteTargetPoint != null) {
+                        val s = viewModel.sourceSelectionStart!!
+                        val e = viewModel.sourceSelectionEnd!!
+                        val w = abs(e.first - s.first).toFloat()
+                        val h = abs(e.second - s.second).toFloat()
+                        val target = viewModel.pasteTargetPoint!!
+
+                        drawRect(color = Color(0xFFFACC15).copy(alpha = 0.4f), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(w, h))
+                        drawRect(color = Color(0xFFFACC15), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(w, h), style = Stroke(width = 3f / viewModel.mapScale))
                     }
                 }
             }
 
             FloatingActionButton(
                 onClick = { viewModel.isMapCentered = false },
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(16.dp),
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = AppShapes.small
-            ) {
-                Icon(Icons.Default.CenterFocusStrong, contentDescription = "扫描对准")
-            }
+                modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary, shape = AppShapes.small
+            ) { Icon(Icons.Default.CenterFocusStrong, contentDescription = "扫描对准") }
         }
     }
 }
