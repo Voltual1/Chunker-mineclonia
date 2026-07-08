@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import androidx.work.workDataOf
-import androidx.work.Data
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -68,18 +67,15 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
             override fun level() = Optional.empty<ChunkerLevel>()
         }
 
-        val finalWorldDirectory = File(worldDirUri)
-        val readerOpt = EncodingType.findReader(finalWorldDirectory, converterStub)
-        if (!readerOpt.isPresent) return@withContext Result.failure(workDataOf("error" to "未检测到支持的格式"))
+        val readerOpt = EncodingType.findReader(File(worldDirUri), converterStub)
+        if (!readerOpt.isPresent) return@withContext Result.failure()
 
         val levelReader = readerOpt.get()
-        val isBedrockFormat = levelReader.encodingType == EncodingType.BEDROCK
-
+        
         val previewWriter = ComposeMapPreviewWriter(
             onColumnRendered = { dimension, region, chunk, argb ->
                 val dimRegion = Pair(dimension, region)
-                val chunksInRegion = regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }
-                chunksInRegion[chunk] = argb
+                regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }[chunk] = argb
             },
             onFlushRegion = { dimension, region ->
                 val dimRegion = Pair(dimension, region)
@@ -87,20 +83,17 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                 if (chunkMap != null) {
                     val pixels = IntArray(512 * 512)
                     for ((chunkCoord, argbArray) in chunkMap) {
-                        if (argbArray.isEmpty()) continue
                         val startX = (chunkCoord.chunkX() and 31) shl 4
                         val startY = (chunkCoord.chunkZ() and 31) shl 4
                         for (cz in 0 until 16) {
-                            for (cx in 0 until 16) {
-                                pixels[(startY + cz) * 512 + (startX + cx)] = argbArray[cz * 16 + cx]
-                            }
+                            System.arraycopy(argbArray, cz * 16, pixels, (startY + cz) * 512 + startX, 16)
                         }
                     }
-                    val dimId = dimension.getIdentifier().replace(":", "_")
-                    val file = File(outputDir, "${dimId}_${region.regionX()}_${region.regionZ()}.bin")
+                    val file = File(outputDir, "${dimension.getIdentifier().replace(":", "_")}_${region.regionX()}_${region.regionZ()}.bin")
                     DataOutputStream(FileOutputStream(file).buffered()).use { dos ->
                         for (p in pixels) dos.writeInt(p)
                     }
+                    // 修正进度信号
                     setProgressAsync(workDataOf("status" to "FLUSHED"))
                 }
             }
@@ -110,41 +103,31 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
         try {
             levelReader.readLevel(object : LevelConversionHandler {
                 override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                    val safeLevel = level ?: ChunkerLevel(ChunkerLevelSettings(), null, emptyList(), null, emptyList())
-                    val worldWriter = previewWriter.writeLevel(safeLevel)
-                    val worldHandler = object : WorldConversionHandler {
+                    val worldWriter = previewWriter.writeLevel(level ?: ChunkerLevel())
+                    return FutureTask(CompletableFuture.completedFuture(object : WorldConversionHandler {
                         override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
                             val columnWriter = worldWriter.writeWorld(world ?: throw NullPointerException())
-                            val columnHandler = object : ColumnConversionHandler {
-                                // 修复：明确指定 Task<java.lang.Void> 
-                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> {
-                                    return columnWriter.writeColumn(column)
-                                }
-
-                                override fun flushRegion(regionCoordPair: RegionCoordPair): Task<java.lang.Void> {
-                                    columnWriter.flushRegion(regionCoordPair)
+                            return FutureTask(CompletableFuture.completedFuture(object : ColumnConversionHandler {
+                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> = columnWriter.writeColumn(column)
+                                override fun flushRegion(region: RegionCoordPair): Task<java.lang.Void> {
+                                    columnWriter.flushRegion(region)
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
-
                                 override fun flushColumns(): Task<java.lang.Void> {
                                     columnWriter.flushColumns()
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
-                            }
-                            return FutureTask(CompletableFuture.completedFuture(columnHandler))
+                            }))
                         }
                         override fun flushWorld(world: ChunkerWorld?) { worldWriter.flushWorld(world) }
                         override fun flushWorlds() { worldWriter.flushWorlds() }
-                    }
-                    return FutureTask(CompletableFuture.completedFuture(worldHandler))
+                    }))
                 }
                 override fun flushLevel() { previewWriter.flushLevel() }
             })
             environment.future().get()
-        } catch (e: Exception) {
-            return@withContext Result.failure(workDataOf("error" to (e.message ?: "解析出错")))
         } finally { environment.close() }
 
-        Result.success(workDataOf("isBedrock" to isBedrockFormat))
+        Result.success(workDataOf("isBedrock" to (levelReader.encodingType == EncodingType.BEDROCK)))
     }
 }
