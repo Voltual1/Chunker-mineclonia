@@ -333,7 +333,7 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            val dimension = Dimension.values().find { it.identifier == dimId } ?: Dimension.OVERWORLD
+            val dimension = DimensionRegistry().dimensions.find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
             if (regionBitmaps.containsKey(dimRegion)) continue // 已加载
