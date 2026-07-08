@@ -6,9 +6,9 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.work.CoroutineWorker
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
+import androidx.work.multiprocess.RemoteCoroutineWorker
 import androidx.work.workDataOf
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
@@ -22,17 +22,13 @@ import kotlinx.coroutines.CoroutineScope
 import me.voltual.vb.core.database.AppDatabase
 import me.voltual.vb.core.database.entity.LogEntry
 import me.voltual.vb.ui.chunker.ConversionLogBridge
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
 import java.io.File
 import java.util.UUID
 
 class StitchWorker(
     private val context: Context,
     private val params: WorkerParameters
-) : CoroutineWorker(context, params), KoinComponent {
-
-    private val database: AppDatabase by inject()
+) : RemoteCoroutineWorker(context, params) { // 移除 KoinComponent
 
     override suspend fun getForegroundInfo(): ForegroundInfo {
         val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -48,7 +44,7 @@ class StitchWorker(
         return ForegroundInfo(2002, notification)
     }
 
-    override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
+    override suspend fun doRemoteWork(): Result = withContext(Dispatchers.IO) {
         val sourcePath = inputData.getString("sourcePath") ?: return@withContext Result.failure()
         val destPath = inputData.getString("destPath") ?: return@withContext Result.failure()
         val dimensionName = inputData.getString("dimension") ?: "minecraft:overworld"
@@ -57,20 +53,16 @@ class StitchWorker(
         val minZ = inputData.getInt("minZ", 0)
         val maxX = inputData.getInt("maxX", 0)
         val maxZ = inputData.getInt("maxZ", 0)
-        
-       val dimension = when (dimensionName) {
+        val offsetX = inputData.getInt("offsetX", 0)
+        val offsetZ = inputData.getInt("offsetZ", 0)
+
+        val dimension = when (dimensionName) {
             "minecraft:the_nether" -> Dimension.NETHER
             "minecraft:the_end" -> Dimension.THE_END
             else -> Dimension.OVERWORLD
         }
 
-        val offsetX = inputData.getInt("offsetX", 0)
-        val offsetZ = inputData.getInt("offsetZ", 0)
-
-        val pruningConfig = PruningConfig(
-            true, 
-            listOf(PruningRegion(minX, minZ, maxX, maxZ))
-        )
+        val pruningConfig = PruningConfig(true, listOf(PruningRegion(minX, minZ, maxX, maxZ)))
 
         val sessionId = UUID.randomUUID()
         val logBuilder = StringBuilder()
@@ -79,26 +71,22 @@ class StitchWorker(
         val exceptionHandler = java.util.function.Consumer<Throwable> { error -> log("异常: ${error.message}"); error.printStackTrace() }
         val signalConsumer = java.util.function.BiConsumer<String, Any> { n, v -> if (n == WorldConverter.SIGNAL_COMPACTION && (v as Boolean)) log("正在进行 LevelDB 压缩...") }
 
-        log("STITCH_INIT // 启动可视化平移缝合引擎...")
-        log("源目录: $sourcePath")
-        log("目标目录: $destPath")
-        log("作用维度: $dimensionName")
-        log("源边界(区块系): ($minX, $minZ) ~ ($maxX, $maxZ)")
-        log("坐标偏移量(区块系): X_Offset=$offsetX, Z_Offset=$offsetZ")
+        val stitcher = WorldStitcher(sessionId, File(sourcePath), File(destPath), maxOf(1, Runtime.getRuntime().availableProcessors() - 1), offsetX, offsetZ, exceptionHandler, signalConsumer)
 
-        val threadCount = maxOf(1, Runtime.getRuntime().availableProcessors() - 1)
-        val stitcher = WorldStitcher(sessionId, File(sourcePath), File(destPath), threadCount, offsetX, offsetZ, exceptionHandler, signalConsumer)
+        // 直接通过 Context 静态工厂单例获取底层的 Room Database 句柄，彻底抛弃 Koin 跨进程隐患
+        val database = AppDatabase.getDatabase(context)
 
         try {
             val env = stitcher.stitch(dimension, pruningConfig)
             
-            val progressJob = launch {
+            // 绑定到 IO 作用域下，确保安全并获取 progress 上下文
+            val progressJob = CoroutineScope(Dispatchers.Default).launch {
                 var lastP = -1.0
                 while (!env.future().isDone) {
                     val p = env.progress
                     if (kotlin.math.abs(p - lastP) > 0.01) {
                         lastP = p
-                        setProgress(workDataOf("progress" to (p * 100).toFloat()))
+                        setProgress(workDataOf("progress" to (p * 10).toFloat()))
                     }
                     kotlinx.coroutines.delay(200)
                 }
@@ -108,7 +96,6 @@ class StitchWorker(
             progressJob.join()
             setProgress(workDataOf("progress" to 100f))
 
-            // 核心提示：打印出确切被影响的区块数量！
             val totalProcessed = stitcher.processedChunks.get()
             log("STITCH_SUCCESS // 操作完成，共成功覆盖了 $totalProcessed 个物理区块！")
 
