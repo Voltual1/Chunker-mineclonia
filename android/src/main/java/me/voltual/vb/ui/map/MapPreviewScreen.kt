@@ -89,7 +89,6 @@ fun MapPreviewScreen(
         }
     }
 
-    // 动态更新 TopBar (仅在 IDLE 和 SOURCE_SELECT 阶段可交互)
     LaunchedEffect(viewModel.showGrid, viewModel.worldDirUri, viewModel.previewState) {
         if (viewModel.previewState == PreviewState.IDLE || viewModel.previewState == PreviewState.SOURCE_SELECT) {
             topAppBarController.updateActions(
