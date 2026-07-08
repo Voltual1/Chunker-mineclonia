@@ -57,6 +57,7 @@ import java.util.concurrent.ConcurrentHashMap
 import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.coroutines.delay
 
 enum class PreviewState {
     IDLE,
@@ -78,7 +79,6 @@ class MapPreviewViewModel : ViewModel() {
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
 
-    // --- 核心修复：增加一个用于触发 UI 重组的计数器 ---
     var mapUpdateTrigger by mutableStateOf(0)
         private set
 
@@ -150,9 +150,9 @@ class MapPreviewViewModel : ViewModel() {
         localTargetWorlds.addAll(
             files.filter { 
                 it.isDirectory && 
-                it.name != "stitch_source" && 
                 it.name != "world_preview" && 
-                it.name != "stitch_dest_temp"
+                it.name != "world_output" && 
+                it.name != "world_input" 
             }
         )
     }
@@ -168,21 +168,22 @@ class MapPreviewViewModel : ViewModel() {
     fun copyExternalTargetToTemp(context: Context, destDoc: DocumentFile) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
-            val tempDestDir = File(rootDir, "stitch_dest_temp")
-            tempDestDir.deleteRecursively()
-            tempDestDir.mkdirs()
+            // 核心修改：SAF 导入目标底图直接使用 world_output，防止中转改名导致导出遗失
+            val outputDir = File(rootDir, "world_output")
+            outputDir.deleteRecursively()
+            outputDir.mkdirs()
 
             withContext(Dispatchers.Main) {
                 previewState = PreviewState.DEST_PASTE
                 isLoading = true
-                statusMessage = "正在复制目标至临时缝合区..."
+                statusMessage = "正在迁移并处理外部底层世界..."
             }
 
             val countDownLatch = java.util.concurrent.CountDownLatch(1)
             destDoc.copyFolderTo(
                 context = context,
                 targetParentFolder = DocumentFile.fromFile(rootDir),
-                newFolderNameInTargetPath = tempDestDir.name,
+                newFolderNameInTargetPath = outputDir.name,
                 skipEmptyFiles = false,
                 onConflict = object : SingleFolderConflictCallback(viewModelScope) {
                     override fun onParentConflict(destinationFolder: DocumentFile, action: ParentFolderConflictAction, canMerge: Boolean) {
@@ -196,8 +197,8 @@ class MapPreviewViewModel : ViewModel() {
             }
             countDownLatch.await()
 
-            FileRepairUtil.repairCopiedDatabaseFiles(tempDestDir)
-            currentDestPath = tempDestDir.absolutePath
+            FileRepairUtil.repairCopiedDatabaseFiles(outputDir)
+            currentDestPath = outputDir.absolutePath
 
             withContext(Dispatchers.Main) {
                 internalLoadAndRender(context, currentDestPath)
@@ -226,13 +227,13 @@ class MapPreviewViewModel : ViewModel() {
         stitchSuccess = false
         stitchError = null
 
-        val rootDir = getWorldsDir(context)
-        val sourceInternalPath = File(rootDir, "stitch_source").absolutePath
+        // 源路径就是当前正在预览挂载的世界路径
+        val sourceInternalPath = worldDirUri
 
         val inputData = Data.Builder()
             .putString("sourcePath", sourceInternalPath)
             .putString("destPath", currentDestPath)
-            .putString("dimension", selectedDimension.getIdentifier())
+            .putString("dimension", selectedDimension.identifier)
             .putInt("minX", chunkMinX)
             .putInt("minZ", chunkMinZ)
             .putInt("maxX", chunkMaxX)
@@ -253,11 +254,6 @@ class MapPreviewViewModel : ViewModel() {
                     stitchProgress = rawProgress / 10f
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
-                        if (currentDestPath.endsWith("stitch_dest_temp")) {
-                            val outputDir = File(rootDir, "world_output")
-                            outputDir.deleteRecursively()
-                            File(currentDestPath).renameTo(outputDir)
-                        }
                         stitchSuccess = true
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isStitching = false
@@ -271,25 +267,25 @@ class MapPreviewViewModel : ViewModel() {
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
-            val sourceInternal = File(rootDir, "stitch_source")
             
             if (useFtpInput) {
                 withContext(Dispatchers.Main) {
                     previewState = PreviewState.IDLE
                     isLoading = true
-                    statusMessage = "正在直接读取中转站 (FTP) 物理数据..."
+                    statusMessage = "直接挂载中转站 (FTP) 数据流..."
                 }
 
                 val ftpDir = File(rootDir, "world_input")
                 if (ftpDir.exists() && ftpDir.listFiles()?.isNotEmpty() == true) {
-                    sourceInternal.deleteRecursively()
-                    ftpDir.renameTo(sourceInternal)
+                    withContext(Dispatchers.Main) {
+                        // 核心修改：不再去 rename 它，而是直接使用，防止外部混淆
+                        internalLoadAndRender(context, ftpDir.absolutePath)
+                    }
                 } else {
                     withContext(Dispatchers.Main) {
                         statusMessage = "FTP 存档内容未就绪或已被清除！"
                         isLoading = false
                     }
-                    return@launch
                 }
             } else {
                 withContext(Dispatchers.Main) {
@@ -299,12 +295,13 @@ class MapPreviewViewModel : ViewModel() {
                 }
 
                 if (docFolder != null) {
-                    sourceInternal.deleteRecursively()
-                    sourceInternal.mkdirs()
+                    val previewDir = File(rootDir, "world_preview")
+                    previewDir.deleteRecursively()
+                    previewDir.mkdirs()
                     val countDownLatch = java.util.concurrent.CountDownLatch(1)
                     docFolder.copyFolderTo(
                         context = context, targetParentFolder = DocumentFile.fromFile(rootDir),
-                        newFolderNameInTargetPath = sourceInternal.name, skipEmptyFiles = false,
+                        newFolderNameInTargetPath = previewDir.name, skipEmptyFiles = false,
                         onConflict = object : SingleFolderConflictCallback(viewModelScope) {
                             override fun onParentConflict(d: DocumentFile, a: ParentFolderConflictAction, m: Boolean) {
                                 a.confirmResolution(ConflictResolution.REPLACE)
@@ -312,18 +309,17 @@ class MapPreviewViewModel : ViewModel() {
                         }
                     ).collect { if (it is SingleFolderResult.Completed || it is SingleFolderResult.Error) countDownLatch.countDown() }
                     countDownLatch.await()
-                    FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
+                    FileRepairUtil.repairCopiedDatabaseFiles(previewDir)
+                    
+                    withContext(Dispatchers.Main) {
+                        internalLoadAndRender(context, previewDir.absolutePath)
+                    }
                 } else {
                     withContext(Dispatchers.Main) {
                         statusMessage = "未指定任何有效的世界存档来源！"
                         isLoading = false
                     }
-                    return@launch
                 }
-            }
-
-            withContext(Dispatchers.Main) {
-                internalLoadAndRender(context, sourceInternal.absolutePath)
             }
         }
     }
@@ -342,11 +338,21 @@ class MapPreviewViewModel : ViewModel() {
         cacheMapDir.deleteRecursively()
         cacheMapDir.mkdirs()
 
+        // 核心修改：开启独立的 I/O 轮询协程，专门监控并加载生成的原子级 .bin 文件
+        val pollJob = viewModelScope.launch(Dispatchers.IO) {
+            while (isLoading) {
+                delay(400) // 每400ms轮询一次
+                loadBitmapsFromDir(cacheMapDir)
+            }
+            // 结束后再安全扫描最后一次，防止遗漏
+            loadBitmapsFromDir(cacheMapDir)
+        }
+
         val inputData = Data.Builder()
             .putString("worldDirUri", path)
             .putString("outputPath", cacheMapDir.absolutePath)
             .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
+            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.mult multiprocess.RemoteWorkerService")
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
@@ -355,18 +361,11 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    if (workInfo.state == WorkInfo.State.RUNNING) {
-                        val progStatus = workInfo.progress.getString("status")
-                        if (progStatus != null && progStatus == "FLUSHED") {
-                            statusMessage = "正在读取区块并构建图像数据..."
-                            loadBitmapsFromDir(cacheMapDir)
-                        }
-                    } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                    if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isBedrock = workInfo.outputData.getBoolean("isBedrock", false)
-                        loadBitmapsFromDir(cacheMapDir)
-                        isLoading = false
+                        isLoading = false // 会自动退出 pollJob
                         isLoaded = true
-                        statusMessage = "预览加载完成！"
+                        statusMessage = "预览图已构建完毕！"
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isLoading = false
                         statusMessage = "解析出错：" + (workInfo.outputData.getString("error") ?: "未知")
@@ -376,8 +375,9 @@ class MapPreviewViewModel : ViewModel() {
         }
     }
 
-    private fun loadBitmapsFromDir(cacheDir: File) {
-        val files = cacheDir.listFiles { _, name -> name.endsWith(".bin") } ?: return
+    // 独立且高并发安全的加载任务
+    private suspend fun loadBitmapsFromDir(cacheDir: File) = withContext(Dispatchers.IO) {
+        val files = cacheDir.listFiles { _, name -> name.endsWith(".bin") } ?: return@withContext
         for (file in files) {
             val parts = file.nameWithoutExtension.split("_")
             if (parts.size < 3) continue
@@ -385,9 +385,10 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
-
+            val dimension = DimensionRegistry().dimensions.find { it.identifier == dimId } ?: Dimension.OVERWORLD
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
+            
+            // 如果内存里已经加载过，跳过
             if (regionBitmaps.containsKey(dimRegion)) continue
 
             val pixels = IntArray(512 * 512)
@@ -396,12 +397,16 @@ class MapPreviewViewModel : ViewModel() {
                     for (i in pixels.indices) pixels[i] = dis.readInt()
                 }
                 val bitmap = Bitmap.createBitmap(pixels, 512, 512, Bitmap.Config.ARGB_8888)
-                regionBitmaps[dimRegion] = bitmap
-                if (!availableDimensions.contains(dimension)) availableDimensions.add(dimension)
                 
-                // 只要有新数据载入，同样触发计数器
-                mapUpdateTrigger++
-            } catch (e: Exception) { e.printStackTrace() }
+                // 将准备好的 Bitmap 推送给 UI 线程
+                withContext(Dispatchers.Main) {
+                    regionBitmaps[dimRegion] = bitmap
+                    if (!availableDimensions.contains(dimension)) availableDimensions.add(dimension)
+                    mapUpdateTrigger++ // 强制刷新 UI
+                }
+            } catch (e: Exception) { 
+                e.printStackTrace() 
+            }
         }
     }
 
@@ -413,7 +418,7 @@ class MapPreviewViewModel : ViewModel() {
 
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
-            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
+            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.identifier, isEntity, isBedrock)
         )
     }
 
@@ -431,7 +436,7 @@ class MapPreviewViewModel : ViewModel() {
                 val inputData = Data.Builder()
                     .putString("worldDirUri", worldDirUri)
                     .putBoolean("isBedrock", isBedrock)
-                    .putString("dimension", selectedDimension.getIdentifier())
+                    .putString("dimension", selectedDimension.identifier)
                     .putInt("minX", chunkMinX)
                     .putInt("minZ", chunkMinZ)
                     .putInt("maxX", chunkMaxX)
@@ -471,11 +476,11 @@ class MapPreviewViewModel : ViewModel() {
                         val startZ = (cz and 31) * 16f
                         canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
                         
+                        regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = mutableBmp
                     }
                 }
             }
-            // 核心修复：更新计数器，强制 Screen 的 LaunchedEffect 捕捉到内容更新
             mapUpdateTrigger++
         }
     }

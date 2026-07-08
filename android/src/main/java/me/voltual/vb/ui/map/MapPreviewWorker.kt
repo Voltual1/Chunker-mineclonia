@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import androidx.work.workDataOf
+import androidx.work.Data
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -67,15 +68,18 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
             override fun level() = Optional.empty<ChunkerLevel>()
         }
 
-        val readerOpt = EncodingType.findReader(File(worldDirUri), converterStub)
+        val finalWorldDirectory = File(worldDirUri)
+        val readerOpt = EncodingType.findReader(finalWorldDirectory, converterStub)
         if (!readerOpt.isPresent) return@withContext Result.failure()
 
         val levelReader = readerOpt.get()
-        
+        val isBedrockFormat = levelReader.encodingType == EncodingType.BEDROCK
+
         val previewWriter = ComposeMapPreviewWriter(
             onColumnRendered = { dimension, region, chunk, argb ->
                 val dimRegion = Pair(dimension, region)
-                regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }[chunk] = argb
+                val chunksInRegion = regionRGBAData.computeIfAbsent(dimRegion) { ConcurrentHashMap() }
+                chunksInRegion[chunk] = argb
             },
             onFlushRegion = { dimension, region ->
                 val dimRegion = Pair(dimension, region)
@@ -83,17 +87,24 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                 if (chunkMap != null) {
                     val pixels = IntArray(512 * 512)
                     for ((chunkCoord, argbArray) in chunkMap) {
+                        if (argbArray.isEmpty()) continue
                         val startX = (chunkCoord.chunkX() and 31) shl 4
                         val startY = (chunkCoord.chunkZ() and 31) shl 4
                         for (cz in 0 until 16) {
-                            System.arraycopy(argbArray, cz * 16, pixels, (startY + cz) * 512 + startX, 16)
+                            for (cx in 0 until 16) {
+                                pixels[(startY + cz) * 512 + (startX + cx)] = argbArray[cz * 16 + cx]
+                            }
                         }
                     }
-                    val file = File(outputDir, "${dimension.getIdentifier().replace(":", "_")}_${region.regionX()}_${region.regionZ()}.bin")
-                    DataOutputStream(FileOutputStream(file).buffered()).use { dos ->
+                    val dimId = dimension.identifier.replace(":", "_")
+                    // 核心修改：使用原子重命名 (Atomic Rename) 避免 UI 层读取到未写入完整的半截文件
+                    val tempFile = File(outputDir, "${dimId}_${region.regionX()}_${region.regionZ()}.tmp")
+                    val finalFile = File(outputDir, "${dimId}_${region.regionX()}_${region.regionZ()}.bin")
+                    
+                    DataOutputStream(FileOutputStream(tempFile).buffered()).use { dos ->
                         for (p in pixels) dos.writeInt(p)
                     }
-                    setProgressAsync(workDataOf("status" to "FLUSHED"))
+                    tempFile.renameTo(finalFile)
                 }
             }
         )
@@ -102,37 +113,39 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
         try {
             levelReader.readLevel(object : LevelConversionHandler {
                 override fun convertLevel(level: ChunkerLevel?): Task<WorldConversionHandler> {
-                    val worldWriter = previewWriter.writeLevel(level ?: ChunkerLevel())
-                    return FutureTask(CompletableFuture.completedFuture(object : WorldConversionHandler {
+                    val safeLevel = level ?: ChunkerLevel(ChunkerLevelSettings(), null, emptyList(), null, emptyList())
+                    val worldWriter = previewWriter.writeLevel(safeLevel)
+                    val worldHandler = object : WorldConversionHandler {
                         override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
                             val columnWriter = worldWriter.writeWorld(world ?: throw NullPointerException())
-                            return FutureTask(CompletableFuture.completedFuture(object : ColumnConversionHandler {
-                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> = columnWriter.writeColumn(column)
-                                override fun flushRegion(region: RegionCoordPair): Task<java.lang.Void> {
-                                    columnWriter.flushRegion(region)
+                            val columnHandler = object : ColumnConversionHandler {
+                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> {
+                                    return columnWriter.writeColumn(column)
+                                }
+                                override fun flushRegion(regionCoordPair: RegionCoordPair): Task<java.lang.Void> {
+                                    columnWriter.flushRegion(regionCoordPair)
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
                                 override fun flushColumns(): Task<java.lang.Void> {
                                     columnWriter.flushColumns()
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
-                            }))
+                            }
+                            return FutureTask(CompletableFuture.completedFuture(columnHandler))
                         }
                         override fun flushWorld(world: ChunkerWorld?) { worldWriter.flushWorld(world) }
                         override fun flushWorlds() { worldWriter.flushWorlds() }
-                    }))
+                    }
+                    return FutureTask(CompletableFuture.completedFuture(worldHandler))
                 }
                 override fun flushLevel() { previewWriter.flushLevel() }
             })
-            
-            // 必须先 close 才能访问 future()
             environment.close()
             environment.future().get()
         } catch (e: Exception) {
-            e.printStackTrace()
-            return@withContext Result.failure(workDataOf("error" to (e.message ?: "解析失败")))
+            return@withContext Result.failure(workDataOf("error" to (e.message ?: "解析出错")))
         }
 
-        Result.success(workDataOf("isBedrock" to (levelReader.encodingType == EncodingType.BEDROCK)))
+        Result.success(workDataOf("isBedrock" to isBedrockFormat))
     }
 }
