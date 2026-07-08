@@ -77,7 +77,10 @@ class MapPreviewViewModel : ViewModel() {
     var selectedDimension by mutableStateOf(Dimension.OVERWORLD)
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
-    private val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
+
+    // --- 核心修复：增加一个用于触发 UI 重组的计数器 ---
+    var mapUpdateTrigger by mutableStateOf(0)
+        private set
 
     var statusMessage by mutableStateOf("")
         private set
@@ -332,7 +335,6 @@ class MapPreviewViewModel : ViewModel() {
         mapScale = 1f
         mapOffset = Offset.Zero
         regionBitmaps.clear()
-        regionRGBAData.clear()
         availableDimensions.clear()
         worldDirUri = path
 
@@ -396,6 +398,9 @@ class MapPreviewViewModel : ViewModel() {
                 val bitmap = Bitmap.createBitmap(pixels, 512, 512, Bitmap.Config.ARGB_8888)
                 regionBitmaps[dimRegion] = bitmap
                 if (!availableDimensions.contains(dimension)) availableDimensions.add(dimension)
+                
+                // 只要有新数据载入，同样触发计数器
+                mapUpdateTrigger++
             } catch (e: Exception) { e.printStackTrace() }
         }
     }
@@ -452,11 +457,6 @@ class MapPreviewViewModel : ViewModel() {
         return success
     }
 
-    /**
-     * 核心重构实现：强制生成全新 Bitmap 引用副本机制
-     * 解决 Compose 智能 Diff 系统因为“Bitmap 内存地址未变”而静默跳过重组的问题。
-     * 现在每次调用都会强制给 Canvas 生成全新的物理引用副本。
-     */
     private suspend fun eraseChunksFromBitmaps(minX: Int, minZ: Int, maxX: Int, maxZ: Int) {
         withContext(Dispatchers.Main) {
             val paint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
@@ -465,19 +465,18 @@ class MapPreviewViewModel : ViewModel() {
                     val dimRegion = Pair(selectedDimension, ChunkCoordPair(cx, cz).region)
                     val originalBitmap = regionBitmaps[dimRegion]
                     if (originalBitmap != null) {
-                        // 强制通过 .copy() 生成全新的物理引用，欺骗 Compose 的 Diff 比对机制
                         val mutableBmp = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
                         val canvas = Canvas(mutableBmp)
                         val startX = (cx and 31) * 16f
                         val startZ = (cz and 31) * 16f
                         canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
                         
-                        // 先彻底移除再重新注入，双重保险强行诱导 Compose 重组 Canvas
-                        regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = mutableBmp
                     }
                 }
             }
+            // 核心修复：更新计数器，强制 Screen 的 LaunchedEffect 捕捉到内容更新
+            mapUpdateTrigger++
         }
     }
 }

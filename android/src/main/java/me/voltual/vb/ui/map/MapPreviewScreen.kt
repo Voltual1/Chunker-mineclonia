@@ -130,9 +130,10 @@ fun MapPreviewScreen(
         }
     }
 
-    LaunchedEffect(viewModel.regionBitmaps.size) {
-        viewModel.regionBitmaps.forEach { (region, bmp) ->
-            if (!composeBitmaps.containsKey(region)) composeBitmaps[region] = bmp.asImageBitmap()
+    LaunchedEffect(viewModel.regionBitmaps.size, viewModel.mapUpdateTrigger) {
+        viewModel.regionBitmaps.forEach { (key, bmp) ->
+            // 每次计数器变动，强制执行一次转换，把全新引用的 ImageBitmap 塞入渲染图层
+            composeBitmaps[key] = bmp.asImageBitmap()
         }
     }
 
