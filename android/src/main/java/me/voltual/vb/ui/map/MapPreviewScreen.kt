@@ -123,7 +123,7 @@ fun MapPreviewScreen(
                     TopAppBarAction(
                         icon = { tint -> Icon(Icons.Default.Close, contentDescription = "取消粘贴", tint = MaterialTheme.colorScheme.error) },
                         description = "取消粘贴",
-                        onClick = { viewModel.abortPasting() }
+                        onClick = { viewModel.abortPasting(context) } 
                     )
                 )
             )
@@ -302,7 +302,7 @@ fun MapPreviewScreen(
                         BBQButton(onClick = { navigator.navigate(Export) }, text = { Text("前往导出") })
                     } else if (viewModel.stitchError != null) {
                         Text("ERROR: ${viewModel.stitchError}", color = MaterialTheme.colorScheme.error)
-                        Button(onClick = { viewModel.stitchError = null; viewModel.abortPasting() }) { Text("返回") }
+                        Button(onClick = { viewModel.stitchError = null; viewModel.abortPasting(context) }) { Text("返回") }
                     } else {
                         CircularProgressIndicator()
                         Spacer(Modifier.height(16.dp))
