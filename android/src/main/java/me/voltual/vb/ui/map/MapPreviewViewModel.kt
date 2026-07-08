@@ -115,7 +115,6 @@ class MapPreviewViewModel : ViewModel() {
     val localTargetWorlds = mutableStateListOf<File>()
     var currentDestPath by mutableStateOf("")
     
-    // 核心修复：单独保存源存档路径，防止加载目标存档后将其覆盖
     var stitchSourceUri by mutableStateOf("")
         private set
 
@@ -137,7 +136,6 @@ class MapPreviewViewModel : ViewModel() {
         }
     }
 
-    // 修复：取消粘贴时，我们需要把视图恢复成原来的源存档，否则用户只能卡在目标存档界面里
     fun abortPasting(context: Context) {
         previewState = PreviewState.IDLE
         pasteTargetPoint = null
@@ -162,15 +160,15 @@ class MapPreviewViewModel : ViewModel() {
         localTargetWorlds.addAll(
             files.filter { 
                 it.isDirectory && 
-                it.name != "stitch_source" && 
                 it.name != "world_preview" && 
-                it.name != "stitch_dest_temp"
+                it.name != "world_output" && 
+                it.name != "world_input" 
             }
         )
     }
 
     fun selectExistingLocalTarget(context: Context, targetFolder: File) {
-        stitchSourceUri = worldDirUri // 核心修复：在此处锁定源世界路径
+        stitchSourceUri = worldDirUri
         currentDestPath = targetFolder.absolutePath
         previewState = PreviewState.DEST_PASTE
         viewModelScope.launch(Dispatchers.Main) {
@@ -186,7 +184,7 @@ class MapPreviewViewModel : ViewModel() {
             outputDir.mkdirs()
 
             withContext(Dispatchers.Main) {
-                stitchSourceUri = worldDirUri // 核心修复：在此处锁定源世界路径
+                stitchSourceUri = worldDirUri
                 previewState = PreviewState.DEST_PASTE
                 isLoading = true
                 statusMessage = "正在迁移并处理外部底层世界..."
@@ -241,25 +239,24 @@ class MapPreviewViewModel : ViewModel() {
         stitchError = null
 
         val rootDir = getWorldsDir(context)
-        // 核心修复：源路径读取我们保存好的 stitchSourceUri，而不是被覆盖的 worldDirUri
         val sourceInternalPath = stitchSourceUri.ifEmpty { worldDirUri }
 
-        val inputData = Data.Builder()
-            .putString("sourcePath", sourceInternalPath)
-            .putString("destPath", currentDestPath)
-            .putString("dimension", selectedDimension.identifier)
-            .putInt("minX", chunkMinX)
-            .putInt("minZ", chunkMinZ)
-            .putInt("maxX", chunkMaxX)
-            .putInt("maxZ", chunkMaxZ)
-            .putInt("offsetX", offsetX)
-            .putInt("offsetZ", offsetZ)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
-            .build()
+        val inputData = workDataOf(
+            "sourcePath" to sourceInternalPath,
+            "destPath" to currentDestPath,
+            "dimension" to selectedDimension.getIdentifier(),
+            "minX" to chunkMinX,
+            "minZ" to chunkMinZ,
+            "maxX" to chunkMaxX,
+            "maxZ" to chunkMaxZ,
+            "offsetX" to offsetX,
+            "offsetZ" to offsetZ
+        )
 
+        // 核心修复：StitchWorker 必须在主进程执行，因为它需要 Koin 容器和数据库单例
+        // 撤销 RemoteWorkManager，改用普通的 WorkManager
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
-        WorkManager.getInstance(context).enqueue(workRequest)
+        WorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
 
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
@@ -268,11 +265,6 @@ class MapPreviewViewModel : ViewModel() {
                     stitchProgress = rawProgress / 100f
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
-                        if (currentDestPath.endsWith("stitch_dest_temp")) {
-                            val outputDir = File(rootDir, "world_output")
-                            outputDir.deleteRecursively()
-                            File(currentDestPath).renameTo(outputDir)
-                        }
                         stitchSuccess = true
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isStitching = false
@@ -286,7 +278,6 @@ class MapPreviewViewModel : ViewModel() {
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
-            val sourceInternal = File(rootDir, "stitch_source")
             
             if (useFtpInput) {
                 withContext(Dispatchers.Main) {
@@ -302,10 +293,9 @@ class MapPreviewViewModel : ViewModel() {
                     }
                 } else {
                     withContext(Dispatchers.Main) {
-                        statusMessage = "FTP 存档内容未就绪或已被清除！"
+                        statusMessage = "FTP 存档内容未就绪！"
                         isLoading = false
                     }
-                    return@launch
                 }
             } else {
                 withContext(Dispatchers.Main) {
@@ -334,12 +324,6 @@ class MapPreviewViewModel : ViewModel() {
                     withContext(Dispatchers.Main) {
                         internalLoadAndRender(context, previewDir.absolutePath)
                     }
-                } else {
-                    withContext(Dispatchers.Main) {
-                        statusMessage = "未指定任何有效的世界存档来源！"
-                        isLoading = false
-                    }
-                    return@launch
                 }
             }
         }
@@ -376,23 +360,17 @@ class MapPreviewViewModel : ViewModel() {
             .build()
 
         val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
+        // 渲染继续留在子进程 (RemoteWorkManager)
         RemoteWorkManager.getInstance(context).enqueueUniqueWork("map_preview", ExistingWorkPolicy.REPLACE, workRequest)
 
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    if (workInfo.state == WorkInfo.State.RUNNING) {
-                        val progStatus = workInfo.progress.getString("status")
-                        if (progStatus != null && progStatus == "FLUSHED") {
-                            statusMessage = "正在读取区块并构建图像数据..."
-                            loadBitmapsFromDir(cacheMapDir)
-                        }
-                    } else if (workInfo.state == WorkInfo.State.SUCCEEDED) {
+                    if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isBedrock = workInfo.outputData.getBoolean("isBedrock", false)
-                        loadBitmapsFromDir(cacheMapDir)
                         isLoading = false
                         isLoaded = true
-                        statusMessage = "预览加载完成！"
+                        statusMessage = "预览图已构建完毕！"
                     } else if (workInfo.state == WorkInfo.State.FAILED) {
                         isLoading = false
                         statusMessage = "解析出错：" + (workInfo.outputData.getString("error") ?: "未知")
@@ -411,7 +389,7 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            val dimension = DimensionRegistry().getDimensions().find { it.identifier == dimId } ?: Dimension.OVERWORLD
+            val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
             
             if (regionBitmaps.containsKey(dimRegion)) continue
@@ -442,7 +420,7 @@ class MapPreviewViewModel : ViewModel() {
 
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
-            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.identifier, isEntity, isBedrock)
+            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
         )
     }
 
@@ -460,7 +438,7 @@ class MapPreviewViewModel : ViewModel() {
                 val inputData = Data.Builder()
                     .putString("worldDirUri", worldDirUri)
                     .putBoolean("isBedrock", isBedrock)
-                    .putString("dimension", selectedDimension.identifier)
+                    .putString("dimension", selectedDimension.getIdentifier())
                     .putInt("minX", chunkMinX)
                     .putInt("minZ", chunkMinZ)
                     .putInt("maxX", chunkMaxX)
@@ -499,8 +477,6 @@ class MapPreviewViewModel : ViewModel() {
                         val startX = (cx and 31) * 16f
                         val startZ = (cz and 31) * 16f
                         canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
-                        
-                        regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = mutableBmp
                     }
                 }
