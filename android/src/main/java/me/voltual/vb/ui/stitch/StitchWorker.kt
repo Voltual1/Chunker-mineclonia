@@ -53,25 +53,36 @@ class StitchWorker(
         val destPath = inputData.getString("destPath") ?: return@withContext Result.failure()
         val dimensionName = inputData.getString("dimension") ?: "minecraft:overworld"
         
-        val dimension = when (dimensionName) {
+       val dimension = when (dimensionName) {
             "minecraft:the_nether" -> Dimension.NETHER
             "minecraft:the_end" -> Dimension.THE_END
             else -> Dimension.OVERWORLD
         }
 
-        val pruningConfig = PruningConfig(true, listOf(PruningRegion(
-            inputData.getInt("minX", 0), inputData.getInt("minZ", 0),
-            inputData.getInt("maxX", 0), inputData.getInt("maxZ", 0)
-        )))
+        val offsetX = inputData.getInt("offsetX", 0)
+        val offsetZ = inputData.getInt("offsetZ", 0)
+
+        val pruningConfig = PruningConfig(
+            true, 
+            listOf(PruningRegion(minX, minZ, maxX, maxZ))
+        )
 
         val sessionId = UUID.randomUUID()
         val logBuilder = StringBuilder()
         fun log(m: String) { logBuilder.appendLine(m); ConversionLogBridge.println(m) }
 
-        val stitcher = WorldStitcher(sessionId, File(sourcePath), File(destPath), 
-            maxOf(1, Runtime.getRuntime().availableProcessors() - 1),
-            { log("异常: ${it.message}") }, { n, _ -> if (n == WorldConverter.SIGNAL_COMPACTION) log("数据库压缩中...") }
-        )
+        val exceptionHandler = java.util.function.Consumer<Throwable> { error -> log("异常: ${error.message}"); error.printStackTrace() }
+        val signalConsumer = java.util.function.BiConsumer<String, Any> { n, v -> if (n == WorldConverter.SIGNAL_COMPACTION && (v as Boolean)) log("正在进行 LevelDB 压缩...") }
+
+        log("STITCH_INIT // 启动可视化平移缝合引擎...")
+        log("源目录: $sourcePath")
+        log("目标目录: $destPath")
+        log("作用维度: $dimensionName")
+        log("源边界(区块系): ($minX, $minZ) ~ ($maxX, $maxZ)")
+        log("坐标偏移量(区块系): X_Offset=$offsetX, Z_Offset=$offsetZ")
+
+        val threadCount = maxOf(1, Runtime.getRuntime().availableProcessors() - 1)
+        val stitcher = WorldStitcher(sessionId, File(sourcePath), File(destPath), threadCount, offsetX, offsetZ, exceptionHandler, signalConsumer)
 
         try {
             val env = stitcher.stitch(dimension, pruningConfig)

@@ -49,6 +49,8 @@ public class WorldStitcher {
     private final File sourceDir;
     private final File destDir;
     private final int threadCount;
+    private final int chunkOffsetX;
+    private final int chunkOffsetZ;
     private final Consumer<Throwable> exceptionHandler;
     private final BiConsumer<String, Object> signalConsumer;
 
@@ -57,11 +59,13 @@ public class WorldStitcher {
     private DB destBedrockDb = null;
     public final AtomicInteger processedChunks = new AtomicInteger(0);
 
-    public WorldStitcher(UUID sessionID, File sourceDir, File destDir, int threadCount, Consumer<Throwable> exceptionHandler, BiConsumer<String, Object> signalConsumer) {
+    public WorldStitcher(UUID sessionID, File sourceDir, File destDir, int threadCount, int chunkOffsetX, int chunkOffsetZ, Consumer<Throwable> exceptionHandler, BiConsumer<String, Object> signalConsumer) {
         this.sessionID = sessionID;
         this.sourceDir = sourceDir;
         this.destDir = destDir;
         this.threadCount = threadCount;
+        this.chunkOffsetX = chunkOffsetX;
+        this.chunkOffsetZ = chunkOffsetZ;
         this.exceptionHandler = exceptionHandler;
         this.signalConsumer = signalConsumer;
     }
@@ -140,19 +144,42 @@ public class WorldStitcher {
                                 try {
                                     ColumnWriter columnWriter = targetWorldWriter.writeWorld(world);
 
-                                    // 加入计数器，统计真正被覆写的区块数量
+                                    // 核心平移拦截器：动态修改绝对坐标
                                     ColumnConversionHandler baseHandler = new ColumnWriterConversionHandler(columnWriter, converter) {
                                         @Override
                                         public Task<Void> convertColumn(ChunkerColumn column) {
+                                            ChunkerColumn targetColumn = column;
+                                            if (chunkOffsetX != 0 || chunkOffsetZ != 0) {
+                                                ChunkCoordPair newPos = new ChunkCoordPair(column.getPosition().chunkX() + chunkOffsetX, column.getPosition().chunkZ() + chunkOffsetZ);
+                                                targetColumn = new ChunkerColumn(newPos);
+                                                targetColumn.getChunks().putAll(column.getChunks());
+                                                targetColumn.setBiomes(column.getBiomes());
+                                                targetColumn.setHeightMap(column.getHeightMap());
+                                                targetColumn.setLightPopulated(column.isLightPopulated());
+                                                
+                                                // 平移 BlockEntities
+                                                for (com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity be : column.getBlockEntities()) {
+                                                    be.setX(be.getX() + chunkOffsetX * 16);
+                                                    be.setZ(be.getZ() + chunkOffsetZ * 16);
+                                                    targetColumn.getBlockEntities().add(be);
+                                                }
+                                                
+                                                // 平移 Entities
+                                                for (com.hivemc.chunker.conversion.intermediate.column.entity.Entity e : column.getEntities()) {
+                                                    e.setPositionX(e.getPositionX() + chunkOffsetX * 16.0);
+                                                    e.setPositionZ(e.getPositionZ() + chunkOffsetZ * 16.0);
+                                                    targetColumn.getEntities().add(e);
+                                                }
+                                            }
                                             processedChunks.incrementAndGet();
-                                            return super.convertColumn(column);
+                                            return super.convertColumn(targetColumn);
                                         }
                                     };
                                     
                                     ColumnConversionHandler preTransformWriter = new ColumnPreTransformWriterConversionHandler(
                                             columnWriter::getPreTransformManager, 
                                             baseHandler, 
-                                            false // 完全关闭预处理缓存
+                                            false // 关闭跨区块缓存避免死锁
                                     );
                                     ColumnConversionHandler finalHandler = new ColumnPreTransformConversionHandler(preTransformWriter, world);
                                     
