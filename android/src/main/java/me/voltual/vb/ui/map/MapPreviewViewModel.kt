@@ -78,7 +78,6 @@ class MapPreviewViewModel : ViewModel() {
     var selectedDimension by mutableStateOf(Dimension.OVERWORLD)
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
-    private val regionRGBAData = ConcurrentHashMap<Pair<Dimension, RegionCoordPair>, ConcurrentHashMap<ChunkCoordPair, IntArray>>()
 
     var mapUpdateTrigger by mutableStateOf(0)
         private set
@@ -151,9 +150,9 @@ class MapPreviewViewModel : ViewModel() {
         localTargetWorlds.addAll(
             files.filter { 
                 it.isDirectory && 
+                it.name != "stitch_source" && 
                 it.name != "world_preview" && 
-                it.name != "world_output" && 
-                it.name != "world_input" 
+                it.name != "stitch_dest_temp"
             }
         )
     }
@@ -169,21 +168,21 @@ class MapPreviewViewModel : ViewModel() {
     fun copyExternalTargetToTemp(context: Context, destDoc: DocumentFile) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
-            val outputDir = File(rootDir, "world_output")
-            outputDir.deleteRecursively()
-            outputDir.mkdirs()
+            val tempDestDir = File(rootDir, "stitch_dest_temp")
+            tempDestDir.deleteRecursively()
+            tempDestDir.mkdirs()
 
             withContext(Dispatchers.Main) {
                 previewState = PreviewState.DEST_PASTE
                 isLoading = true
-                statusMessage = "正在迁移并处理外部底层世界..."
+                statusMessage = "正在复制目标至临时缝合区..."
             }
 
             val countDownLatch = java.util.concurrent.CountDownLatch(1)
             destDoc.copyFolderTo(
                 context = context,
                 targetParentFolder = DocumentFile.fromFile(rootDir),
-                newFolderNameInTargetPath = outputDir.name,
+                newFolderNameInTargetPath = tempDestDir.name,
                 skipEmptyFiles = false,
                 onConflict = object : SingleFolderConflictCallback(viewModelScope) {
                     override fun onParentConflict(destinationFolder: DocumentFile, action: ParentFolderConflictAction, canMerge: Boolean) {
@@ -197,8 +196,8 @@ class MapPreviewViewModel : ViewModel() {
             }
             countDownLatch.await()
 
-            FileRepairUtil.repairCopiedDatabaseFiles(outputDir)
-            currentDestPath = outputDir.absolutePath
+            FileRepairUtil.repairCopiedDatabaseFiles(tempDestDir)
+            currentDestPath = tempDestDir.absolutePath
 
             withContext(Dispatchers.Main) {
                 internalLoadAndRender(context, currentDestPath)
@@ -230,28 +229,29 @@ class MapPreviewViewModel : ViewModel() {
         val rootDir = getWorldsDir(context)
         val sourceInternalPath = worldDirUri
 
-        val inputData = Data.Builder()
-            .putString("sourcePath", sourceInternalPath)
-            .putString("destPath", currentDestPath)
-            .putString("dimension", selectedDimension.getIdentifier())
-            .putInt("minX", chunkMinX)
-            .putInt("minZ", chunkMinZ)
-            .putInt("maxX", chunkMaxX)
-            .putInt("maxZ", chunkMaxZ)
-            .putInt("offsetX", offsetX)
-            .putInt("offsetZ", offsetZ)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
-            .build()
+        val inputData = workDataOf(
+            "sourcePath" to sourceInternalPath,
+            "destPath" to currentDestPath,
+            "dimension" to selectedDimension.getIdentifier(),
+            "minX" to chunkMinX,
+            "minZ" to chunkMinZ,
+            "maxX" to chunkMaxX,
+            "maxZ" to chunkMaxZ,
+            "offsetX" to offsetX,
+            "offsetZ" to offsetZ
+        )
 
+        // 核心恢复：在主进程提交 StitchWorker，避免子进程的 LevelDB 文件读写锁竞争和状态异常
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
-        RemoteWorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
+        WorkManager.getInstance(context).enqueue(workRequest)
 
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
+                    // 修正进度百分比换算（由 100 映射为 1.0f 供 Compose UI 显示）
                     val rawProgress = workInfo.progress.getFloat("progress", 0f)
-                    stitchProgress = rawProgress / 10f
+                    stitchProgress = rawProgress / 100f
+
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
@@ -290,6 +290,7 @@ class MapPreviewViewModel : ViewModel() {
                         statusMessage = "FTP 存档内容未就绪或已被清除！"
                         isLoading = false
                     }
+                    return@launch
                 }
             } else {
                 withContext(Dispatchers.Main) {
@@ -323,6 +324,7 @@ class MapPreviewViewModel : ViewModel() {
                         statusMessage = "未指定任何有效的世界存档来源！"
                         isLoading = false
                     }
+                    return@launch
                 }
             }
         }
@@ -335,7 +337,6 @@ class MapPreviewViewModel : ViewModel() {
         mapScale = 1f
         mapOffset = Offset.Zero
         regionBitmaps.clear()
-        regionRGBAData.clear()
         availableDimensions.clear()
         worldDirUri = path
 
@@ -343,6 +344,7 @@ class MapPreviewViewModel : ViewModel() {
         cacheMapDir.deleteRecursively()
         cacheMapDir.mkdirs()
 
+        // 保持大内存的渲染任务在子进程中运行 (RemoteWorkManager)
         val pollJob = viewModelScope.launch(Dispatchers.IO) {
             while (isLoading) {
                 delay(400)
@@ -351,7 +353,6 @@ class MapPreviewViewModel : ViewModel() {
             loadBitmapsFromDir(cacheMapDir)
         }
 
-        // 核心修复：更正了多余单词 mult，调整为干净准确的 "androidx.work.multiprocess.RemoteWorkerService" 路径
         val inputData = Data.Builder()
             .putString("worldDirUri", path)
             .putString("outputPath", cacheMapDir.absolutePath)
@@ -419,7 +420,7 @@ class MapPreviewViewModel : ViewModel() {
 
     fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
         navigator.navigate(
-            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
+            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.identifier, isEntity, isBedrock)
         )
     }
 
@@ -437,7 +438,7 @@ class MapPreviewViewModel : ViewModel() {
                 val inputData = Data.Builder()
                     .putString("worldDirUri", worldDirUri)
                     .putBoolean("isBedrock", isBedrock)
-                    .putString("dimension", selectedDimension.getIdentifier())
+                    .putString("dimension", selectedDimension.identifier)
                     .putInt("minX", chunkMinX)
                     .putInt("minZ", chunkMinZ)
                     .putInt("maxX", chunkMaxX)
