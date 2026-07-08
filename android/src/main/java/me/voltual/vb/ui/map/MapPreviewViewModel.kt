@@ -99,7 +99,7 @@ class MapPreviewViewModel : ViewModel() {
     // 粘贴左上角坐标（方块系）
     var pasteTargetPoint by mutableStateOf<Pair<Int, Int>?>(null)
 
-    // --- 核心修复：补全缝合状态变量声明 ---
+    // 缝合状态变量声明
     var isStitching by mutableStateOf(false)
     var stitchProgress by mutableStateOf(0f)
     var stitchSuccess by mutableStateOf(false)
@@ -392,7 +392,6 @@ class MapPreviewViewModel : ViewModel() {
         statusMessage = "预览加载完成！"
     }
 
-    // --- 核心修复：补全缺失的方法 ---
     fun checkExistingFtpInput(context: Context) {
         val inputDir = File(getWorldsDir(context), "world_input")
         hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
@@ -402,6 +401,113 @@ class MapPreviewViewModel : ViewModel() {
         navigator.navigate(
             me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
         )
+    }
+
+    // --- 新增：批量物理删除选区内所有区块的核心方法 ---
+    suspend fun deleteSelectedChunks(startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>): Int = withContext(Dispatchers.IO) {
+        var deletedCount = 0
+        try {
+            val chunkMinX = min(startBlock.first, endBlock.first) shr 4
+            val chunkMinZ = min(startBlock.second, endBlock.second) shr 4
+            val chunkMaxX = max(startBlock.first, endBlock.first) shr 4
+            val chunkMaxZ = max(startBlock.second, endBlock.second) shr 4
+
+            if (isBedrock) {
+                val dbDir = File(worldDirUri, "db")
+                if (!dbDir.exists()) return@withContext 0
+                
+                File(dbDir, "LOCK").delete()
+                val options = Options().createIfMissing(false)
+                Iq80DBFactory.factory.open(dbDir, options).use { db ->
+                    val batch = db.createWriteBatch()
+                    for (cx in chunkMinX..chunkMaxX) {
+                        for (cz in chunkMinZ..chunkMaxZ) {
+                            val chunk = ChunkCoordPair(cx, cz)
+                            for (type in LevelDBChunkType.values()) {
+                                if (type == LevelDBChunkType.SUB_CHUNK_PREFIX) {
+                                    for (y in -64..64) {
+                                        batch.delete(LevelDBKey.key(selectedDimension, chunk, y.toByte(), type))
+                                    }
+                                } else {
+                                    batch.delete(LevelDBKey.key(selectedDimension, chunk, type))
+                                }
+                            }
+                            
+                            // 从渲染缓存中清理对应的坐标
+                            val dimRegion = Pair(selectedDimension, chunk.region)
+                            regionRGBAData[dimRegion]?.remove(chunk)
+                            deletedCount++
+                        }
+                    }
+                    db.write(batch)
+                }
+            } else {
+                // Java / MCA 物理擦除
+                val regionXStart = chunkMinX shr 5
+                val regionZStart = chunkMinZ shr 5
+                val regionXEnd = chunkMaxX shr 5
+                val regionZEnd = chunkMaxZ shr 5
+
+                val dimFolder = when (selectedDimension) {
+                    Dimension.NETHER -> "DIM-1"
+                    Dimension.THE_END -> "DIM1"
+                    else -> ""
+                }
+                val dirs = listOf("region", "entities", "poi")
+
+                for (rx in regionXStart..regionXEnd) {
+                    for (rz in regionZStart..regionZEnd) {
+                        dirs.forEach { dirName ->
+                            val targetPath = if (dimFolder.isEmpty()) {
+                                File(worldDirUri, "$dirName/r.$rx.$rz.mca")
+                            } else {
+                                File(worldDirUri, "$dimFolder/$dirName/r.$rx.$rz.mca")
+                            }
+
+                            if (targetPath.exists()) {
+                                RandomAccessFile(targetPath, "rw").use { raf ->
+                                    for (cx in chunkMinX..chunkMaxX) {
+                                        for (cz in chunkMinZ..chunkMaxZ) {
+                                            if ((cx shr 5) == rx && (cz shr 5) == rz) {
+                                                val index = (cx and 31) + (cz and 31) * 32
+                                                raf.seek(index * 4L)
+                                                raf.writeInt(0) // 擦除指针
+                                                
+                                                val chunk = ChunkCoordPair(cx, cz)
+                                                val dimRegion = Pair(selectedDimension, chunk.region)
+                                                regionRGBAData[dimRegion]?.remove(chunk)
+                                                deletedCount++
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 局部重绘受影响 Region 的图形
+            val affectedRegions = mutableSetOf<RegionCoordPair>()
+            for (cx in chunkMinX..chunkMaxX) {
+                for (cz in chunkMinZ..chunkMaxZ) {
+                    affectedRegions.add(ChunkCoordPair(cx, cz).region)
+                }
+            }
+            affectedRegions.forEach { region ->
+                val dimRegion = Pair(selectedDimension, region)
+                val chunkMap = regionRGBAData[dimRegion]
+                if (chunkMap != null) {
+                    val newBitmap = PreviewMapGenerator.generateRegionBitmap(chunkMap)
+                    withContext(Dispatchers.Main) {
+                        regionBitmaps[dimRegion] = newBitmap
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+        return@withContext deletedCount
     }
 
     suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {

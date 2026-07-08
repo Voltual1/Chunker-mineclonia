@@ -200,27 +200,51 @@ fun MapPreviewScreen(
                                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
                                 Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
-                                    Column(modifier = Modifier.padding(16.dp)) {
+                                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         val s = viewModel.sourceSelectionStart!!
                                         val e = viewModel.sourceSelectionEnd!!
                                         val w = abs(e.first - s.first)
                                         val h = abs(e.second - s.second)
+                                        
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
                                             Text("SOURCE SELECTION // 源选区", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                                         }
-                                        Spacer(Modifier.height(8.dp))
                                         Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
-                                        Spacer(Modifier.height(16.dp))
+                                        
+                                        Spacer(Modifier.height(8.dp))
+                                        
+                                        // 缝合操作
                                         BBQButton(
                                             onClick = {
                                                 viewModel.scanLocalTargetWorlds(context)
                                                 showDestinationSelectDialog = true
                                             }, 
                                             modifier = Modifier.fillMaxWidth(),
-                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("准备选择缝合覆盖的目标世界...", fontWeight = FontWeight.Bold) } }
+                                            text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Default.ContentPaste, null); Spacer(Modifier.width(8.dp)); Text("缝合复制到目标世界...", fontWeight = FontWeight.Bold) } }
                                         )
+
+                                        // 新增：批量物理销毁操作
+                                        Button(
+                                            onClick = {
+                                                coroutineScope.launch {
+                                                    val count = viewModel.deleteSelectedChunks(s, e)
+                                                    viewModel.clearSelection()
+                                                    snackbarHostState.showSnackbar("SECTOR_PURGE // 成功物理抹除了 $count 个区块")
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth(),
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = MaterialTheme.colorScheme.error,
+                                                contentColor = MaterialTheme.colorScheme.onError
+                                            ),
+                                            shape = AppShapes.small
+                                        ) {
+                                            Icon(Icons.Default.DeleteForever, null)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text("PURGE SELECTION // 物理销毁所选区块", fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
