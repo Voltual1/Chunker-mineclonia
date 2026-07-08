@@ -23,38 +23,16 @@ import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
-import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry // 核心修复：补全导入
+import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
 import me.voltual.vb.ui.stitch.StitchWorker
-import com.hivemc.chunker.conversion.encoding.EncodingType
-import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
-import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
-import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
-import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
-import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
-import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
-import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
-import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings
-import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
-import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
-import com.hivemc.chunker.scheduling.task.FutureTask
-import com.hivemc.chunker.scheduling.task.Task
-import org.iq80.leveldb.Options
-import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
-import java.io.RandomAccessFile
-import java.util.Optional
-import java.util.concurrent.CompletableFuture
-import java.util.concurrent.ConcurrentHashMap
-import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
 
@@ -226,19 +204,17 @@ class MapPreviewViewModel : ViewModel() {
         val rootDir = getWorldsDir(context)
         val sourceInternalPath = File(rootDir, "stitch_source").absolutePath
 
-        val inputData = Data.Builder()
-            .putString("sourcePath", sourceInternalPath)
-            .putString("destPath", currentDestPath)
-            .putString("dimension", selectedDimension.getIdentifier())
-            .putInt("minX", chunkMinX)
-            .putInt("minZ", chunkMinZ)
-            .putInt("maxX", chunkMaxX)
-            .putInt("maxZ", chunkMaxZ)
-            .putInt("offsetX", offsetX)
-            .putInt("offsetZ", offsetZ)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
-            .build()
+        val inputData = workDataOf(
+            "sourcePath" to sourceInternalPath,
+            "destPath" to currentDestPath,
+            "dimension" to selectedDimension.getIdentifier(),
+            "minX" to chunkMinX,
+            "minZ" to chunkMinZ,
+            "maxX" to chunkMaxX,
+            "maxZ" to chunkMaxZ,
+            "offsetX" to offsetX,
+            "offsetZ" to offsetZ
+        )
 
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
         RemoteWorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
@@ -246,8 +222,7 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    val rawProgress = workInfo.progress.getFloat("progress", 0f)
-                    stitchProgress = rawProgress / 10f
+                    stitchProgress = workInfo.progress.getFloat("progress", 0f)
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
@@ -265,39 +240,69 @@ class MapPreviewViewModel : ViewModel() {
         }
     }
 
+    /**
+     * 核心重构：彻底分离 SAF 拷贝与 中转站 (FTP) 直接读取。
+     * 选择 FTP 输入时，0 拷贝开销，直达子进程进行渲染。
+     */
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
             val sourceInternal = File(rootDir, "stitch_source")
             
-            withContext(Dispatchers.Main) {
-                previewState = PreviewState.IDLE
-                isLoading = true
-                statusMessage = "正在迁移源世界作为裁剪底图..."
-            }
+            if (useFtpInput) {
+                withContext(Dispatchers.Main) {
+                    previewState = PreviewState.IDLE
+                    isLoading = true
+                    statusMessage = "正在直接读取中转站 (FTP) 物理数据..."
+                }
 
-            if (!useFtpInput && docFolder != null) {
-                sourceInternal.deleteRecursively()
-                sourceInternal.mkdirs()
-                val countDownLatch = java.util.concurrent.CountDownLatch(1)
-                docFolder.copyFolderTo(
-                    context = context, targetParentFolder = DocumentFile.fromFile(rootDir),
-                    newFolderNameInTargetPath = sourceInternal.name, skipEmptyFiles = false,
-                    onConflict = object : SingleFolderConflictCallback(viewModelScope) {
-                        override fun onParentConflict(d: DocumentFile, a: ParentFolderConflictAction, m: Boolean) {
-                            a.confirmResolution(ConflictResolution.REPLACE)
-                        }
-                    }
-                ).collect { if (it is SingleFolderResult.Completed || it is SingleFolderResult.Error) countDownLatch.countDown() }
-                countDownLatch.await()
-                FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
-            } else if (useFtpInput) {
+                // 直接挂载中转存档目录为缝合数据源，不再浪费 CPU & I/O 拷贝数据
                 val ftpDir = File(rootDir, "world_input")
-                sourceInternal.deleteRecursively()
-                ftpDir.renameTo(sourceInternal)
+                if (ftpDir.exists() && ftpDir.listFiles()?.isNotEmpty() == true) {
+                    // 同步物理重命名，将其中转为缝合器识别的 stitch_source
+                    sourceInternal.deleteRecursively()
+                    ftpDir.renameTo(sourceInternal)
+                } else {
+                    withContext(Dispatchers.Main) {
+                        statusMessage = "FTP 存档内容未就绪或已被清除！"
+                        isLoading = false
+                    }
+                    return@launch
+                }
+            } else {
+                // 如果是外部选择的文件，才走漫长的 SAF 拷贝与缓存修复流程
+                withContext(Dispatchers.Main) {
+                    previewState = PreviewState.IDLE
+                    isLoading = true
+                    statusMessage = "正在迁移外部源世界作为裁剪底图..."
+                }
+
+                if (docFolder != null) {
+                    sourceInternal.deleteRecursively()
+                    sourceInternal.mkdirs()
+                    val countDownLatch = java.util.concurrent.CountDownLatch(1)
+                    docFolder.copyFolderTo(
+                        context = context, targetParentFolder = DocumentFile.fromFile(rootDir),
+                        newFolderNameInTargetPath = sourceInternal.name, skipEmptyFiles = false,
+                        onConflict = object : SingleFolderConflictCallback(viewModelScope) {
+                            override fun onParentConflict(d: DocumentFile, a: ParentFolderConflictAction, m: Boolean) {
+                                a.confirmResolution(ConflictResolution.REPLACE)
+                            }
+                        }
+                    ).collect { if (it is SingleFolderResult.Completed || it is SingleFolderResult.Error) countDownLatch.countDown() }
+                    countDownLatch.await()
+                    FileRepairUtil.repairCopiedDatabaseFiles(sourceInternal)
+                } else {
+                    withContext(Dispatchers.Main) {
+                        statusMessage = "未指定任何有效的世界存档来源！"
+                        isLoading = false
+                    }
+                    return@launch
+                }
             }
 
             withContext(Dispatchers.Main) {
+                // 完美的零延迟，物理目录重映射后，直接交给渲染引擎解析
                 internalLoadAndRender(context, sourceInternal.absolutePath)
             }
         }
@@ -361,7 +366,6 @@ class MapPreviewViewModel : ViewModel() {
             val rz = parts[parts.size - 1].toInt()
             val dimId = parts.dropLast(2).joinToString("_").replaceFirst("_", ":")
 
-            // 修正引用
             val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
             val dimRegion = Pair(dimension, RegionCoordPair(rx, rz))
