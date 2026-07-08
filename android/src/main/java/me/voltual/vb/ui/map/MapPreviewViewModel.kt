@@ -99,12 +99,14 @@ class MapPreviewViewModel : ViewModel() {
     // 粘贴左上角坐标（方块系）
     var pasteTargetPoint by mutableStateOf<Pair<Int, Int>?>(null)
 
+    // --- 核心修复：补全缝合状态变量声明 ---
+    var isStitching by mutableStateOf(false)
     var stitchProgress by mutableStateOf(0f)
     var stitchSuccess by mutableStateOf(false)
     var stitchError by mutableStateOf<String?>(null)
 
-    // --- 新增：检测中转站独立目标世界列表与缝合目标路径缓存 ---
-    var localTargetWorlds = mutableStateListOf<File>()
+    // 检测中转站独立目标世界列表与缝合目标路径缓存
+    val localTargetWorlds = mutableStateListOf<File>()
     var currentDestPath by mutableStateOf("")
 
     fun toggleSourceSelectionMode() {
@@ -129,9 +131,6 @@ class MapPreviewViewModel : ViewModel() {
         return worldsDir
     }
 
-    /**
-     * 扫描中转站（除临时及源目录外）可作为缝合目标的已有世界文件夹
-     */
     fun scanLocalTargetWorlds(context: Context) {
         val rootDir = getWorldsDir(context)
         val files = rootDir.listFiles() ?: emptyArray()
@@ -146,9 +145,6 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    /**
-     * 情况 1：直接选中本地已有目标文件夹，将其作为粘贴底图载入
-     */
     fun selectExistingLocalTarget(context: Context, targetFolder: File) {
         currentDestPath = targetFolder.absolutePath
         previewState = PreviewState.DEST_PASTE
@@ -157,9 +153,6 @@ class MapPreviewViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 情况 2：使用 SAF 从外部复制，我们写入一个独立的目录 `stitch_dest_temp`
-     */
     fun copyExternalTargetToTemp(context: Context, destDoc: DocumentFile) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
@@ -217,6 +210,7 @@ class MapPreviewViewModel : ViewModel() {
         val offsetZ = targetChunkZ - chunkMinZ
 
         previewState = PreviewState.STITCHING
+        isStitching = true
         stitchSuccess = false
         stitchError = null
 
@@ -243,7 +237,7 @@ class MapPreviewViewModel : ViewModel() {
                 if (workInfo != null) {
                     stitchProgress = workInfo.progress.getFloat("progress", 0f)
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
-                        // 缝合成功后，若目标为 stitch_dest_temp，将其重命名为 world_output 提供导出，否则直接提供导出
+                        isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
                             val outputDir = File(rootDir, "world_output")
                             outputDir.deleteRecursively()
@@ -258,7 +252,6 @@ class MapPreviewViewModel : ViewModel() {
             }
         }
     }
-    // --- 新增结束 ---
 
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -397,6 +390,18 @@ class MapPreviewViewModel : ViewModel() {
         isLoading = false
         isLoaded = true
         statusMessage = "预览加载完成！"
+    }
+
+    // --- 核心修复：补全缺失的方法 ---
+    fun checkExistingFtpInput(context: Context) {
+        val inputDir = File(getWorldsDir(context), "world_input")
+        hasExistingFtpInput = inputDir.exists() && (inputDir.listFiles()?.isNotEmpty() == true)
+    }
+
+    fun openChunkNbt(chunk: ChunkCoordPair, isEntity: Boolean, navigator: me.voltual.vb.ui.Navigator) {
+        navigator.navigate(
+            me.voltual.vb.ui.ChunkNbtEditorDest(worldDirUri, chunk.chunkX(), chunk.chunkZ(), selectedDimension.getIdentifier(), isEntity, isBedrock)
+        )
     }
 
     suspend fun deleteChunk(chunk: ChunkCoordPair, dimension: Dimension): Boolean {
