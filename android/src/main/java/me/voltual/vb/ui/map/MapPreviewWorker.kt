@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.work.WorkerParameters
 import androidx.work.multiprocess.RemoteCoroutineWorker
 import androidx.work.workDataOf
+import androidx.work.Data
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
@@ -93,7 +94,6 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                     DataOutputStream(FileOutputStream(file).buffered()).use { dos ->
                         for (p in pixels) dos.writeInt(p)
                     }
-                    // 修正进度信号
                     setProgressAsync(workDataOf("status" to "FLUSHED"))
                 }
             }
@@ -108,9 +108,12 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                         override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
                             val columnWriter = worldWriter.writeWorld(world ?: throw NullPointerException())
                             return FutureTask(CompletableFuture.completedFuture(object : ColumnConversionHandler {
-                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> = columnWriter.writeColumn(column)
-                                override fun flushRegion(region: RegionCoordPair): Task<java.lang.Void> {
-                                    columnWriter.flushRegion(region)
+                                // 修复：明确指定返回 Task<java.lang.Void>
+                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> {
+                                    return columnWriter.writeColumn(column)
+                                }
+                                override fun flushRegion(regionCoordPair: RegionCoordPair): Task<java.lang.Void> {
+                                    columnWriter.flushRegion(regionCoordPair)
                                     return FutureTask(CompletableFuture.completedFuture(null))
                                 }
                                 override fun flushColumns(): Task<java.lang.Void> {

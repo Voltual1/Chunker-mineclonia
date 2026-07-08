@@ -22,13 +22,13 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
         val isBedrock = inputData.getBoolean("isBedrock", false)
         val dimId = inputData.getString("dimension") ?: "minecraft:overworld"
         
-        // 修复：Dimension.values() 不可用，改用 DimensionRegistry 或查找匹配
-        val dimension = DimensionRegistry().dimensions.find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
+        // 修复：DimensionRegistry().dimensions 改为 getDimensions()
+        val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
         val chunkMinX = inputData.getInt("minX", 0)
         val chunkMinZ = inputData.getInt("minZ", 0)
-        val chunkMaxX = maxOf(chunkMinX, inputData.getInt("maxX", 0))
-        val chunkMaxZ = maxOf(chunkMinZ, inputData.getInt("maxZ", 0))
+        val chunkMaxX = inputData.getInt("maxX", 0)
+        val chunkMaxZ = inputData.getInt("maxZ", 0)
 
         var deletedCount = 0
         try {
@@ -52,7 +52,6 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
                     db.write(batch)
                 }
             } else {
-                // Java 逻辑保持不变，但修正维度文件夹查找
                 val dimFolder = when (dimension) {
                     Dimension.NETHER -> "DIM-1"
                     Dimension.THE_END -> "DIM1"
