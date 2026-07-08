@@ -412,11 +412,6 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    /**
-     * 核心重构与响应优化：乐观更新策略 (Optimistic Update)
-     * 点击删除瞬间主线程立刻对 Canvas 做 PorterDuff.Mode.CLEAR 擦除黑化，
-     * 随后直接将物理删除任务扔到后台进程执行，零等待极致顺滑！
-     */
     fun deleteSelectedChunksOptimistic(context: Context, startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>, onStitchScheduled: () -> Unit) {
         val chunkMinX = min(startBlock.first, endBlock.first) shr 4
         val chunkMinZ = min(startBlock.second, endBlock.second) shr 4
@@ -424,13 +419,9 @@ class MapPreviewViewModel : ViewModel() {
         val chunkMaxZ = max(startBlock.second, endBlock.second) shr 4
 
         viewModelScope.launch(Dispatchers.Main) {
-            // 1. 瞬间乐观黑化 Canvas 对应部分像素
             eraseChunksFromBitmaps(chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ)
-            
-            // 2. 瞬间回调，用于立刻 clearSelection() 并用 Snackbar 通知用户正在后台物理裁剪
             onStitchScheduled()
 
-            // 3. 在后台子协程中将任务排队交付给多进程 MapDeleteWorker，不阻塞任何 UI 和主线程
             withContext(Dispatchers.IO) {
                 val inputData = Data.Builder()
                     .putString("worldDirUri", worldDirUri)
@@ -451,7 +442,6 @@ class MapPreviewViewModel : ViewModel() {
     }
 
     suspend fun deleteChunk(context: Context, chunk: ChunkCoordPair, dimension: Dimension): Boolean {
-        // 单个区块删除同样直接走我们高响应的黑化加后台裁剪通道
         var success = false
         val countDownLatch = java.util.concurrent.CountDownLatch(1)
         deleteSelectedChunksOptimistic(context, Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4), Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4)) {
@@ -462,6 +452,11 @@ class MapPreviewViewModel : ViewModel() {
         return success
     }
 
+    /**
+     * 核心重构实现：强制生成全新 Bitmap 引用副本机制
+     * 解决 Compose 智能 Diff 系统因为“Bitmap 内存地址未变”而静默跳过重组的问题。
+     * 现在每次调用都会强制给 Canvas 生成全新的物理引用副本。
+     */
     private suspend fun eraseChunksFromBitmaps(minX: Int, minZ: Int, maxX: Int, maxZ: Int) {
         withContext(Dispatchers.Main) {
             val paint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
@@ -470,11 +465,14 @@ class MapPreviewViewModel : ViewModel() {
                     val dimRegion = Pair(selectedDimension, ChunkCoordPair(cx, cz).region)
                     val originalBitmap = regionBitmaps[dimRegion]
                     if (originalBitmap != null) {
-                        val mutableBmp = if (originalBitmap.isMutable) originalBitmap else originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
+                        // 强制通过 .copy() 生成全新的物理引用，欺骗 Compose 的 Diff 比对机制
+                        val mutableBmp = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
                         val canvas = Canvas(mutableBmp)
                         val startX = (cx and 31) * 16f
                         val startZ = (cz and 31) * 16f
                         canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
+                        
+                        // 先彻底移除再重新注入，双重保险强行诱导 Compose 重组 Canvas
                         regionBitmaps.remove(dimRegion)
                         regionBitmaps[dimRegion] = mutableBmp
                     }
