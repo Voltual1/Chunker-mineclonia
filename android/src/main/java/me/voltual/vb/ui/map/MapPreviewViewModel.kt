@@ -17,8 +17,8 @@ import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.bedrock.util.LevelDBChunkType
-import com.hivemc.chunker.conversion.bedrock.util.LevelDBKey
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
 import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
