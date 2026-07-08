@@ -17,6 +17,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import androidx.work.multiprocess.RemoteWorkManager
+import java.util.concurrent.ConcurrentHashMap
 import com.anggrayudi.storage.callback.SingleFolderConflictCallback
 import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
