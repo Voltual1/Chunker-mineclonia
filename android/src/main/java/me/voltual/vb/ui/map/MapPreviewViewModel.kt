@@ -17,7 +17,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.work.*
 import androidx.work.multiprocess.RemoteWorkManager
-import java.util.concurrent.ConcurrentHashMap
 import com.anggrayudi.storage.callback.SingleFolderConflictCallback
 import com.anggrayudi.storage.file.copyFolderTo
 import com.anggrayudi.storage.result.SingleFolderResult
@@ -31,9 +30,31 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
 import me.voltual.vb.ui.stitch.StitchWorker
+import com.hivemc.chunker.conversion.encoding.EncodingType
+import com.hivemc.chunker.conversion.encoding.base.Converter
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
+import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
+import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
+import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
+import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
+import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
+import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
+import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings
+import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
+import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
+import com.hivemc.chunker.scheduling.task.FutureTask
+import com.hivemc.chunker.scheduling.task.Task
+import org.iq80.leveldb.Options
+import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
+import java.io.RandomAccessFile
+import java.util.Optional
+import java.util.concurrent.CompletableFuture
+import java.util.concurrent.ConcurrentHashMap
+import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
 
@@ -205,17 +226,19 @@ class MapPreviewViewModel : ViewModel() {
         val rootDir = getWorldsDir(context)
         val sourceInternalPath = File(rootDir, "stitch_source").absolutePath
 
-        val inputData = workDataOf(
-            "sourcePath" to sourceInternalPath,
-            "destPath" to currentDestPath,
-            "dimension" to selectedDimension.getIdentifier(),
-            "minX" to chunkMinX,
-            "minZ" to chunkMinZ,
-            "maxX" to chunkMaxX,
-            "maxZ" to chunkMaxZ,
-            "offsetX" to offsetX,
-            "offsetZ" to offsetZ
-        )
+        val inputData = Data.Builder()
+            .putString("sourcePath", sourceInternalPath)
+            .putString("destPath", currentDestPath)
+            .putString("dimension", selectedDimension.getIdentifier())
+            .putInt("minX", chunkMinX)
+            .putInt("minZ", chunkMinZ)
+            .putInt("maxX", chunkMaxX)
+            .putInt("maxZ", chunkMaxZ)
+            .putInt("offsetX", offsetX)
+            .putInt("offsetZ", offsetZ)
+            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
+            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
+            .build()
 
         val workRequest = OneTimeWorkRequestBuilder<StitchWorker>().setInputData(inputData).build()
         RemoteWorkManager.getInstance(context).enqueueUniqueWork("stitch_work", ExistingWorkPolicy.REPLACE, workRequest)
@@ -223,7 +246,8 @@ class MapPreviewViewModel : ViewModel() {
         viewModelScope.launch {
             WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
                 if (workInfo != null) {
-                    stitchProgress = workInfo.progress.getFloat("progress", 0f)
+                    val rawProgress = workInfo.progress.getFloat("progress", 0f)
+                    stitchProgress = rawProgress / 10f
                     if (workInfo.state == WorkInfo.State.SUCCEEDED) {
                         isStitching = false
                         if (currentDestPath.endsWith("stitch_dest_temp")) {
@@ -241,10 +265,6 @@ class MapPreviewViewModel : ViewModel() {
         }
     }
 
-    /**
-     * 核心重构：彻底分离 SAF 拷贝与 中转站 (FTP) 直接读取。
-     * 选择 FTP 输入时，0 拷贝开销，直达子进程进行渲染。
-     */
     fun loadAndRenderWorld(context: Context, docFolder: DocumentFile?, useFtpInput: Boolean = false) {
         viewModelScope.launch(Dispatchers.IO) {
             val rootDir = getWorldsDir(context)
@@ -257,10 +277,8 @@ class MapPreviewViewModel : ViewModel() {
                     statusMessage = "正在直接读取中转站 (FTP) 物理数据..."
                 }
 
-                // 直接挂载中转存档目录为缝合数据源，不再浪费 CPU & I/O 拷贝数据
                 val ftpDir = File(rootDir, "world_input")
                 if (ftpDir.exists() && ftpDir.listFiles()?.isNotEmpty() == true) {
-                    // 同步物理重命名，将其中转为缝合器识别的 stitch_source
                     sourceInternal.deleteRecursively()
                     ftpDir.renameTo(sourceInternal)
                 } else {
@@ -271,7 +289,6 @@ class MapPreviewViewModel : ViewModel() {
                     return@launch
                 }
             } else {
-                // 如果是外部选择的文件，才走漫长的 SAF 拷贝与缓存修复流程
                 withContext(Dispatchers.Main) {
                     previewState = PreviewState.IDLE
                     isLoading = true
@@ -303,7 +320,6 @@ class MapPreviewViewModel : ViewModel() {
             }
 
             withContext(Dispatchers.Main) {
-                // 完美的零延迟，物理目录重映射后，直接交给渲染引擎解析
                 internalLoadAndRender(context, sourceInternal.absolutePath)
             }
         }
@@ -396,41 +412,54 @@ class MapPreviewViewModel : ViewModel() {
         )
     }
 
-    suspend fun deleteSelectedChunks(context: Context, startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>): Int = withContext(Dispatchers.IO) {
+    /**
+     * 核心重构与响应优化：乐观更新策略 (Optimistic Update)
+     * 点击删除瞬间主线程立刻对 Canvas 做 PorterDuff.Mode.CLEAR 擦除黑化，
+     * 随后直接将物理删除任务扔到后台进程执行，零等待极致顺滑！
+     */
+    fun deleteSelectedChunksOptimistic(context: Context, startBlock: Pair<Int, Int>, endBlock: Pair<Int, Int>, onStitchScheduled: () -> Unit) {
         val chunkMinX = min(startBlock.first, endBlock.first) shr 4
         val chunkMinZ = min(startBlock.second, endBlock.second) shr 4
         val chunkMaxX = max(startBlock.first, endBlock.first) shr 4
         val chunkMaxZ = max(startBlock.second, endBlock.second) shr 4
 
-        val inputData = Data.Builder()
-            .putString("worldDirUri", worldDirUri)
-            .putBoolean("isBedrock", isBedrock)
-            .putString("dimension", selectedDimension.getIdentifier())
-            .putInt("minX", chunkMinX)
-            .putInt("minZ", chunkMinZ)
-            .putInt("maxX", chunkMaxX)
-            .putInt("maxZ", chunkMaxZ)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
-            .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
-            .build()
+        viewModelScope.launch(Dispatchers.Main) {
+            // 1. 瞬间乐观黑化 Canvas 对应部分像素
+            eraseChunksFromBitmaps(chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ)
+            
+            // 2. 瞬间回调，用于立刻 clearSelection() 并用 Snackbar 通知用户正在后台物理裁剪
+            onStitchScheduled()
 
-        val workRequest = OneTimeWorkRequestBuilder<MapDeleteWorker>().setInputData(inputData).build()
-        RemoteWorkManager.getInstance(context).enqueueUniqueWork("map_delete", ExistingWorkPolicy.REPLACE, workRequest)
+            // 3. 在后台子协程中将任务排队交付给多进程 MapDeleteWorker，不阻塞任何 UI 和主线程
+            withContext(Dispatchers.IO) {
+                val inputData = Data.Builder()
+                    .putString("worldDirUri", worldDirUri)
+                    .putBoolean("isBedrock", isBedrock)
+                    .putString("dimension", selectedDimension.getIdentifier())
+                    .putInt("minX", chunkMinX)
+                    .putInt("minZ", chunkMinZ)
+                    .putInt("maxX", chunkMaxX)
+                    .putInt("maxZ", chunkMaxZ)
+                    .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME", context.packageName)
+                    .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
+                    .build()
 
-        var deleted = 0
-        WorkManager.getInstance(context).getWorkInfoByIdFlow(workRequest.id).collect { workInfo ->
-            if (workInfo != null && workInfo.state == WorkInfo.State.SUCCEEDED) {
-                deleted = workInfo.outputData.getInt("deletedCount", 0)
-                if (deleted > 0) eraseChunksFromBitmaps(chunkMinX, chunkMinZ, chunkMaxX, chunkMaxZ)
-                return@collect
+                val workRequest = OneTimeWorkRequestBuilder<MapDeleteWorker>().setInputData(inputData).build()
+                RemoteWorkManager.getInstance(context).enqueueUniqueWork("map_delete", ExistingWorkPolicy.REPLACE, workRequest)
             }
         }
-        return@withContext deleted
     }
 
     suspend fun deleteChunk(context: Context, chunk: ChunkCoordPair, dimension: Dimension): Boolean {
-        val count = deleteSelectedChunks(context, Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4), Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4))
-        return count > 0
+        // 单个区块删除同样直接走我们高响应的黑化加后台裁剪通道
+        var success = false
+        val countDownLatch = java.util.concurrent.CountDownLatch(1)
+        deleteSelectedChunksOptimistic(context, Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4), Pair(chunk.chunkX() shl 4, chunk.chunkZ() shl 4)) {
+            success = true
+            countDownLatch.countDown()
+        }
+        countDownLatch.await()
+        return success
     }
 
     private suspend fun eraseChunksFromBitmaps(minX: Int, minZ: Int, maxX: Int, maxZ: Int) {

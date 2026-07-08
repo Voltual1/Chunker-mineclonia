@@ -227,10 +227,12 @@ fun MapPreviewScreen(
 
                                         Button(
                                             onClick = {
-                                                coroutineScope.launch {
-                                                    val count = viewModel.deleteSelectedChunks(context, s, e)
+                                                // 瞬间执行乐观删除与静默后台 Worker 调度
+                                                viewModel.deleteSelectedChunksOptimistic(context, s, e) {
                                                     viewModel.clearSelection()
-                                                    snackbarHostState.showSnackbar("SECTOR_PURGE // 成功物理抹除了 $count 个区块")
+                                                    coroutineScope.launch {
+                                                        snackbarHostState.showSnackbar("SECTOR_PURGE // 正在后台安全销毁所选物理区块...")
+                                                    }
                                                 }
                                             },
                                             modifier = Modifier.fillMaxWidth(),
