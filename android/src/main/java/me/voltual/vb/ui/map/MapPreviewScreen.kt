@@ -134,7 +134,6 @@ fun MapPreviewScreen(
         Scaffold { padding ->
             Box(modifier = modifier.fillMaxSize().padding(padding).background(Color(0xFF090A0E))) {
                 if (viewModel.worldDirUri.isEmpty()) {
-                    // Empty UI...
                     Column(modifier = Modifier.fillMaxSize().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
                         Icon(Icons.Default.Map, null, modifier = Modifier.size(96.dp), tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
                         Spacer(Modifier.height(16.dp))
@@ -190,16 +189,16 @@ fun MapPreviewScreen(
 
                             // 底部操作面板
                             AnimatedVisibility(
-                                visible = viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.selectionStartBlock != null,
+                                visible = viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null,
                                 modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 80.dp),
                                 enter = slideInVertically(initialOffsetY = { it }) + fadeIn(), exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                             ) {
                                 Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                                     Column(modifier = Modifier.padding(16.dp)) {
-                                        val s = viewModel.selectionStartBlock!!
-                                        val e = viewModel.selectionEndBlock!!
-                                        val w = abs(e.first - s.first)
-                                        val h = abs(e.second - s.second)
+                                        val s = viewModel.sourceSelectionStart!!
+                                        val e = viewModel.sourceSelectionEnd!!
+                                        val w = kotlin.math.abs(e.first - s.first)
+                                        val h = kotlin.math.abs(e.second - s.second)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                             Icon(Icons.Default.ContentCut, null, tint = MaterialTheme.colorScheme.primary)
                                             Spacer(Modifier.width(8.dp))
@@ -336,17 +335,14 @@ fun InteractiveMapCanvas(
                                 }
                             )
                         } else if (viewModel.previewState == PreviewState.DEST_PASTE) {
-                            // 目标选择模式，点击移动选区框
                             detectTapGestures(
                                 onTap = { tapOffset ->
                                     val mapX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    // 点击的位置作为左上角
                                     viewModel.pasteTargetPoint = Pair(mapX.toInt(), mapZ.toInt())
                                 }
                             )
                         } else {
-                            // 浏览模式：单指点击探测区块
                             detectTapGestures(
                                 onTap = { tapOffset ->
                                     val worldX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
@@ -360,7 +356,6 @@ fun InteractiveMapCanvas(
                     }
                     .pointerInput(viewModel.previewState) {
                         if (viewModel.previewState != PreviewState.SOURCE_SELECT) {
-                            // 浏览或粘贴模式：支持双指平移和缩放
                             detectTransformGestures { centroid, pan, zoom, _ ->
                                 val oldScale = viewModel.mapScale
                                 viewModel.mapScale = (viewModel.mapScale * zoom).coerceIn(0.01f, 50f)
@@ -380,7 +375,6 @@ fun InteractiveMapCanvas(
                         }
                     }
 
-                    // 绘制裁切模式的选区框 (蓝色)
                     if (viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null) {
                         val s = viewModel.sourceSelectionStart!!
                         val e = viewModel.sourceSelectionEnd!!
@@ -393,12 +387,11 @@ fun InteractiveMapCanvas(
                         drawRect(color = Color(0xFF3B82F6), topLeft = Offset(minX, minZ), size = Size(maxX - minX, maxZ - minZ), style = Stroke(width = 2f / viewModel.mapScale))
                     }
 
-                    // 绘制粘贴模式的高亮悬浮框 (黄色/绿色虚框)
-                    if (viewModel.previewState == PreviewState.DEST_PASTE && viewModel.sourceSelectionStart != null && viewModel.pasteTargetPoint != null) {
+                    if (viewModel.previewState == PreviewState.DEST_PASTE && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null && viewModel.pasteTargetPoint != null) {
                         val s = viewModel.sourceSelectionStart!!
                         val e = viewModel.sourceSelectionEnd!!
-                        val w = abs(e.first - s.first).toFloat()
-                        val h = abs(e.second - s.second).toFloat()
+                        val w = kotlin.math.abs(e.first - s.first).toFloat()
+                        val h = kotlin.math.abs(e.second - s.second).toFloat()
                         val target = viewModel.pasteTargetPoint!!
 
                         drawRect(color = Color(0xFFFACC15).copy(alpha = 0.4f), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(w, h))

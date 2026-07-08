@@ -53,6 +53,11 @@ class StitchWorker(
         val destPath = inputData.getString("destPath") ?: return@withContext Result.failure()
         val dimensionName = inputData.getString("dimension") ?: "minecraft:overworld"
         
+        val minX = inputData.getInt("minX", 0)
+        val minZ = inputData.getInt("minZ", 0)
+        val maxX = inputData.getInt("maxX", 0)
+        val maxZ = inputData.getInt("maxZ", 0)
+        
        val dimension = when (dimensionName) {
             "minecraft:the_nether" -> Dimension.NETHER
             "minecraft:the_end" -> Dimension.THE_END
