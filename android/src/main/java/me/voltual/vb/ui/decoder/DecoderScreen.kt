@@ -75,7 +75,7 @@ fun DecoderScreen(
                     }
                     Spacer(Modifier.height(8.dp))
                     Text(
-                        text = "本模块通过执行 [ LayerV2_Stream_Codec ] 逻辑，尝试对非标准或受损的 Bedrock 存档进行字节流对齐与智能还原。不保证 100% 的重组成功率。",
+                        text = "本模块尝试从Bedrock存档移入网易Bedrock版后再次迁移到Bedrock后出现受损的 Bedrock 存档进行字节流对齐与智能还原。不保证 100% 的重组成功率。",
                         style = MaterialTheme.typography.bodySmall,
                         lineHeight = 16.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

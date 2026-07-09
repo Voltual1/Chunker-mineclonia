@@ -26,8 +26,8 @@ android {
         applicationId = "me.voltual.vb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 10
-        versionName = "7.0"
+        versionCode = 11
+        versionName = "7.1"
         multiDexEnabled = true
         buildConfigField("String", "LICENSE", "\"AGPLv3\"")
     }
