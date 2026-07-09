@@ -41,7 +41,6 @@ import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQButton
 import me.voltual.vb.core.ui.theme.BBQOutlinedButton
-import me.voltual.vb.core.utils.WorldExporter
 import me.voltual.vb.ui.LocalTopAppBarController
 import me.voltual.vb.ui.LocalNavigator
 import me.voltual.vb.ui.TopAppBarAction
@@ -160,7 +159,6 @@ fun MapPreviewScreen(
                         }
                     }
 
-                    // 这里的过滤生成了以 RegionCoordPair 为键的 Map
                     val filteredBitmaps = composeBitmaps.filter { it.key.first == viewModel.selectedDimension }
                         .mapKeys { it.key.second }
                     
@@ -207,8 +205,10 @@ fun MapPreviewScreen(
                         ) {
                             val s = viewModel.sourceSelectionStart ?: return@AnimatedVisibility
                             val e = viewModel.sourceSelectionEnd ?: return@AnimatedVisibility
-                            val w = abs(e.first - s.first)
-                            val h = abs(e.second - s.second)
+                            
+                            // 修正尺寸计算为 Chunk 数量
+                            val chunkW = (abs(e.first - s.first) shr 4) + 1
+                            val chunkH = (abs(e.second - s.second) shr 4) + 1
                             
                             Surface(modifier = Modifier.fillMaxWidth(0.9f).border(1.5.dp, MaterialTheme.colorScheme.primary, AppShapes.medium), shape = AppShapes.medium, color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -217,7 +217,7 @@ fun MapPreviewScreen(
                                         Spacer(Modifier.width(8.dp))
                                         Text("SOURCE SELECTION // 源选区", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary)
                                     }
-                                    Text("尺寸: $w x $h (方块)", style = MaterialTheme.typography.bodyMedium)
+                                    Text("尺寸: $chunkW x $chunkH (区块) | ${chunkW * 16} x ${chunkH * 16} (方块)", style = MaterialTheme.typography.bodyMedium)
                                     
                                     Spacer(modifier = Modifier.height(8.dp))
                                     
@@ -269,7 +269,7 @@ fun MapPreviewScreen(
                                         Text("CONFIRM PASTE // 确认覆盖位置", fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.tertiary)
                                     }
                                     Spacer(Modifier.height(8.dp))
-                                    Text("左上角落点: (${t.first}, ${t.second})", style = MaterialTheme.typography.bodyMedium)
+                                    Text("左上角落点 Chunk: (${t.first shr 4}, ${t.second shr 4})", style = MaterialTheme.typography.bodyMedium)
                                     Spacer(Modifier.height(16.dp))
                                     BBQButton(
                                         onClick = { viewModel.confirmStitch(context) }, modifier = Modifier.fillMaxWidth(),
@@ -311,7 +311,7 @@ fun MapPreviewScreen(
                         Spacer(Modifier.height(24.dp))
                         LinearProgressIndicator(progress = { viewModel.stitchProgress }, modifier = Modifier.fillMaxWidth().height(6.dp), color = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.height(8.dp))
-                        Text("${(viewModel.stitchProgress * 10).toInt()}%", fontWeight = FontWeight.Bold)
+                        Text("${(viewModel.stitchProgress * 100).toInt()}%", fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -357,8 +357,6 @@ fun MapPreviewScreen(
                                     }
                                 }
                             }
-                        } else {
-                            Text("（当前中转站没有其他可用存档）", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
                         }
 
                         Divider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
@@ -375,20 +373,6 @@ fun MapPreviewScreen(
                             Icon(Icons.Default.FolderOpen, null)
                             Spacer(Modifier.width(8.dp))
                             Text("SAF // 从系统加载全新目标", fontWeight = FontWeight.Bold)
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                showDestinationSelectDialog = false
-                                navigator.navigate(FtpSettings)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = AppShapes.small,
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                        ) {
-                            Icon(Icons.Default.Wifi, null)
-                            Spacer(Modifier.width(8.dp))
-                            Text("ROUTE // 前往 FTP 导入存档", fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -445,14 +429,20 @@ fun InteractiveMapCanvas(
                                 onDragStart = { offset ->
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    viewModel.sourceSelectionStart = Pair(mapX.toInt(), mapZ.toInt())
-                                    viewModel.sourceSelectionEnd = Pair(mapX.toInt(), mapZ.toInt())
+                                    // 按 16 对齐块起点
+                                    val startX = (floor(mapX / 16f) * 16).toInt()
+                                    val startZ = (floor(mapZ / 16f) * 16).toInt()
+                                    viewModel.sourceSelectionStart = Pair(startX, startZ)
+                                    viewModel.sourceSelectionEnd = Pair(startX, startZ)
                                 },
                                 onDrag = { change, _ ->
                                     val offset = change.position
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    viewModel.sourceSelectionEnd = Pair(mapX.toInt(), mapZ.toInt())
+                                    // 按 16 对齐块终点
+                                    val endX = (floor(mapX / 16f) * 16).toInt()
+                                    val endZ = (floor(mapZ / 16f) * 16).toInt()
+                                    viewModel.sourceSelectionEnd = Pair(endX, endZ)
                                 }
                             )
                         } else if (viewModel.previewState == PreviewState.DEST_PASTE) {
@@ -460,7 +450,10 @@ fun InteractiveMapCanvas(
                                 onTap = { tapOffset ->
                                     val mapX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    viewModel.pasteTargetPoint = Pair(mapX.toInt(), mapZ.toInt())
+                                    // 点击落点对齐 Chunk
+                                    val targetX = (floor(mapX / 16f) * 16).toInt()
+                                    val targetZ = (floor(mapZ / 16f) * 16).toInt()
+                                    viewModel.pasteTargetPoint = Pair(targetX, targetZ)
                                 }
                             )
                         } else {
@@ -489,7 +482,6 @@ fun InteractiveMapCanvas(
                     translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
                     scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
                 }) {
-                    // 战术网格边界限定
                     val minRx = -8
                     val maxRx = 8
                     val minRz = -8
@@ -498,7 +490,6 @@ fun InteractiveMapCanvas(
                     for (rx in minRx..maxRx) {
                         for (rz in minRz..maxRz) {
                             val regionCoord = RegionCoordPair(rx, rz)
-                            // CAN Fix: 这里直接使用 regionCoord 键，不再使用 dimRegion Pair，解决类型推断冲突
                             val bitmap = regionBitmaps[regionCoord]
                             
                             if (bitmap != null) {
@@ -512,37 +503,61 @@ fun InteractiveMapCanvas(
                             }
                             
                             if (viewModel.showGrid) {
+                                // 绘制 Region 网格 (512x512)
                                 drawRect(
-                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.3f) else Color.White.copy(alpha = 0.1f),
+                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
                                     topLeft = Offset(rx * 512f, rz * 512f),
                                     size = Size(512f, 512f),
-                                    style = Stroke(width = 1.5f / viewModel.mapScale)
+                                    style = Stroke(width = 2.0f / viewModel.mapScale)
                                 )
+
+                                // 细分绘制 Chunk 网格 (16x16)
+                                if (viewModel.mapScale > 0.8f) { // 缩放比例足够大才绘制 Chunk 网格，防止性能崩溃
+                                    for (i in 1 until 32) {
+                                        val offsetPos = i * 16f
+                                        // 垂直线
+                                        drawLine(
+                                            color = Color.White.copy(alpha = 0.1f),
+                                            start = Offset(rx * 512f + offsetPos, rz * 512f),
+                                            end = Offset(rx * 512f + offsetPos, rz * 512f + 512f),
+                                            strokeWidth = 0.5f / viewModel.mapScale
+                                        )
+                                        // 水平线
+                                        drawLine(
+                                            color = Color.White.copy(alpha = 0.1f),
+                                            start = Offset(rx * 512f, rz * 512f + offsetPos),
+                                            end = Offset(rx * 512f + 512f, rz * 512f + offsetPos),
+                                            strokeWidth = 0.5f / viewModel.mapScale
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
 
+                    // 绘制选区 (始终吸附 Chunk)
                     if (viewModel.previewState == PreviewState.SOURCE_SELECT && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null) {
                         val s = viewModel.sourceSelectionStart!!
                         val e = viewModel.sourceSelectionEnd!!
                         val minX = min(s.first, e.first).toFloat()
                         val minZ = min(s.second, e.second).toFloat()
-                        val maxX = max(s.first, e.first).toFloat()
-                        val maxZ = max(s.second, e.second).toFloat()
+                        val maxX = (max(s.first, e.first) + 16).toFloat()
+                        val maxZ = (max(s.second, e.second) + 16).toFloat()
 
                         drawRect(color = Color(0xFF3B82F6).copy(alpha = 0.4f), topLeft = Offset(minX, minZ), size = Size(maxX - minX, maxZ - minZ))
                         drawRect(color = Color(0xFF3B82F6), topLeft = Offset(minX, minZ), size = Size(maxX - minX, maxZ - minZ), style = Stroke(width = 2f / viewModel.mapScale))
                     }
 
+                    // 绘制落点虚影 (始终吸附 Chunk)
                     if (viewModel.previewState == PreviewState.DEST_PASTE && viewModel.sourceSelectionStart != null && viewModel.sourceSelectionEnd != null && viewModel.pasteTargetPoint != null) {
                         val s = viewModel.sourceSelectionStart!!
                         val e = viewModel.sourceSelectionEnd!!
-                        val w = kotlin.math.abs(e.first - s.first).toFloat()
-                        val h = kotlin.math.abs(e.second - s.second).toFloat()
+                        val chunkW = (abs(e.first - s.first) + 16).toFloat()
+                        val chunkH = (abs(e.second - s.second) + 16).toFloat()
                         val target = viewModel.pasteTargetPoint!!
 
-                        drawRect(color = Color(0xFFFACC15).copy(alpha = 0.4f), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(w, h))
-                        drawRect(color = Color(0xFFFACC15), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(w, h), style = Stroke(width = 3f / viewModel.mapScale))
+                        drawRect(color = Color(0xFFFACC15).copy(alpha = 0.4f), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(chunkW, chunkH))
+                        drawRect(color = Color(0xFFFACC15), topLeft = Offset(target.first.toFloat(), target.second.toFloat()), size = Size(chunkW, chunkH), style = Stroke(width = 3f / viewModel.mapScale))
                     }
                 }
             }

@@ -1,4 +1,3 @@
-// [file name]: me/voltual/vb/ui/map/MapPreviewViewModel.kt
 package me.voltual.vb.ui.map
 
 import android.content.Context
@@ -26,38 +25,18 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair
 import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import com.hivemc.chunker.conversion.intermediate.world.DimensionRegistry
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import me.voltual.vb.core.utils.FileRepairUtil
 import me.voltual.vb.ui.stitch.StitchWorker
 import com.hivemc.chunker.conversion.encoding.EncodingType
-import com.hivemc.chunker.conversion.encoding.base.Converter
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBChunkType
-import com.hivemc.chunker.conversion.encoding.bedrock.util.LevelDBKey
-import com.hivemc.chunker.conversion.handlers.LevelConversionHandler
-import com.hivemc.chunker.conversion.handlers.WorldConversionHandler
-import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler
-import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
-import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome
-import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel
-import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings
-import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld
-import com.hivemc.chunker.mapping.resolver.MappingsFileResolvers
-import com.hivemc.chunker.scheduling.task.FutureTask
-import com.hivemc.chunker.scheduling.task.Task
-import org.iq80.leveldb.Options
-import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.DataInputStream
 import java.io.File
 import java.io.FileInputStream
-import java.io.RandomAccessFile
-import java.util.Optional
-import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
-import java.util.function.Predicate
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.floor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import me.voltual.vb.data.ChunkerSettingsDataStore
@@ -86,7 +65,6 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
 
     val regionBitmaps = mutableStateMapOf<Pair<Dimension, RegionCoordPair>, Bitmap>()
     
-    // 跟踪被主动“点亮”或已被加载完毕的区域（防止重复提取）
     val litRegions = mutableStateListOf<Pair<Dimension, RegionCoordPair>>()
 
     var mapUpdateTrigger by mutableStateOf(0)
@@ -112,6 +90,7 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
     var hasExistingFtpInput by mutableStateOf(false)
         private set
 
+    // 存储块坐标 (Block Coordinates)
     var sourceSelectionStart by mutableStateOf<Pair<Int, Int>?>(null)
     var sourceSelectionEnd by mutableStateOf<Pair<Int, Int>?>(null)
     var pasteTargetPoint by mutableStateOf<Pair<Int, Int>?>(null)
@@ -231,6 +210,7 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
         val end = sourceSelectionEnd ?: return
         val target = pasteTargetPoint ?: return
 
+        // 细化到 Chunk 坐标
         val chunkMinX = min(start.first, end.first) shr 4
         val chunkMinZ = min(start.second, end.second) shr 4
         val chunkMaxX = max(start.first, end.first) shr 4
@@ -247,7 +227,6 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
         stitchSuccess = false
         stitchError = null
 
-        val rootDir = getWorldsDir(context)
         val sourceInternalPath = stitchSourceUri.ifEmpty { worldDirUri }
 
         val inputData = workDataOf(
@@ -351,23 +330,19 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
         cacheMapDir.deleteRecursively()
         cacheMapDir.mkdirs()
 
-        // 判断当前是否是节能模式
         val modeEnergySaving = chunkerSettingsDataStore.energySavingMode.first()
 
         if (modeEnergySaving) {
-            // 节能模式下不开启全局 Worker 自动读取全图，直接初始化虚拟的空位地图
             isLoaded = true
             isLoading = false
             statusMessage = "【节能模式开启】点哪里，亮哪里！"
             
-            // 简单检测格式
             val tempDetectConverter = com.hivemc.chunker.conversion.WorldConverter(java.util.UUID.randomUUID())
             val readerOptional = EncodingType.findReader(File(path), tempDetectConverter)
             if (readerOptional.isPresent) {
                 isBedrock = readerOptional.get().encodingType == EncodingType.BEDROCK
             }
 
-            // 初始化默认可选维度
             availableDimensions.addAll(listOf(Dimension.OVERWORLD, Dimension.NETHER, Dimension.THE_END))
             isMapCentered = false
             return
@@ -408,9 +383,6 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
         }
     }
 
-    /**
-     * 新增：战术局部点亮算法。用户点击某个暗色 Region column 时，仅将此 region 的渲染提取提交到 WorkManager
-     */
     fun lightUpRegionOnDemand(context: Context, dimension: Dimension, region: RegionCoordPair) {
         val dimRegion = Pair(dimension, region)
         if (litRegions.contains(dimRegion) || isLoading) return
@@ -422,12 +394,9 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
             }
 
             val cacheMapDir = File(context.cacheDir, "map_regions")
-            // 拼装临时的提取过滤参数。
-            // 注意：由于 Chunker 是并发扫描的，限制特定 region 会大幅减少提取时间
             val inputData = Data.Builder()
                 .putString("worldDirUri", worldDirUri)
                 .putString("outputPath", cacheMapDir.absolutePath)
-                // 限制仅加载当前 region 的列
                 .putString("targetDimension", dimension.getIdentifier())
                 .putInt("targetRegionX", region.regionX())
                 .putInt("targetRegionZ", region.regionZ())
@@ -435,7 +404,6 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
                 .putString("androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME", "androidx.work.multiprocess.RemoteWorkerService")
                 .build()
 
-            // 我们可以在 MapPreviewWorker 里接收这两个 filter 参数
             val workRequest = OneTimeWorkRequestBuilder<MapPreviewWorker>().setInputData(inputData).build()
             RemoteWorkManager.getInstance(context).enqueueUniqueWork("region_lightup_${region.regionX()}_${region.regionZ()}", ExistingWorkPolicy.REPLACE, workRequest)
 
@@ -543,14 +511,16 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
             val paint = Paint().apply { xfermode = PorterDuffXfermode(PorterDuff.Mode.CLEAR) }
             for (cx in minX..maxX) {
                 for (cz in minZ..maxZ) {
-                    val dimRegion = Pair(selectedDimension, ChunkCoordPair(cx, cz).region)
+                    val chunkCoord = ChunkCoordPair(cx, cz)
+                    val dimRegion = Pair(selectedDimension, chunkCoord.region)
                     val originalBitmap = regionBitmaps[dimRegion]
                     if (originalBitmap != null) {
                         val mutableBmp = originalBitmap.copy(Bitmap.Config.ARGB_8888, true)
                         val canvas = Canvas(mutableBmp)
-                        val startX = (cx and 31) * 16f
-                        val startZ = (cz and 31) * 16f
-                        canvas.drawRect(startX, startZ, startX + 16f, startZ + 16f, paint)
+                        // 计算在该 Region (512x512) 内部的局部坐标 (0-511)
+                        val startXInRegion = (cx and 31) shl 4
+                        val startZInRegion = (cz and 31) shl 4
+                        canvas.drawRect(startXInRegion.toFloat(), startZInRegion.toFloat(), startXInRegion + 16f, startZInRegion + 16f, paint)
                         regionBitmaps[dimRegion] = mutableBmp
                     }
                 }
