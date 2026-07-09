@@ -12,8 +12,8 @@ message(STATUS "*** Building MC2MT Android Shared Library ***")
 include(FetchContent)
 FetchContent_Declare(
   sqlite3
-  URL      https://www.sqlite.org/2024/sqlite-amalgamation-3460000.zip
-  URL_HASH SHA256=17a30368940864388147d3419918730f7823f66c9c614b146430349b0682283e # 3460000 版本
+  URL      https://sqlite.org/2026/sqlite-amalgamation-3530300.zip
+  URL_HASH SHA256=646421e12aac110282ef8cc68f1a62d4bb15fc7b8f09da0b53e29ee690500431
 )
 
 FetchContent_GetProperties(sqlite3)
