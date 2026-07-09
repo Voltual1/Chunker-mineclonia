@@ -29,9 +29,9 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
         preferences[KEY_PROCESS_MAPS] ?: false
     }
 
-    // 地图预览节能模式（点哪里亮哪里），默认开启以最大化防止内存崩溃
+    // 地图预览节能模式（点哪里亮哪里)
     val energySavingMode: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[KEY_ENERGY_SAVING_MODE] ?: true
+        preferences[KEY_ENERGY_SAVING_MODE] ?: false
     }
 
     suspend fun setThreadCount(count: Int) {
