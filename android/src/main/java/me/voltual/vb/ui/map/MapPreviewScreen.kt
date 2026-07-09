@@ -1,3 +1,4 @@
+// [file name]: me/voltual/vb/ui/map/MapPreviewScreen.kt
 package me.voltual.vb.ui.map
 
 import androidx.compose.animation.*
@@ -206,7 +207,6 @@ fun MapPreviewScreen(
                             val s = viewModel.sourceSelectionStart ?: return@AnimatedVisibility
                             val e = viewModel.sourceSelectionEnd ?: return@AnimatedVisibility
                             
-                            // 修正尺寸计算为 Chunk 数量
                             val chunkW = (abs(e.first - s.first) shr 4) + 1
                             val chunkH = (abs(e.second - s.second) shr 4) + 1
                             
@@ -429,7 +429,6 @@ fun InteractiveMapCanvas(
                                 onDragStart = { offset ->
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    // 按 16 对齐块起点
                                     val startX = (floor(mapX / 16f) * 16).toInt()
                                     val startZ = (floor(mapZ / 16f) * 16).toInt()
                                     viewModel.sourceSelectionStart = Pair(startX, startZ)
@@ -439,7 +438,6 @@ fun InteractiveMapCanvas(
                                     val offset = change.position
                                     val mapX = (offset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (offset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    // 按 16 对齐块终点
                                     val endX = (floor(mapX / 16f) * 16).toInt()
                                     val endZ = (floor(mapZ / 16f) * 16).toInt()
                                     viewModel.sourceSelectionEnd = Pair(endX, endZ)
@@ -450,7 +448,6 @@ fun InteractiveMapCanvas(
                                 onTap = { tapOffset ->
                                     val mapX = (tapOffset.x - viewModel.mapOffset.x) / viewModel.mapScale
                                     val mapZ = (tapOffset.y - viewModel.mapOffset.y) / viewModel.mapScale
-                                    // 点击落点对齐 Chunk
                                     val targetX = (floor(mapX / 16f) * 16).toInt()
                                     val targetZ = (floor(mapZ / 16f) * 16).toInt()
                                     viewModel.pasteTargetPoint = Pair(targetX, targetZ)
@@ -503,31 +500,32 @@ fun InteractiveMapCanvas(
                             }
                             
                             if (viewModel.showGrid) {
-                                // 绘制 Region 网格 (512x512)
+                                // 1. 绘制 Region 边界（更清晰的浅蓝色线）
                                 drawRect(
-                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.5f) else Color.White.copy(alpha = 0.1f),
+                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f),
                                     topLeft = Offset(rx * 512f, rz * 512f),
                                     size = Size(512f, 512f),
                                     style = Stroke(width = 2.0f / viewModel.mapScale)
                                 )
 
-                                // 细分绘制 Chunk 网格 (16x16)
-                                if (viewModel.mapScale > 0.8f) { // 缩放比例足够大才绘制 Chunk 网格，防止性能崩溃
+                                // 2. 绘制 16x16 Chunk 细分网格线 (在放大到一定比例后呈现高对比度的中度暗色和半透明交织，避免闪烁)
+                                if (viewModel.mapScale > 0.8f) { 
                                     for (i in 1 until 32) {
                                         val offsetPos = i * 16f
-                                        // 垂直线
+                                        
+                                        // 垂直 Chunk 细分线：使用高对比度的半透明蓝色，避免与原地图本身混淆
                                         drawLine(
-                                            color = Color.White.copy(alpha = 0.1f),
+                                            color = Color(0xFF1E293B).copy(alpha = 0.45f),
                                             start = Offset(rx * 512f + offsetPos, rz * 512f),
                                             end = Offset(rx * 512f + offsetPos, rz * 512f + 512f),
-                                            strokeWidth = 0.5f / viewModel.mapScale
+                                            strokeWidth = 0.75f / viewModel.mapScale
                                         )
-                                        // 水平线
+                                        // 水平 Chunk 细分线
                                         drawLine(
-                                            color = Color.White.copy(alpha = 0.1f),
+                                            color = Color(0xFF1E293B).copy(alpha = 0.45f),
                                             start = Offset(rx * 512f, rz * 512f + offsetPos),
                                             end = Offset(rx * 512f + 512f, rz * 512f + offsetPos),
-                                            strokeWidth = 0.5f / viewModel.mapScale
+                                            strokeWidth = 0.75f / viewModel.mapScale
                                         )
                                     }
                                 }
