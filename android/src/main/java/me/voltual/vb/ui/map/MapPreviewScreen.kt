@@ -1,4 +1,3 @@
-// [file name]: me/voltual/vb/ui/map/MapPreviewScreen.kt
 package me.voltual.vb.ui.map
 
 import androidx.compose.animation.*
@@ -475,58 +474,68 @@ fun InteractiveMapCanvas(
                         }
                     }
             ) {
+                // 计算当前屏幕视口能够看到的 Region 最小和最大边界
+                val leftX = -viewModel.mapOffset.x / viewModel.mapScale
+                val rightX = (size.width - viewModel.mapOffset.x) / viewModel.mapScale
+                val topZ = -viewModel.mapOffset.y / viewModel.mapScale
+                val bottomZ = (size.height - viewModel.mapOffset.y) / viewModel.mapScale
+
+                // 转换到 Region 坐标 (每 Region 为 512 像素宽度)，并向外各扩展 1 格以作平滑缓冲区
+                val minRx = floor(leftX / 512f).toInt() - 1
+                val maxRx = floor(rightX / 512f).toInt() + 1
+                val minRz = floor(topZ / 512f).toInt() - 1
+                val maxRz = floor(bottomZ / 512f).toInt() + 1
+
                 withTransform({
                     translate(viewModel.mapOffset.x, viewModel.mapOffset.y)
                     scale(viewModel.mapScale, viewModel.mapScale, pivot = Offset.Zero)
                 }) {
-                    val minRx = -8
-                    val maxRx = 8
-                    val minRz = -8
-                    val maxRz = 8
-                    
-                    for (rx in minRx..maxRx) {
-                        for (rz in minRz..maxRz) {
-                            val regionCoord = RegionCoordPair(rx, rz)
-                            val bitmap = regionBitmaps[regionCoord]
-                            
-                            if (bitmap != null) {
-                                drawImage(image = bitmap, topLeft = Offset(rx * 512f, rz * 512f))
-                            } else {
-                                drawRect(
-                                    color = Color.DarkGray.copy(alpha = 0.25f),
-                                    topLeft = Offset(rx * 512f, rz * 512f),
-                                    size = Size(512f, 512f)
-                                )
-                            }
-                            
-                            if (viewModel.showGrid) {
-                                // 1. 绘制 Region 边界（更清晰的浅蓝色线）
-                                drawRect(
-                                    color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f),
-                                    topLeft = Offset(rx * 512f, rz * 512f),
-                                    size = Size(512f, 512f),
-                                    style = Stroke(width = 2.0f / viewModel.mapScale)
-                                )
+                    // 当缩放比率过小（例如低于 0.05f）时，遍历大区间视口格会卡顿，此时仅渲染有物理数据的 Region 即可
+                    if (viewModel.mapScale < 0.05f) {
+                        regionBitmaps.forEach { (region, bitmap) ->
+                            drawImage(image = bitmap, topLeft = Offset(region.regionX() * 512f, region.regionZ() * 512f))
+                        }
+                    } else {
+                        // 动态裁剪绘制当前视口内的 Region 网格
+                        for (rx in minRx..maxRx) {
+                            for (rz in minRz..maxRz) {
+                                val regionCoord = RegionCoordPair(rx, rz)
+                                val bitmap = regionBitmaps[regionCoord]
+                                
+                                if (bitmap != null) {
+                                    drawImage(image = bitmap, topLeft = Offset(rx * 512f, rz * 512f))
+                                } else {
+                                    drawRect(
+                                        color = Color.DarkGray.copy(alpha = 0.25f),
+                                        topLeft = Offset(rx * 512f, rz * 512f),
+                                        size = Size(512f, 512f)
+                                    )
+                                }
+                                
+                                if (viewModel.showGrid) {
+                                    drawRect(
+                                        color = if (bitmap != null) Color(0xFF3B82F6).copy(alpha = 0.6f) else Color.White.copy(alpha = 0.2f),
+                                        topLeft = Offset(rx * 512f, rz * 512f),
+                                        size = Size(512f, 512f),
+                                        style = Stroke(width = 2.0f / viewModel.mapScale)
+                                    )
 
-                                // 2. 绘制 16x16 Chunk 细分网格线 (在放大到一定比例后呈现高对比度的中度暗色和半透明交织，避免闪烁)
-                                if (viewModel.mapScale > 0.8f) { 
-                                    for (i in 1 until 32) {
-                                        val offsetPos = i * 16f
-                                        
-                                        // 垂直 Chunk 细分线：使用高对比度的半透明蓝色，避免与原地图本身混淆
-                                        drawLine(
-                                            color = Color(0xFF1E293B).copy(alpha = 0.45f),
-                                            start = Offset(rx * 512f + offsetPos, rz * 512f),
-                                            end = Offset(rx * 512f + offsetPos, rz * 512f + 512f),
-                                            strokeWidth = 0.75f / viewModel.mapScale
-                                        )
-                                        // 水平 Chunk 细分线
-                                        drawLine(
-                                            color = Color(0xFF1E293B).copy(alpha = 0.45f),
-                                            start = Offset(rx * 512f, rz * 512f + offsetPos),
-                                            end = Offset(rx * 512f + 512f, rz * 512f + offsetPos),
-                                            strokeWidth = 0.75f / viewModel.mapScale
-                                        )
+                                    if (viewModel.mapScale > 0.8f) { 
+                                        for (i in 1 until 32) {
+                                            val offsetPos = i * 16f
+                                            drawLine(
+                                                color = Color(0xFF1E293B).copy(alpha = 0.45f),
+                                                start = Offset(rx * 512f + offsetPos, rz * 512f),
+                                                end = Offset(rx * 512f + offsetPos, rz * 512f + 512f),
+                                                strokeWidth = 0.75f / viewModel.mapScale
+                                            )
+                                            drawLine(
+                                                color = Color(0xFF1E293B).copy(alpha = 0.45f),
+                                                start = Offset(rx * 512f, rz * 512f + offsetPos),
+                                                end = Offset(rx * 512f + 512f, rz * 512f + offsetPos),
+                                                strokeWidth = 0.75f / viewModel.mapScale
+                                            )
+                                        }
                                     }
                                 }
                             }
