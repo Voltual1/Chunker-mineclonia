@@ -160,7 +160,7 @@ dependencies {
     implementation(libs.work.runtime)
     
     implementation(project(":cli"))
-    implementation(project(":MC2MT"))
+//    implementation(project(":MC2MT"))
     implementation(project(":converter"))
     implementation(project(":pack-schema-api"))
 //    implementation(project(":mcl"))

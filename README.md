@@ -25,6 +25,7 @@
 * [openjdk/jdk (ICC profiles)](https://github.com/openjdk/jdk/tree/9333d300aa02831ab78178449f04a4703a0b2082/src/java.desktop/share/classes/sun/java2d/cmm/profiles) `sRGB.pf, GRAY.pf, LINEAR_RGB.pf, CIEXYZ.pf, PYCC.pf`
 * [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)
 * [rollerozxa/MC2MT](https://github.com/rollerozxa/MC2MT)
+* [rust-keylock/rust-keylock-android](https://github.com/rust-keylock/rust-keylock-android)
 * [eltanschauung/MC2MT](https://github.com/eltanschauung/MC2MT)
 * [termux/termux-app](https://github.com/termux/termux-app)
 * [wolpi/prim-ftpd](https://github.com/wolpi/prim-ftpd)

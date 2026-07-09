@@ -1,0 +1,45 @@
+name: Rust-Build
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  release:
+    types: [ published ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # 缓存 NDK
+      - name: Cache Android NDK
+        id: cache-ndk
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/android-ndk-r26d
+          key: ${{ runner.os }}-ndk-r26d
+
+      # 缓存 Rust 工具链和 target 编译产物
+      - name: Cache Rust & Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ github.workspace }}/tools/.cargo
+            ${{ github.workspace }}/tools/.rustup
+            ${{ github.workspace }}/rust/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Build native
+        run: bash ./buildall.sh
