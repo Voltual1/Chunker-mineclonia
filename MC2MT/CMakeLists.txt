@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.11) # FetchContent 需要 3.11+
 
 project(MC2MT)
 
@@ -6,25 +6,37 @@ set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED TRUE)
 
-message(STATUS "*** Building MC2MT SHARED LIBRARY ***")
+message(STATUS "*** Building MC2MT Android Shared Library ***")
 
-if (NOT CMAKE_BUILD_TYPE)
-    message(STATUS "No build type selected, default to Release")
-    set(CMAKE_BUILD_TYPE "Release")
+# 1. 自动下载并集成 SQLite3
+include(FetchContent)
+FetchContent_Declare(
+  sqlite3
+  URL      https://www.sqlite.org/2024/sqlite-amalgamation-3460000.zip
+  URL_HASH SHA256=17a30368940864388147d3419918730f7823f66c9c614b146430349b0682283e # 3460000 版本
+)
+
+FetchContent_GetProperties(sqlite3)
+if(NOT sqlite3_POPULATED)
+  FetchContent_Populate(sqlite3)
+  # 创建一个静态库目标
+  add_library(sqlite3_static STATIC "${sqlite3_SOURCE_DIR}/sqlite3.c")
+  target_include_directories(sqlite3_static PUBLIC "${sqlite3_SOURCE_DIR}")
+  # SQLite3 在 Android 上需要线程支持
+  target_compile_definitions(sqlite3_static PRIVATE SQLITE_THREADSAFE=1)
 endif()
 
-set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${PROJECT_SOURCE_DIR}/cmake/Modules/")
-
-find_package(SQLite3 REQUIRED)
+# 2. 查找其他依赖
 find_package(Threads REQUIRED)
 find_package(ZLIB REQUIRED)
 
+# 3. 设置包含目录
 include_directories(
 	${PROJECT_SOURCE_DIR}/src
 	${PROJECT_SOURCE_DIR}/src/nbt
-	${SQLite3_INCLUDE_DIR}
 	${ZLIB_INCLUDE_DIRS})
 
+# 4. 定义源码
 set(SRCS
 	src/jni_api.cpp
 	src/convert.cpp
@@ -35,16 +47,13 @@ set(SRCS
 	src/nbt/serialization.cpp
 	src/nbt/compression.cpp)
 
-# 编译为共享库以供 Android NDK 和 System.loadLibrary 使用
+# 5. 生成共享库
 add_library(${PROJECT_NAME} SHARED ${SRCS})
 
+# 6. 链接库
+# 链接我们刚刚定义的 sqlite3_static，以及系统库
 target_link_libraries(${PROJECT_NAME}
-	${SQLite3_LIBRARY}
+	sqlite3_static
 	Threads::Threads
-	${ZLIB_LIBRARY}
-	log) # 链接 Android 系统日志库
-
-if (MINGW)
-	target_link_libraries(${PROJECT_NAME} ws2_32.lib)
-	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mthreads")
-endif()
+	${ZLIB_LIBRARIES}
+	log) # Android Log 库，用于调试
