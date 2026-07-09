@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 object AgreementVersions {
-    const val USER_AGREEMENT = 5
+    const val USER_AGREEMENT = 6
 }
 
 class UserAgreementDataStore(private val dataStore: DataStore<Preferences>) {

@@ -47,8 +47,8 @@ class CrashLogActivity : ComponentActivity() {
     setContent {
       val crashReportState = remember { mutableStateOf(initialCrashReport ?: "Loading...") }
       val context = LocalContext.current
-      val snackbarHostState = remember { SnackbarHostState() } // 创建 SnackbarHostState
-      val scope = rememberCoroutineScope() // 创建 CoroutineScope
+      val snackbarHostState = remember { SnackbarHostState() } 
+      val scope = rememberCoroutineScope() 
 
       LaunchedEffect(Unit) {
         if (initialCrashReport == null) { // 如果没有传递参数，才从数据库加载
@@ -126,23 +126,22 @@ fun CrashLogScreen(crashReport: String) {
         modifier = Modifier.padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
       ) {
-        // 使用 MaterialTheme.colorScheme.errorContainer 作为背景色
         Text(
           text = "应用崩溃了！",
           style = MaterialTheme.typography.headlineMedium,
-          color = MaterialTheme.colorScheme.onErrorContainer, // 使用语义颜色
+          color = MaterialTheme.colorScheme.onErrorContainer,
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
           text = "崩溃报告：",
           style = MaterialTheme.typography.titleMedium,
-          color = MaterialTheme.colorScheme.onSurfaceVariant, // 使用语义颜色
+          color = MaterialTheme.colorScheme.onSurfaceVariant, 
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
           text = crashReport,
           style = MaterialTheme.typography.bodyMedium,
-          color = MaterialTheme.colorScheme.onSurface, // 使用语义颜色
+          color = MaterialTheme.colorScheme.onSurface,
         )
       }
     }

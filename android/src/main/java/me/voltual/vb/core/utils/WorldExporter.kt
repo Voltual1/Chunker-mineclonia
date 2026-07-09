@@ -34,7 +34,7 @@ object WorldExporter {
     private const val PORT = 8080
 
     /**
-     * 新增：提供外部调用的导出方法。
+     * 提供外部调用的导出方法。
      * 将临时预览文件夹压缩打包，并通过 MediaStore 零 SAF 限制高速输出到系统的 Downloads 公共文件夹中。
      */
     fun exportWorld(context: Context, sourceFolder: File): Boolean {

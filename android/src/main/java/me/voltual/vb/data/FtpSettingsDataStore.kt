@@ -54,7 +54,6 @@ class FtpSettingsDataStore(private val context: Context) {
     private val dataStore: DataStore<FtpSettings>
 
     init {
-        // 注册 Tink 算法支持
         AeadConfig.register()
 
         val keysetHandle = AndroidKeysetManager.Builder()

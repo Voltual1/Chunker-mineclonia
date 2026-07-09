@@ -1,4 +1,3 @@
-// [在 HomeViewModel.kt 中，删除原有的私有 repairCopiedDatabaseFiles 方法，直接引入并调用公共工具]
 package me.voltual.vb.ui.home
 
 import android.content.Context
@@ -17,7 +16,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import me.voltual.vb.core.utils.FileRepairUtil // 导入公共工具
+import me.voltual.vb.core.utils.FileRepairUtil 
 import me.voltual.vb.core.utils.extension.text.formatSize
 import me.voltual.vb.ui.Navigator
 import me.voltual.vb.ui.TerminalExec

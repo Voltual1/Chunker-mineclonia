@@ -22,7 +22,6 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
         val isBedrock = inputData.getBoolean("isBedrock", false)
         val dimId = inputData.getString("dimension") ?: "minecraft:overworld"
         
-        // 修正 DimensionRegistry 获取方式
         val dimension = DimensionRegistry().getDimensions().find { it.getIdentifier() == dimId } ?: Dimension.OVERWORLD
 
         val chunkMinX = inputData.getInt("minX", 0)

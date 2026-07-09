@@ -6,7 +6,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
 import androidx.core.app.NotificationCompat
-import androidx.work.CoroutineWorker // 恢复 CoroutineWorker
+import androidx.work.CoroutineWorker 
 import androidx.work.ForegroundInfo
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
@@ -30,7 +30,7 @@ import java.util.UUID
 class StitchWorker(
     private val context: Context,
     private val params: WorkerParameters
-) : CoroutineWorker(context, params), KoinComponent { // 恢复 KoinComponent 和 inject 支持
+) : CoroutineWorker(context, params), KoinComponent { 
 
     private val database: AppDatabase by inject()
 

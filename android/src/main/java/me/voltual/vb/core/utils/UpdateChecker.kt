@@ -22,7 +22,6 @@ sealed class UpdateCheckResult {
 }
 
 object UpdateChecker {
-    // 修改函数签名，使用回调传递结果
     fun checkForUpdates(onUpdateResult: (UpdateCheckResult) -> Unit) {
         CoroutineScope(Dispatchers.Default).launch {
             try {

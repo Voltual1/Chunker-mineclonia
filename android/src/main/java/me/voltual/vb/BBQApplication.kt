@@ -37,7 +37,7 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
 
         val processName = getProcessName(this)
         
-        // 核心修复：针对子进程强制手动初始化 WorkManager
+        // 针对子进程强制手动初始化 WorkManager
         if (processName != null && processName.endsWith(":conversion")) {
             try {
                 WorkManager.initialize(this, workManagerConfiguration)

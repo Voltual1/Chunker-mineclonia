@@ -1,5 +1,16 @@
 这只是一个黑客玩具，不要抱有过多期待。
 
+#### 1. 开源协议声明
+**本应用是自由软件**，遵循 GNU Affero General Public License v3.0 (AGPLv3)  协议发布。这意味着您拥有以下自由：
+- 运行程序的自由，无论出于何种目的
+- 研究程序工作原理并按需修改的自由
+- 重新分发副本的自由
+- 改进程序并向公众发布改进版的自由
+
+完整的AGPLv3协议文本可访问：http://www.gnu.org/licenses/agpl-3.0.html
+
+本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+
 在使用前务必阅读以下说明
 原文来自http://www.catb.org/~esr/faqs/smart-questions.html
 
@@ -621,15 +632,6 @@ Jeff Bigler 的观察总结和这个相关也值得一读 (**[tact filters](http
 ## 鸣谢
 
 Evelyn Mitchel 贡献了一些愚蠢问题例子并启发了编写`如何更好地回答问题`这一节， Mikhail Ramendik 贡献了一些特别有价值的建议和改进。
-
-#### 1. 开源协议声明
-**本应用是自由软件**，遵循 **GNU Affero General Public License v3.0 (AGPLv3) ** 协议发布。这意味着您拥有以下自由：
-- 运行程序的自由，无论出于何种目的
-- 研究程序工作原理并按需修改的自由
-- 重新分发副本的自由
-- 改进程序并向公众发布改进版的自由
-
-完整的AGPLv3协议文本可访问：http://www.gnu.org/licenses/agpl-3.0.html
 
 # 关于商业化
 这里要澄清GPL并不是什么反商业许可证。AGPLv3原话是这样的（摘取了几段并附带翻译）:

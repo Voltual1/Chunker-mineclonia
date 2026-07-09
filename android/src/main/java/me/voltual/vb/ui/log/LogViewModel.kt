@@ -23,10 +23,8 @@ class LogViewModel(
     // 定时触发器，用于刷新文件日志
     private val _fileRefreshTrigger = MutableStateFlow(0)
 
-    // 1. 数据库日志流
     private val dbLogs: Flow<List<LogEntry>> = logRepository.allLogs
 
-    // 2. 文件日志解析流：监听触发器，从 slice_log.txt 加载并转为虚拟 LogEntry
     private val fileLogs: Flow<List<LogEntry>> = _fileRefreshTrigger
         .map {
             withContext(Dispatchers.IO) {
