@@ -71,7 +71,6 @@ impl MCMap {
             parse_nbt(&mut cursor, true)? // Big Endian
         } else {
             // 2. 基岩版：未压缩 + 8字节头 + 小端序
-            // 头部：[0..3] 版本, [4..7] NBT 长度
             if buffer.len() < 8 {
                 return Err("Bedrock level.dat too short".to_string());
             }
@@ -85,9 +84,6 @@ impl MCMap {
     pub fn list_groups(&self) -> Result<Vec<MCGroup>, String> {
         let region_dir = self.path.join("region");
         if !region_dir.exists() {
-            // 如果没有 region 文件夹，说明这可能是一个基岩版存档
-            // 目前 Rust 核心解析主要针对 Java 版的 MCA/MCR。
-            // 基岩版的转换逻辑目前由 Kotlin 端的 LevelDB 处理。
             return Ok(Vec::new());
         }
 
@@ -196,7 +192,7 @@ impl MCMap {
         };
 
         let mut cursor = Cursor::new(decompressed);
-        let nbt_root = parse_nbt(&mut cursor, true)?; // MCA chunks are always Big Endian
+        let nbt_root = parse_nbt(&mut cursor, true)?;
 
         let mut blocks = Vec::new();
         
@@ -217,6 +213,7 @@ impl MCMap {
                                     if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                         if (te_y >> 4) == y as i32 {
                                             let mut te_cloned = te.clone();
+                                            // 【完全同步 C++】：tile_entities X坐标反转映射
                                             if let Some(te_x) = te_cloned.get_mut_map().and_then(|m| m.get_mut("x")) {
                                                 if let NbtTag::Int(x_val) = te_x {
                                                     let global_x = *x_val;
@@ -276,11 +273,12 @@ impl MCMap {
     }
 }
 
-// ==========================================
-// 辅助解析方法：支持大小端切换
-// ==========================================
+// ===================================================
+// 完全复刻 C++ 轴反转与重排列的三维几何系统
+// ===================================================
 
 fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
+    // 【完全同步 C++】：pos = {-cp.x - 1, y_slice, cp.z}
     let pos_x = -cp.x - 1;
     let pos_y = y_slice;
     let pos_z = cp.z;
@@ -316,6 +314,7 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
 }
 
 fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
+    // 【完全同步 C++】：pos = {cp.x, y_slice, cp.z}
     let pos_x = cp.x;
     let pos_y = y_slice;
     let pos_z = cp.z;
@@ -343,12 +342,15 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     Ok(MCBlock { pos_x, pos_y, pos_z, blocks, data, sky_light, block_light, tile_entities: Vec::new() })
 }
 
+/// 【完全同步 C++】：reverseXAxis 
+/// 在把 YZX 数据重新映射成 ZYX 格式时，反转内部的 Z 轴（即 15 - z 逻辑）
 fn reverse_x_axis(data: &mut [u16], l: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..16 {
-                let i = (y << 8) | ((15 - z) << 4) | x;
+                // 原版 C++: i = (y << 8) | (((15 - z) << 4) | x);
+                let i = (y << 8) | (((15 - z) << 4) | x);
                 if i < l.len() {
                     data[data_key] = l[i] as u16;
                 }
@@ -358,12 +360,15 @@ fn reverse_x_axis(data: &mut [u16], l: &[u8]) {
     }
 }
 
+/// 【完全同步 C++】：expandHalfBytes
+/// 完成半字节到字节解压，同样反转内部的 Z 轴
 fn expand_half_bytes(data: &mut [u8], l: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..(16 / 2) {
-                let i = (y << 7) | ((15 - z) << 3) | x;
+                // 原版 C++: i = (y << 7) | (((15 - z) << 3) | x);
+                let i = (y << 7) | (((15 - z) << 3) | x);
                 if i < l.len() {
                     let b = l[i];
                     data[data_key] = b & 0xF;
@@ -375,6 +380,8 @@ fn expand_half_bytes(data: &mut [u8], l: &[u8]) {
     }
 }
 
+/// 【完全同步 C++】：extractSlice
+/// 对应 Regions 旧版格式从 XZY 转换为 YZX
 fn extract_slice(data: &mut [u16], l: &[u8], y_slice: u8) {
     let mut key = (y_slice as usize) << 4;
     let mut data_key = 0;
@@ -393,6 +400,8 @@ fn extract_slice(data: &mut [u16], l: &[u8], y_slice: u8) {
     }
 }
 
+/// 【完全同步 C++】：extractSliceHalfBytes
+/// 对应 Regions 旧版格式的 4-bit 提取与转换
 fn extract_slice_half_bytes(data: &mut [u8], l: &[u8], y_slice: u8) {
     let mut key = (y_slice as usize) << 3;
     let mut data_key_1 = 0;
@@ -528,7 +537,6 @@ pub fn parse_nbt<R: Read + Seek>(reader: &mut R, big_endian: bool) -> Result<Nbt
         return Ok(NbtTag::End);
     }
     
-    // 读取 Root 名称长度（总是大端或小端对应）
     let name_len = if big_endian {
         reader.read_u16::<BigEndian>().map_err(|e| e.to_string())?
     } else {
