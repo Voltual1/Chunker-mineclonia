@@ -13,7 +13,7 @@ use std::path::Path;
 use crate::mc_map::MCMap;
 use crate::mt_map::{MTMap, serialize_raw_chunk, serialize_block};
 
-// 使用全局锁安全托管 MTMap 实例（用于 Chunk 级精细流）
+// 使用全局锁安全托管 MTMap 实例
 static GLOBAL_MT_MAP: Lazy<Mutex<Option<MTMap>>> = Lazy::new(|| Mutex::new(None));
 
 #[no_mangle]
@@ -28,7 +28,7 @@ pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_
 }
 
 // =========================================================================
-// 1. 新增 / 补全：面向 `me.voltual.mc2mt.MC2MTLib` 的顶层整库极速转换接口
+// 统一命名空间：全部绑定到 me.voltual.mc2mt.MC2MTLib
 // =========================================================================
 
 #[no_mangle]
@@ -51,7 +51,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
 
     info!("Starting raw JNI map convert from {} to {}", input, output);
 
-    // 初始化 MC 地图元数据
     let mc_map = match MCMap::new(&input) {
         Ok(m) => m,
         Err(e) => {
@@ -60,7 +59,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
         }
     };
 
-    // 提取并计算安全出生点
     let mc_spawn = mc_map.get_spawn_point();
     let mt_spawn = (
         mc_spawn.0,
@@ -68,7 +66,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
         mc_spawn.2
     );
 
-    // 初始化输出 MT 数据库
     let mut mt_map = match MTMap::new(&output, mt_spawn) {
         Ok(m) => m,
         Err(e) => {
@@ -77,7 +74,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
         }
     };
 
-    // 扫描区块组
     let groups = match mc_map.list_groups() {
         Ok(g) => g,
         Err(e) => {
@@ -93,7 +89,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
 
     let total_groups = groups.len() as i64;
 
-    // 辅助闭包：向 JVM 的进度回调汇报进度
     let mut report_progress = |g_done: i64, b_done: i64| {
         if callback.is_null() {
             return;
@@ -112,13 +107,12 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
 
     let mut blocks_done = 0i64;
 
-    use rayon::prelude::*; // 引入多线程并发支持
+    use rayon::prelude::*;
 
     for (i, group) in groups.iter().enumerate() {
         let step = i as i64;
         
         if let Ok(chunk_positions) = mc_map.list_chunks(group) {
-            // 利用 Rayon 物理多核心并发转换
             let transformed_blocks: Vec<(crate::mt_map::MTPos, Vec<u8>)> = chunk_positions
                 .par_iter()
                 .filter_map(|&pos| mc_map.load_chunk(group, pos).ok())
@@ -128,7 +122,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
 
             let count = transformed_blocks.len() as i64;
 
-            // 批量高速刷入 SQLite 事务中
             if !transformed_blocks.is_empty() {
                 if let Err(e) = mt_map.save_blocks(transformed_blocks) {
                     error!("Database write failed in region group {}: {}", group.name, e);
@@ -140,21 +133,15 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
         report_progress(step, blocks_done);
     }
 
-    // 完成最后一次进度冲刷并提交事务
     let _ = mt_map.flush_transaction();
     report_progress(total_groups, blocks_done);
 
-    info!("Database direct pipeline completed natively successfully.");
     jni::sys::JNI_TRUE
 }
 
-// =========================================================================
-// 2. 面向 `me.voltual.mcl.core.MclSqliteSaver` 的 Chunk 级分片转换接口
-// =========================================================================
-
 /// 初始化全局的 Minetest 数据库写出引擎
 #[no_mangle]
-pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
+pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_initNativeEngine(
     mut env: JNIEnv,
     _class: JClass,
     db_path: JString,
@@ -185,7 +172,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
 
 /// 接收来自 JVM 的 Chunk 数据并高效拷贝合并
 #[no_mangle]
-pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
+pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_writeChunkFast(
     mut env: JNIEnv,
     _class: JClass,
     cx: jint,
@@ -263,7 +250,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
 
 /// 提交并冲刷当前的 SQLite 事务
 #[no_mangle]
-pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_flushNativeEngine(
+pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_flushNativeEngine(
     _env: JNIEnv,
     _class: JClass,
 ) -> jboolean {
@@ -283,7 +270,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_flushNativeEngine
 
 /// 关闭 Native 资源并关闭 SQLite 连接
 #[no_mangle]
-pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_closeNativeEngine(
+pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_closeNativeEngine(
     _env: JNIEnv,
     _class: JClass,
 ) {
