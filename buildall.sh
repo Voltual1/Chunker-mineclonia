@@ -26,7 +26,7 @@ cargo build --bin mc2mt-cli --release
 cd "$BASEDIR"
 
 echo "=== 3. Configuring Android NDK using cargo-ndk ==="
-# 使用 cargo-ndk 可以完美自动处理 cc-rs 和 sqlite3 的所有 NDK sysroot/clang 变量！
+# 安装最新版的 cargo-ndk
 cargo install cargo-ndk
 
 # 清理可能引起冲突的旧配置
@@ -47,7 +47,8 @@ echo "Using NDK at: $ANDROID_NDK_HOME"
 
 echo "=== 4. Building Termux compatible CLI (aarch64-linux-android) ==="
 cd rust
-cargo ndk -t arm64-v8a -p 30 build --bin mc2mt-cli --release
+# 【修复点】：使用 --platform 替代 -p，避免与 Cargo 的 --package 冲突！
+cargo ndk -t arm64-v8a --platform 30 build --bin mc2mt-cli --release
 
 echo "=== Compilation finished! ==="
 ls -l target/release/mc2mt-cli
