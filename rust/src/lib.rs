@@ -99,29 +99,30 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
 
     let (ok_status, chunk_result) = match (&raw_ids, &raw_p1, &raw_p2) {
         (Ok(ids_ptr), Ok(p1_ptr), Ok(p2_ptr)) => {
-            // 安全构造 Rust 内存切片（100% 堆上零拷贝！）
-            let ids_slice = unsafe { std::slice::from_raw_parts(ids_ptr.as_ptr(), 4096) };
-            let p1_slice = unsafe { std::slice::from_raw_parts(p1_ptr.as_ptr(), 4096) };
-            let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.as_ptr(), 4096) };
+    // 安全构造 Rust 内存切片（100% 堆上零拷贝！）
+    // 提示：Java 的 byte 是有符号 i8，我们需要通过原生指针对齐转换为 Rust 期待的无符号 u8
+    let ids_slice = unsafe { std::slice::from_raw_parts(ids_ptr.as_ptr() as *const i16, 4096) };
+    let p1_slice = unsafe { std::slice::from_raw_parts(p1_ptr.as_ptr() as *const u8, 4096) };
+    let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.as_ptr() as *const u8, 4096) };
 
-            // 执行多线程高并发压缩与 Minetest 区块组协议组装
-            match serialize_raw_chunk(
-                cx as i32,
-                cy as i32,
-                cz as i32,
-                ids_slice,
-                p1_slice,
-                p2_slice,
-                local_names,
-                &metadata_bytes,
-            ) {
-                Ok(res) => (true, Some(res)),
-                Err(e) => {
-                    error!("Raw chunk serialization error: {}", e);
-                    (false, None)
-                }
-            }
+    // 执行多线程高并发压缩与 Minetest 区块组协议组装
+    match serialize_raw_chunk(
+        cx as i32,
+        cy as i32,
+        cz as i32,
+        ids_slice,
+        p1_slice,
+        p2_slice,
+        local_names,
+        &metadata_bytes,
+    ) {
+        Ok(res) => (true, Some(res)),
+        Err(e) => {
+            error!("Raw chunk serialization error: {}", e);
+            (false, None)
         }
+    }
+}
         _ => {
             error!("Failed to lock JVM memory array pointers.");
             (false, None)

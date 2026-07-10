@@ -444,7 +444,7 @@ pub fn idx_to_xyz(idx: usize) -> (usize, usize, usize) {
 /// 传入当前正在构建的区块内所有 Block 数据，对其进行原位（In-place）修改和修补。
 pub fn post_process_blocks(
     blocks: &mut [u16],
-    data: &mut [u8],
+    _data: &mut [u8], // 修改点：添加前缀下划线消除编译器 warning
     param1: &mut [u8],
     param2: &mut [u8],
 ) {
