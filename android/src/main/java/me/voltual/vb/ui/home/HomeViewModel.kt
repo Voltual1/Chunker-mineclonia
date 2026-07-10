@@ -40,34 +40,38 @@ class HomeViewModel : ViewModel() {
     var useExistingInput by mutableStateOf(false)
 
     val availableFormats: List<String> by lazy {
-        val formats = mutableListOf<String>()
-        try {
-            val writeableTypes = EncodingType.getWriteableTypes()
-            for (type in writeableTypes) {
-                if (type.isInternal) continue
-                val typeName = type.name.uppercase()
-                for (version in type.supportedVersions) {
-                    val versionStr = version.toString().replace('.', '_')
-                    formats.add("${typeName}_$versionStr")
-                }
+    val formats = mutableListOf<String>()
+    // 显式加入 Mineclonia 专属极速格式
+    formats.add("MINECLONIA_1_0_0")
+    
+    try {
+        val writeableTypes = EncodingType.getWriteableTypes()
+        for (type in writeableTypes) {
+            if (type.isInternal) continue
+            val typeName = type.name.uppercase()
+            for (version in type.supportedVersions) {
+                val versionStr = version.toString().replace('.', '_')
+                formats.add("${typeName}_$versionStr")
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
         }
-        if (formats.size <= 1) {
-            listOf(
-                "JAVA_1_21",
-                "JAVA_1_20_5",
-                "JAVA_1_19_4",
-                "JAVA_1_18_2",
-                "BEDROCK_R21_80",
-                "BEDROCK_R20_80",
-                "BEDROCK_R19_30"
-            )
-        } else {
-            formats.sorted()
-        }
+    } catch (e: Exception) {
+        e.printStackTrace()
     }
+    if (formats.size <= 1) {
+        listOf(
+            "MINECLONIA_1_0_0",
+            "JAVA_1_21",
+            "JAVA_1_20_5",
+            "JAVA_1_19_4",
+            "JAVA_1_18_2",
+            "BEDROCK_R21_80",
+            "BEDROCK_R20_80",
+            "BEDROCK_R19_30"
+        )
+    } else {
+        formats.sorted()
+    }
+}
 
     val filteredFormats: List<String>
         get() = if (searchQuery.isBlank()) {

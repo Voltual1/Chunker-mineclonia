@@ -21,6 +21,7 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
+import me.voltual.mc2mt.MC2MTLib // 引入 Rust 极速转换通道
 
 class ConversionWorker(
     val context: Context,
@@ -54,6 +55,7 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
+        // 创建临时重定向文件日志，终端视图会通过 TailJob 读取并实时高亮输出到屏幕上
         val logFile = File(context.cacheDir, "slice_log.txt")
         logFile.parentFile?.mkdirs()
         val fileOutputStream = FileOutputStream(logFile, true)
@@ -62,6 +64,7 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
+        // 内存看门狗守护线程：防止 JVM 堆内存暴涨导致 OOM 崩溃
         val memoryMonitorThread = Thread {
             val runtime = Runtime.getRuntime()
             while (!Thread.currentThread().isInterrupted) {
@@ -109,6 +112,7 @@ class ConversionWorker(
         val worldId = calculateWorldIdentity(inputPathFile)
         val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
 
+        // 检测输入存档格式
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
         if (!readerOptional.isPresent) {
@@ -121,6 +125,43 @@ class ConversionWorker(
         val reader = readerOptional.get()
         val srcFormat = reader.encodingType.name
 
+        // =========================================================================
+        // 核心特判：如果目标格式为 MINECLONIA，则直接切入极速物理 Rust 管道！
+        // =========================================================================
+        if (targetTypeName.contains("MINECLONIA", ignoreCase = true) || format.contains("MINECLONIA", ignoreCase = true)) {
+            System.out.println("\u001B[1;36m[System] Target format 'Mineclonia' detected. Redirecting to high-performance Rust Rayon engine...\u001B[0m")
+            
+            var success = false
+            try {
+                // 调用原生 JNI，传入 Rust 转换引擎
+                success = MC2MTLib.convertMap(inputPath, outputPath, object : MC2MTLib.ConversionCallback {
+                    override fun onProgress(groupsDone: Long, totalGroups: Long, blocksDone: Long) {
+                        // 在虚拟终端上打印战术风的进度指示条
+                        System.out.print("\r\u001B[1;32m[Rust Pipeline]\u001B[0m Progress: [$groupsDone/$totalGroups] regions converted | Saved \u001B[1;33m$blocksDone\u001B[0m blocks to map.sqlite")
+                    }
+                })
+            } catch (e: Exception) {
+                System.err.println("[Rust Bridge Exception] " + e.message)
+                e.printStackTrace()
+            }
+
+            memoryMonitorThread.interrupt()
+            slicePrintStream.close()
+            System.setOut(oldOut)
+            System.setErr(oldErr)
+
+            return if (success) {
+                System.out.println("\n\u001B[1;32m[System] Rust engine completed conversion successfully!\u001B[0m")
+                Result.success()
+            } else {
+                System.err.println("\n[System] Rust engine conversion failed.")
+                Result.failure()
+            }
+        }
+
+        // =========================================================================
+        // 降级回退：非 Mineclonia 的通用转换，继续走 Chunker 分片 Java 转换流
+        // =========================================================================
         val workerId = id.toString()
         val sliceInputDir = File(context.cacheDir, "slice_input_$workerId")
         val sliceOutputDir = File(context.cacheDir, "slice_output_$workerId")
@@ -259,9 +300,7 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
-            
             val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-            
             if (!sliceWriterOpt.isPresent) {
                 throw IllegalStateException("Failed to create writer.")
             }
@@ -312,19 +351,16 @@ class ConversionWorker(
         var lastProcessedKey: ByteArray? = null
         var hasMoreData = true
         
-        // 规定一个切片容纳的最大区块数
         val CHUNK_LIMIT_PER_SLICE = 256
 
         while (hasMoreData) {
             if (isStopped || isSelfKilling) break
 
-            // 跳过已经存档处理过的切片
             if (currentSliceIndex < lastSavedProgressIndex) {
-                // 如果需要跳过，需要知道从哪接着 seek。所以这里要空跑定位到下一个切片起始点
                 srcDb!!.iterator().use { skipIterator ->
                     if (lastProcessedKey != null) {
                         skipIterator.seek(lastProcessedKey)
-                        if (skipIterator.hasNext()) skipIterator.next() // 跳过当前这个已经处理的边界Key
+                        if (skipIterator.hasNext()) skipIterator.next()
                     } else {
                         skipIterator.seekToFirst()
                     }
@@ -348,7 +384,6 @@ class ConversionWorker(
             val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
             System.out.println("\n[Slicing] Slice #$currentSliceIndex | Heap: ${usedMem}MB")
 
-            // 清理并重新创建临时切片目录
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
             sliceInputDir.mkdirs()
@@ -363,7 +398,6 @@ class ConversionWorker(
             sliceDbDir.mkdirs()
             File(sliceDbDir, "LOCK").delete()
 
-            // 建立临时切片小数据库
             val tempDbOptions = Options().createIfMissing(true)
             tempDbOptions.writeBufferSize(2 * 1024 * 1024)
             val tempDb = factory.open(sliceDbDir, tempDbOptions)
@@ -371,17 +405,14 @@ class ConversionWorker(
             var loadedChunkCount = 0
             var nextBoundaryKey: ByteArray? = null
 
-            //  开始抽取当前切片的数据
             srcDb!!.iterator().use { readIterator ->
-                // 从上一次结束的地方继续
                 if (lastProcessedKey != null) {
                     readIterator.seek(lastProcessedKey)
-                    if (readIterator.hasNext()) readIterator.next() // 排除掉上一个边界 Key 本身
+                    if (readIterator.hasNext()) readIterator.next()
                 } else {
                     readIterator.seekToFirst()
                 }
 
-                // 顺着字典序捞取固定数量的区块
                 while (readIterator.hasNext() && loadedChunkCount < CHUNK_LIMIT_PER_SLICE) {
                     if (isStopped || isSelfKilling) break
                     val entry = readIterator.next()
@@ -391,29 +422,24 @@ class ConversionWorker(
                         tempDb.put(key, entry.value)
                         loadedChunkCount++
                     } else {
-                        // 非区块数据（如地图、玩家数据），在每个切片里都保留一份复用
                         tempDb.put(key, entry.value)
                     }
-                    nextBoundaryKey = key // 滚动更新当前切片捞到的最后一个 Key
+                    nextBoundaryKey = key
                 }
                 
-                // 如果迭代器后面没东西了，说明全库读完了
                 if (!readIterator.hasNext()) {
                     hasMoreData = false
                 }
             }
             tempDb.close()
 
-            // 如果这个切片空空如也，说明已经没有可以转的数据了
             if (loadedChunkCount == 0) {
                 break
             }
 
-            // 更新进度状态
             lastProcessedKey = nextBoundaryKey
             ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
 
-            // 投喂给 Chunker 开始转换
             val sliceConverter = WorldConverter(UUID.randomUUID())
             currentConverter = sliceConverter
             sliceConverter.setProcessItems(true)
@@ -444,7 +470,6 @@ class ConversionWorker(
             
             delay(50)
 
-            // 4. 将切片转换出来的数据合并到最终目录
             mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
             
             currentSliceIndex++
@@ -569,13 +594,6 @@ class ConversionWorker(
         if (keyStr == "~local_player") return false
         if (keyStr == "portals") return false
         return true
-    }
-
-    private fun getBedrockChunkCoords(key: ByteArray): Pair<Int, Int> {
-        val buffer = ByteBuffer.wrap(key).order(ByteOrder.LITTLE_ENDIAN)
-        val x = buffer.int
-        val z = buffer.int
-        return Pair(x, z)
     }
 
     private fun copyFile(src: File, dest: File) {
