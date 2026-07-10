@@ -57,7 +57,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
     }
 }
 
-/// 接收来自 JVM 物理边界推送的 Chunk 级平面原始数据，通过强类型安全映射进行无拷贝处理
+/// 接收来自 JVM 物理边界推送的 Chunk 级平面原始数据，通过分段锁与强类型安全映射进行无拷贝处理
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     mut env: JNIEnv,
@@ -65,11 +65,11 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     cx: jint,
     cy: jint,
     cz: jint,
-    block_ids: JShortArray,      // 修改点：直接使用强类型包装器类型
-    param1: JByteArray,          // 修改点：直接使用强类型包装器类型
-    param2: JByteArray,          // 修改点：直接使用强类型包装器类型
-    local_names_json: JByteArray,// 修改点：直接使用强类型包装器类型
-    metadata_json: JByteArray,   // 修改点：直接使用强类型包装器类型
+    block_ids: JShortArray,
+    param1: JByteArray,
+    param2: JByteArray,
+    local_names_json: JByteArray,
+    metadata_json: JByteArray,
 ) -> jboolean {
     // 1. 安全转换字节数组 (通过隐式强类型借用 &JByteArray)
     let names_bytes = match env.convert_byte_array(&local_names_json) {
@@ -86,27 +86,47 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    // 2. 利用强类型借用 `&JShortArray` / `&JByteArray` 获取原生临界区指针（Critical Lock）
-    let raw_ids = unsafe {
-        env.get_array_elements_critical(&block_ids, jni::objects::ReleaseMode::NoCopyBack)
-    };
-    let raw_p1 = unsafe {
-        env.get_array_elements_critical(&param1, jni::objects::ReleaseMode::NoCopyBack)
-    };
-    let raw_p2 = unsafe {
-        env.get_array_elements_critical(&param2, jni::objects::ReleaseMode::NoCopyBack)
+    // 2. 利用局部变量生命周期拆分，顺序获取 JVM 内存指针，绕过 mutable borrow 独占限制
+    let (ids_ptr, p1_ptr, p2_ptr) = unsafe {
+        // 第一段：提取 Block IDs 并复制其原始裸指针
+        let ids_gate = match env.get_array_elements_critical(&block_ids, jni::objects::ReleaseMode::NoCopyBack) {
+            Ok(g) => g,
+            Err(_) => return jni::sys::JNI_FALSE,
+        };
+        let ids_raw = ids_gate.as_ptr() as *const i16;
+        
+        // 第二段：提取 Param1 并复制其原始裸指针
+        let p1_gate = match env.get_array_elements_critical(&param1, jni::objects::ReleaseMode::NoCopyBack) {
+            Ok(g) => g,
+            Err(_) => {
+                drop(ids_gate);
+                return jni::sys::JNI_FALSE;
+            }
+        };
+        let p1_raw = p1_gate.as_ptr() as *const u8;
+
+        // 第三段：提取 Param2 并复制其原始裸指针
+        let p2_gate = match env.get_array_elements_critical(&param2, jni::objects::ReleaseMode::NoCopyBack) {
+            Ok(g) => g,
+            Err(_) => {
+                drop(ids_gate);
+                drop(p1_gate);
+                return jni::sys::JNI_FALSE;
+            }
+        };
+        let p2_raw = p2_gate.as_ptr() as *const u8;
+
+        // 将临界区物理锁定包装器作为守卫临时保留在外部，确保在 Rust 序列化完成之前，物理内存不被 JVM 释放或垃圾回收
+        (ids_gate, p1_gate, p2_gate, ids_raw, p1_raw, p2_raw)
     };
 
-    let (ok_status, chunk_result) = match (&raw_ids, &raw_p1, &raw_p2) {
-        (Ok(ids_ptr), Ok(p1_ptr), Ok(p2_ptr)) => {
-    // 安全构造 Rust 内存切片（100% 堆上零拷贝！）
-    // 提示：Java 的 byte 是有符号 i8，我们需要通过原生指针对齐转换为 Rust 期待的无符号 u8
-    let ids_slice = unsafe { std::slice::from_raw_parts(ids_ptr.as_ptr() as *const i16, 4096) };
-    let p1_slice = unsafe { std::slice::from_raw_parts(p1_ptr.as_ptr() as *const u8, 4096) };
-    let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.as_ptr() as *const u8, 4096) };
+    // 3. 在完全安全的原生上下文中构造内存切片（100% 零拷贝，完美规避生命周期借用冲突）
+    let ids_slice = unsafe { std::slice::from_raw_parts(p2_ptr.3, 4096) };
+    let p1_slice = unsafe { std::slice::from_raw_parts(p2_ptr.4, 4096) };
+    let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.5, 4096) };
 
-    // 执行多线程高并发压缩与 Minetest 区块组协议组装
-    match serialize_raw_chunk(
+    // 4. 执行多线程高并发压缩与 Minetest 区块组协议组装
+    let chunk_result = match serialize_raw_chunk(
         cx as i32,
         cy as i32,
         cz as i32,
@@ -116,40 +136,33 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         local_names,
         &metadata_bytes,
     ) {
-        Ok(res) => (true, Some(res)),
+        Ok(res) => Some(res),
         Err(e) => {
             error!("Raw chunk serialization error: {}", e);
-            (false, None)
-        }
-    }
-}
-        _ => {
-            error!("Failed to lock JVM memory array pointers.");
-            (false, None)
+            None
         }
     };
 
-    // 显式释放 JNI 临界区锁定（Critical Lock），防止虚拟机由于 GC 暂停而挂起
-    drop(raw_ids);
-    drop(raw_p1);
-    drop(raw_p2);
+    // 5. 显式释放 JNI 临界区锁定（保证即使发生 panic 也能在垃圾回收恢复之前安全归还 JVM）
+    drop(ids_ptr);
+    drop(p1_ptr);
+    drop(p2_ptr);
 
-    if !ok_status {
-        return jni::sys::JNI_FALSE;
-    }
+    let chunk_data = match chunk_result {
+        Some(data) => data,
+        None => return jni::sys::JNI_FALSE,
+    };
 
-    // 3. 提交至全局的 SQLite 物理事务中
-    if let Some((pos, serialized_data)) = chunk_result {
-        let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
-        if let Some(ref mut map) = *global_map {
-            if let Err(e) = map.save_block_direct(pos, &serialized_data) {
-                error!("Native SQLite save block direct failed: {}", e);
-                return jni::sys::JNI_FALSE;
-            }
-        } else {
-            error!("Native global map engine has not been initialized yet.");
+    // 6. 将转换好的高密度压缩区块提交至原生高速 SQLite 事务
+    let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
+    if let Some(ref mut map) = *global_map {
+        if let Err(e) = map.save_block_direct(chunk_data.0, &chunk_data.1) {
+            error!("Native SQLite save block direct failed: {}", e);
             return jni::sys::JNI_FALSE;
         }
+    } else {
+        error!("Native global map engine has not been initialized yet.");
+        return jni::sys::JNI_FALSE;
     }
 
     jni::sys::JNI_TRUE
