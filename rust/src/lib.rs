@@ -10,9 +10,10 @@ use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use std::path::Path;
 
-use crate::mt_map::{MTMap, serialize_raw_chunk};
+use crate::mc_map::MCMap;
+use crate::mt_map::{MTMap, serialize_raw_chunk, serialize_block};
 
-// 使用全局锁安全托管 MTMap 实例
+// 使用全局锁安全托管 MTMap 实例（用于 Chunk 级精细流）
 static GLOBAL_MT_MAP: Lazy<Mutex<Option<MTMap>>> = Lazy::new(|| Mutex::new(None));
 
 #[no_mangle]
@@ -25,6 +26,131 @@ pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_
     info!("MC2MT Fast-JNI Bridge Loaded Successfully");
     jni::sys::JNI_VERSION_1_6
 }
+
+// =========================================================================
+// 1. 新增 / 补全：面向 `me.voltual.mc2mt.MC2MTLib` 的顶层整库极速转换接口
+// =========================================================================
+
+#[no_mangle]
+pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    input_path: JString<'local>,
+    output_path: JString<'local>,
+    callback: jni::objects::JObject<'local>,
+) -> jboolean {
+    let input: String = match env.get_string(&input_path) {
+        Ok(s) => s.into(),
+        Err(_) => return jni::sys::JNI_FALSE,
+    };
+
+    let output: String = match env.get_string(&output_path) {
+        Ok(s) => s.into(),
+        Err(_) => return jni::sys::JNI_FALSE,
+    };
+
+    info!("Starting raw JNI map convert from {} to {}", input, output);
+
+    // 初始化 MC 地图元数据
+    let mc_map = match MCMap::new(&input) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("MCMap initialization failed natively: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    // 提取并计算安全出生点
+    let mc_spawn = mc_map.get_spawn_point();
+    let mt_spawn = (
+        mc_spawn.0,
+        mc_spawn.1 - crate::mt_map::BLOCK_Y_OFFSET + 1,
+        mc_spawn.2
+    );
+
+    // 初始化输出 MT 数据库
+    let mut mt_map = match MTMap::new(&output, mt_spawn) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("MTMap initialization failed natively: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    // 扫描区块组
+    let groups = match mc_map.list_groups() {
+        Ok(g) => g,
+        Err(e) => {
+            error!("Listing groups failed natively: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    if groups.is_empty() {
+        error!("No valid Region files found natively in {}", input);
+        return jni::sys::JNI_FALSE;
+    }
+
+    let total_groups = groups.len() as i64;
+
+    // 辅助闭包：向 JVM 的进度回调汇报进度
+    let mut report_progress = |g_done: i64, b_done: i64| {
+        if callback.is_null() {
+            return;
+        }
+        let _ = env.call_method(
+            &callback,
+            "onProgress",
+            "(JJJ)V",
+            &[
+                jni::objects::JValue::Long(g_done),
+                jni::objects::JValue::Long(total_groups),
+                jni::objects::JValue::Long(b_done),
+            ],
+        );
+    };
+
+    let mut blocks_done = 0i64;
+
+    use rayon::prelude::*; // 引入多线程并发支持
+
+    for (i, group) in groups.iter().enumerate() {
+        let step = i as i64;
+        
+        if let Ok(chunk_positions) = mc_map.list_chunks(group) {
+            // 利用 Rayon 物理多核心并发转换
+            let transformed_blocks: Vec<(crate::mt_map::MTPos, Vec<u8>)> = chunk_positions
+                .par_iter()
+                .filter_map(|&pos| mc_map.load_chunk(group, pos).ok())
+                .flat_map(|mc_blocks| mc_blocks)
+                .filter_map(|mcb| serialize_block(&mcb).ok())
+                .collect();
+
+            let count = transformed_blocks.len() as i64;
+
+            // 批量高速刷入 SQLite 事务中
+            if !transformed_blocks.is_empty() {
+                if let Err(e) = mt_map.save_blocks(transformed_blocks) {
+                    error!("Database write failed in region group {}: {}", group.name, e);
+                } else {
+                    blocks_done += count;
+                }
+            }
+        }
+        report_progress(step, blocks_done);
+    }
+
+    // 完成最后一次进度冲刷并提交事务
+    let _ = mt_map.flush_transaction();
+    report_progress(total_groups, blocks_done);
+
+    info!("Database direct pipeline completed natively successfully.");
+    jni::sys::JNI_TRUE
+}
+
+// =========================================================================
+// 2. 面向 `me.voltual.mcl.core.MclSqliteSaver` 的 Chunk 级分片转换接口
+// =========================================================================
 
 /// 初始化全局的 Minetest 数据库写出引擎
 #[no_mangle]
@@ -57,7 +183,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
     }
 }
 
-/// 接收来自 JVM 的 Chunk 数据。采用高效的 Region Copy 模式，完美兼容 Rust 借用检查器。
+/// 接收来自 JVM 的 Chunk 数据并高效拷贝合并
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     mut env: JNIEnv,
@@ -71,7 +197,6 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     local_names_json: JByteArray,
     metadata_json: JByteArray,
 ) -> jboolean {
-    // 1. 转换基础元数据 (JSON)
     let local_names: Vec<String> = match env.convert_byte_array(&local_names_json) {
         Ok(bytes) => serde_json::from_slice(&bytes).unwrap_or_default(),
         Err(_) => return jni::sys::JNI_FALSE,
@@ -79,14 +204,12 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
 
     let metadata_bytes = env.convert_byte_array(&metadata_json).unwrap_or_default();
 
-    // 2. 将 Short 数组快速拷贝至预先分配的原生 Vec (对齐 Region 协议)
     let mut ids_vec = vec![0i16; 4096];
     if env.get_short_array_region(&block_ids, 0, &mut ids_vec).is_err() {
         error!("Failed to copy block_ids region from Java to Rust");
         return jni::sys::JNI_FALSE;
     }
 
-    // 3. 提取无符号 Byte 数组，完美对应 get_byte_array_region 零拷贝映射
     let mut p1_vec_signed = vec![0i8; 4096];
     if env.get_byte_array_region(&param1, 0, &mut p1_vec_signed).is_err() {
         error!("Failed to copy param1 region from Java to Rust");
@@ -99,11 +222,9 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         return jni::sys::JNI_FALSE;
     }
 
-    // 将有符号的 Java i8 连续内存强制安全转置为无符号 Rust u8 切片
     let p1_slice = unsafe { std::slice::from_raw_parts(p1_vec_signed.as_ptr() as *const u8, 4096) };
     let p2_slice = unsafe { std::slice::from_raw_parts(p2_vec_signed.as_ptr() as *const u8, 4096) };
 
-    // 4. 执行完全安全的纯 Rust 序列化
     let chunk_result = match serialize_raw_chunk(
         cx as i32,
         cy as i32,
@@ -126,7 +247,6 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         None => return jni::sys::JNI_FALSE,
     };
 
-    // 5. 写入高速 SQLite 事务
     let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
     if let Some(ref mut map) = *global_map {
         if let Err(e) = map.save_block_direct(pos, &serialized_data) {
