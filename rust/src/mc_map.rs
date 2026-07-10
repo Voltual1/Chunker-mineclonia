@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
+use crate::convert::post_process_blocks; // 导入后处理函数
 use std::path::{Path, PathBuf};
 use byteorder::{BigEndian, ReadBytesExt};
 use flate2::read::{GzDecoder, ZlibDecoder};
@@ -261,7 +262,13 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
 
     if let Some(bl_array) = section.get_byte_array("BlockLight") {
         expand_half_bytes(&mut block_light, bl_array);
+    } else {
+        zero_bytes(&mut block_light);
     }
+
+    // ============== 在此处插入后处理 ==============
+    post_process_blocks(&mut blocks, &mut data, &mut sky_light, &mut block_light);
+    // =============================================
 
     Ok(MCBlock {
         pos_x,
@@ -271,7 +278,7 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
         data,
         sky_light,
         block_light,
-        tile_entities: Vec::new(), // 后续映射 TileEntities 实体
+        tile_entities: Vec::new(),
     })
 }
 

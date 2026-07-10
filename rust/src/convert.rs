@@ -235,3 +235,156 @@ pub fn get_conversion(id: u16, data: u16) -> Option<ConversionData> {
     }
     None
 }
+
+// ... 保持原有 Lazy 和 HashMap 转换定义不变 ...
+
+/// 针对 Minetest 块内节点索引运算的辅助宏或内联函数
+/// 对应 Map.hpp: #define BLOCK_NODE_IDX(x, y, z) (((y & 0xF) << 8) | ((z & 0xF) << 4) | (x & 0xF))
+#[inline]
+pub fn block_node_idx(x: usize, y: usize, z: usize) -> usize {
+    ((y & 0xF) << 8) | ((z & 0xF) << 4) | (x & 0xF)
+}
+
+#[inline]
+pub fn idx_to_xyz(idx: usize) -> (usize, usize, usize) {
+    let x = idx & 0xF;
+    let z = (idx >> 4) & 0xF;
+    let y = (idx >> 8) & 0xF;
+    (x, y, z)
+}
+
+/// 核心后处理流水线：
+/// 传入当前正在构建的区块内所有 Block 数据，对其进行原位（In-place）修改和修补。
+pub fn post_process_blocks(
+    blocks: &mut [u16],
+    data: &mut [u8],
+    param1: &mut [u8],
+    param2: &mut [u8],
+) {
+    // 遍历整个 16x16x16 的节点树
+    for idx in 0..NODES_PER_BLOCK {
+        let block_id = blocks[idx];
+        
+        // 1. 光照修正：针对楼梯和半砖节点
+        // 根据转换表查询该节点是否需要修补光照
+        if let Some(conv_data) = get_conversion_by_cid(block_id) {
+            match conv_data.post_process {
+                PostProcessType::UpdateNodeLight => {
+                    update_node_light_rust(idx, param1);
+                }
+                PostProcessType::DoorBottom => {
+                    // 处理双层门的下半部分
+                    finish_door_rust(idx, blocks, param2, true);
+                }
+                PostProcessType::DoorTop => {
+                    // 处理双层门的上半部分
+                    finish_door_rust(idx, blocks, param2, false);
+                }
+                _ => {}
+            }
+        }
+    }
+}
+
+/// 辅助检索：通过已经转换后的 Minetest 内部 ID (cid) 找回原始的配置动作
+fn get_conversion_by_cid(cid: ContentT) -> Option<ConversionData> {
+    CONVERSION_TABLE.numeric_table.values()
+        .find(|data| data.cid == cid)
+        .cloned()
+}
+
+/// 1. 光照辐射修补算法
+/// 对应 C++ 的 update_node_light
+fn update_node_light_rust(idx: usize, param1: &mut [u8]) {
+    let (x, y, z) = idx_to_xyz(idx);
+    
+    // 6 个方向的偏移坐标
+    let directions = [
+        (0, 1, 0),  // 上
+        (0, -1, 0), // 下
+        (1, 0, 0),  // 东
+        (-1, 0, 0), // 西
+        (0, 0, 1),  // 南
+        (0, 0, -1), // 北
+    ];
+
+    let mut max_light_day = 0i8;
+    let mut max_light_night = 0i8;
+
+    for &(dx, dy, dz) in &directions {
+        let nx = x as i32 + dx;
+        let ny = y as i32 + dy;
+        let nz = z as i32 + dz;
+
+        // 如果超出当前 16x16x16 边界，默认采用白天阳光最大值
+        if nx < 0 || nx >= 16 || ny < 0 || ny >= 16 || nz < 0 || nz >= 16 {
+            max_light_day = 14; // LIGHT_MAX (15 - 1)
+            continue;
+        }
+
+        let neighbor_idx = block_node_idx(nx as usize, ny as usize, nz as usize);
+        let light = param1[neighbor_idx];
+
+        // 低4位为白天光照，高4位为夜间光照
+        let l_day = (light & 0x0F) as i8 - 1;
+        let l_night = ((light & 0xF0) >> 4) as i8 - 1;
+
+        if l_day > max_light_day {
+            max_light_day = l_day;
+        }
+        if l_night > max_light_night {
+            max_light_night = l_night;
+        }
+    }
+
+    // 更新回 param1
+    let final_light = ((max_light_night.max(0) as u8) << 4) | (max_light_day.max(0) as u8);
+    param1[idx] = final_light;
+}
+
+/// 2. 门联动状态补全算法
+/// 对应 C++ 中的 finish_door 联动更新
+fn finish_door_rust(idx: usize, blocks: &mut [u16], param2: &mut [u8], is_bottom: bool) {
+    let (x, y, z) = idx_to_xyz(idx);
+    
+    if is_bottom {
+        // 如果是下半部分，它的上半部分应该在 y + 1 处
+        if y < 15 {
+            let top_idx = block_node_idx(x, y + 1, z);
+            let bottom_p2 = param2[idx];
+            let top_p2 = param2[top_idx];
+
+            let open = (bottom_p2 & 4) != 0;
+            let mut dir = (bottom_p2 & 3) as i8; // 0:北, 1:东, 2:南, 3:西
+            let hinge_right = (top_p2 & 1) == 0;
+
+            let mut door_type = false;
+
+            if hinge_right {
+                door_type = !door_type;
+                dir += 2;
+            }
+
+            if open {
+                door_type = !door_type;
+                dir += if hinge_right { -1 } else { 1 };
+            }
+
+            // 保持 [0, 3] facedir 环形取模
+            dir = (dir + 4) % 4;
+
+            // 更新下半部分和上半部分的朝向 (param2)
+            param2[idx] = dir as u8;
+            param2[top_idx] = dir as u8;
+
+            // 获取注册表的锁动态构建开启/关闭材质ID
+            let mut reg = REGISTRY.lock().unwrap();
+            let suffix = if door_type { "_b_2" } else { "_b_1" };
+            let top_suffix = if door_type { "_t_2" } else { "_t_1" };
+            
+            // 默认橡木门替换
+            blocks[idx] = reg.get_or_create(&format!("mcl_doors:door_oak{}", suffix));
+            blocks[top_idx] = reg.get_or_create(&format!("mcl_doors:door_oak{}", top_suffix));
+        }
+    }
+}
