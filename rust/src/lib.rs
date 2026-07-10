@@ -1,3 +1,5 @@
+pub mod mc_map;
+
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::jboolean;
 use jni::JNIEnv;
@@ -6,13 +8,13 @@ use std::sync::atomic::{AtomicI64, Ordering};
 use std::thread;
 use std::time::Duration;
 
-// 全局进度计数器（模拟原项目的 groups_done 和 blocks_done）
+use crate::mc_map::MCMap;
+
 static GROUPS_DONE: AtomicI64 = AtomicI64::new(0);
 static BLOCKS_DONE: AtomicI64 = AtomicI64::new(0);
 
 #[no_mangle]
 pub extern "system" fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
-    // 初始化 Android 系统的日志输出，对应原 android_logger
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Info)
@@ -22,7 +24,6 @@ pub extern "system" fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut std::ffi::c_v
     jni::sys::JNI_VERSION_1_6
 }
 
-/// 发送进度到 Java 端
 fn report_progress(env: &mut JNIEnv, callback: &JObject, groups_done: i64, total_groups: i64, blocks_done: i64) {
     if callback.is_null() {
         return;
@@ -61,37 +62,61 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    info!("Starting conversion:");
-    info!("Input path: {}", input);
-    info!("Output path: {}", output);
+    info!("Starting Rust MCMap integration...");
+
+    // 1. 初始化 MC 地图元数据
+    let mc_map = match MCMap::new(&input) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("MCMap initialization failed: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    // 2. 扫描区块组 (.mca 列表)
+    let groups = match mc_map.list_groups() {
+        Ok(g) => g,
+        Err(e) => {
+            error!("Listing groups failed: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    if groups.is_empty() {
+        error!("No valid Region files found in {}", input);
+        return jni::sys::JNI_FALSE;
+    }
+
+    let total_groups = groups.len() as i64;
+    info!("Found {} regions to convert", total_groups);
 
     // 重置全局进度
     GROUPS_DONE.store(0, Ordering::SeqCst);
     BLOCKS_DONE.store(0, Ordering::SeqCst);
 
-    // TODO: 实现以下核心逻辑
-    // 1. MCMap::listGroups(&input)
-    // 2. MTMap::new(&output)
-    // 3. 多线程并行执行转换 (Rayon 线程池)
-    // 4. 保存到 SQLite (Rusqlite)
+    // 暂行单线程或简易线程循环（下一步将引入 Rayon 进行并发区块读取和转换）
+    for (i, group) in groups.iter().enumerate() {
+        let step = i as i64;
+        GROUPS_DONE.store(step, Ordering::SeqCst);
+        
+        // 扫描并尝试读取一个区块文件内的 Chunk
+        if let Ok(chunk_positions) = mc_map.list_chunks(group) {
+            for pos in chunk_positions {
+                if let Ok(blocks) = mc_map.load_chunk(group, pos) {
+                    // 模拟转换：累加完成的 Block 数据
+                    BLOCKS_DONE.fetch_add(blocks.len() as i64, Ordering::SeqCst);
+                }
+            }
+        }
 
-    // ==== 这里暂时放一个模拟转换进度的循环 ====
-    let total_groups: i64 = 10; // 模拟有 10 个 Group
-    
-    for i in 0..total_groups {
-        GROUPS_DONE.store(i, Ordering::SeqCst);
-        let current_blocks = BLOCKS_DONE.fetch_add(1024, Ordering::SeqCst);
-        
-        report_progress(&mut env, &callback, i, total_groups, current_blocks);
-        
-        // 模拟工作耗时
-        thread::sleep(Duration::from_millis(200));
+        let current_blocks = BLOCKS_DONE.load(Ordering::SeqCst);
+        report_progress(&mut env, &callback, step, total_groups, current_blocks);
     }
 
-    // 完成最后一次汇报
+    // 完成最后一次进度汇报
     let final_blocks = BLOCKS_DONE.load(Ordering::SeqCst);
     report_progress(&mut env, &callback, total_groups, total_groups, final_blocks);
 
-    info!("Conversion finished.");
+    info!("Conversion complete!");
     jni::sys::JNI_TRUE
 }
