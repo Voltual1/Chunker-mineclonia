@@ -1,4 +1,11 @@
 //Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
@@ -10,7 +17,6 @@ import com.google.gson.Gson
 import java.io.File
 import java.nio.charset.StandardCharsets
 
-// 修改点：构造函数现在接受 4 个参数
 class MclConverterManager(
     val outputDir: File,
     val spawnX: Int,
@@ -36,10 +42,25 @@ class MclConverterManager(
             """.trimIndent())
         }
 
+        // 补全出生点保护模组
+        val modDir = File(outputDir, "worldmods/__mc2mt")
+        if (!modDir.exists()) {
+            modDir.mkdirs()
+            File(modDir, "init.lua").writeText("""
+                minetest.set_mapgen_params({chunksize = 1})
+                minetest.set_mapgen_params({mgname = 'singlenode'})
+                local spawn_pos = {x=$spawnX, y=${spawnY - 4 + 1}, z=$spawnZ}
+                minetest.register_on_newplayer(function(player)
+                    player:set_pos(spawn_pos)
+                end)
+                minetest.register_on_respawnplayer(function(player)
+                    player:set_pos(spawn_pos)
+                    return true
+                end)
+            """.trimIndent())
+        }
+
         val dbPath = File(outputDir, "map.sqlite").absolutePath
-        
-        // 将从 Chunker 获得的出生点通过 JNI 注入 Rust 引擎
-        // 注意：Rust 内部会自动处理 Y 轴偏移
         val success = MC2MTLib.initNativeEngine(dbPath, spawnX, spawnY, spawnZ)
         if (!success) {
             throw RuntimeException("Failed to initialize Rust high-performance SQLite engine")
@@ -109,7 +130,6 @@ class MclConverterManager(
             val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
             val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
 
-            // 调用 Rust 写入
             MC2MTLib.writeChunkFast(chunkX, y, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
         }
     }

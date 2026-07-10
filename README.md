@@ -13,7 +13,7 @@
 
 ### 鸣谢
 
-感谢以下开源项目及贡献者（按字母顺序排列）：
+感谢以下项目及贡献者（按字母顺序排列）：
 
 * [andob/android-awt](https://github.com/andob/android-awt)
 * [GeyserMC/PackConverter](https://github.com/GeyserMC/PackConverter)

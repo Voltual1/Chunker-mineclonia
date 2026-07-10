@@ -21,7 +21,6 @@ import okio.FileSystem
 import okio.Path.Companion.toPath
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.CancellationException
-import me.voltual.mc2mt.MC2MTLib // 引入 Rust 极速转换通道
 
 class ConversionWorker(
     val context: Context,
@@ -55,7 +54,6 @@ class ConversionWorker(
         val oldOut = System.`out`
         val oldErr = System.err
 
-        // 创建临时重定向文件日志，终端视图会通过 TailJob 读取并实时高亮输出到屏幕上
         val logFile = File(context.cacheDir, "slice_log.txt")
         logFile.parentFile?.mkdirs()
         val fileOutputStream = FileOutputStream(logFile, true)
@@ -64,7 +62,6 @@ class ConversionWorker(
         System.setOut(slicePrintStream)
         System.setErr(slicePrintStream)
 
-        // 内存看门狗守护线程：防止 JVM 堆内存暴涨导致 OOM 崩溃
         val memoryMonitorThread = Thread {
             val runtime = Runtime.getRuntime()
             while (!Thread.currentThread().isInterrupted) {
@@ -83,7 +80,7 @@ class ConversionWorker(
                             }
                         }
 
-                        System.out.println("\u001B[31m[Memory Monitor] JVM Heap critically high (${usedMem / 1024 / 1024}MB / ${maxMem / 1024 / 1024}MB). Killing process immediately to prevent JVM OOM...\u001B[0m")
+                        System.out.println("\u001B[31m[Memory Monitor] JVM Heap critically high. Killing process immediately to prevent JVM OOM...\u001B[0m")
                         
                         isSelfKilling = true
                         closeDatabases()
@@ -112,7 +109,6 @@ class ConversionWorker(
         val worldId = calculateWorldIdentity(inputPathFile)
         val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
 
-        // 检测输入存档格式
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
         if (!readerOptional.isPresent) {
@@ -125,43 +121,8 @@ class ConversionWorker(
         val reader = readerOptional.get()
         val srcFormat = reader.encodingType.name
 
-        // =========================================================================
-        // 核心特判：如果目标格式为 MINECLONIA，则直接切入极速物理 Rust 管道！
-        // =========================================================================
-        if (targetTypeName.contains("MINECLONIA", ignoreCase = true) || format.contains("MINECLONIA", ignoreCase = true)) {
-            System.out.println("\u001B[1;36m[System] Target format 'Mineclonia' detected. Redirecting to high-performance Rust Rayon engine...\u001B[0m")
-            
-            var success = false
-            try {
-                // 调用原生 JNI，传入 Rust 转换引擎
-                success = MC2MTLib.convertMap(inputPath, outputPath, object : MC2MTLib.ConversionCallback {
-                    override fun onProgress(groupsDone: Long, totalGroups: Long, blocksDone: Long) {
-                        // 在虚拟终端上打印战术风的进度指示条
-                        System.out.print("\r\u001B[1;32m[Rust Pipeline]\u001B[0m Progress: [$groupsDone/$totalGroups] regions converted | Saved \u001B[1;33m$blocksDone\u001B[0m blocks to map.sqlite")
-                    }
-                })
-            } catch (e: Exception) {
-                System.err.println("[Rust Bridge Exception] " + e.message)
-                e.printStackTrace()
-            }
+        // 【修正点】：删除了原来错误的 Rust 顶层拦截逻辑，直接让所有格式走分片转换管线
 
-            memoryMonitorThread.interrupt()
-            slicePrintStream.close()
-            System.setOut(oldOut)
-            System.setErr(oldErr)
-
-            return if (success) {
-                System.out.println("\n\u001B[1;32m[System] Rust engine completed conversion successfully!\u001B[0m")
-                Result.success()
-            } else {
-                System.err.println("\n[System] Rust engine conversion failed.")
-                Result.failure()
-            }
-        }
-
-        // =========================================================================
-        // 降级回退：非 Mineclonia 的通用转换，继续走 Chunker 分片 Java 转换流
-        // =========================================================================
         val workerId = id.toString()
         val sliceInputDir = File(context.cacheDir, "slice_input_$workerId")
         val sliceOutputDir = File(context.cacheDir, "slice_output_$workerId")
@@ -239,17 +200,9 @@ class ConversionWorker(
     }
 
     private suspend fun processJavaWorld(
-        inputPathFile: File,
-        outputPathFile: File,
-        sliceInputDir: File,
-        sliceOutputDir: File,
-        lastSavedProgressIndex: Int,
-        threadCount: Int,
-        processMaps: Boolean,
-        encodingType: EncodingType?,
-        outputVersion: Version,
-        targetTypeName: String,
-        worldId: String
+        inputPathFile: File, outputPathFile: File, sliceInputDir: File, sliceOutputDir: File,
+        lastSavedProgressIndex: Int, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
+        outputVersion: Version, targetTypeName: String, worldId: String
     ) {
         val regionDir = File(inputPathFile, "region")
         val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
@@ -260,7 +213,6 @@ class ConversionWorker(
 
             val runtime = Runtime.getRuntime()
             val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            
             ConversionProgressDataStore.saveProgress(context, worldId, index)
             System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
 
@@ -275,15 +227,6 @@ class ConversionWorker(
             }
 
             copyFile(mcaFile, File(sliceInputDir, "region/${mcaFile.name}"))
-            
-            val entitiesFile = File(inputPathFile, "entities/${mcaFile.name}")
-            if (entitiesFile.exists()) {
-                copyFile(entitiesFile, File(sliceInputDir, "entities/${mcaFile.name}"))
-            }
-            val poiFile = File(inputPathFile, "poi/${mcaFile.name}")
-            if (poiFile.exists()) {
-                copyFile(poiFile, File(sliceInputDir, "poi/${mcaFile.name}"))
-            }
 
             val sliceConverter = WorldConverter(UUID.randomUUID())
             currentConverter = sliceConverter
@@ -300,11 +243,16 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
-            val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-            if (!sliceWriterOpt.isPresent) {
-                throw IllegalStateException("Failed to create writer.")
+            // 【核心修复】：如果是 MINECLONIA，直接挂载我们写好的 MclLevelWriter 桥接到 Rust！
+            val sliceWriter = if (targetTypeName.equals("MINECLONIA", ignoreCase = true)) {
+                // 对于 Mineclonia，直接写到最终目录，不需要分片合并！
+                me.voltual.mcl.writer.MclLevelWriter(outputPathFile)
+            } else {
+                val sliceWriterOpt = encodingType?.createWriter(sliceOutputDir, outputVersion, sliceConverter)
+                    ?: throw IllegalStateException("Failed to create writer.")
+                if (!sliceWriterOpt.isPresent) throw IllegalStateException("Failed to create writer.")
+                sliceWriterOpt.get()
             }
-            val sliceWriter = sliceWriterOpt.get()
 
             val future = sliceConverter.convert(sliceReader, sliceWriter).future()
             while (!future.isDone) {
@@ -326,31 +274,19 @@ class ConversionWorker(
     }
 
     private suspend fun processBedrockWorld(
-        inputPathFile: File,
-        outputPathFile: File,
-        sliceInputDir: File,
-        sliceOutputDir: File,
-        lastSavedProgressIndex: Int, 
-        threadCount: Int,
-        processMaps: Boolean,
-        encodingType: EncodingType?,
-        outputVersion: Version,
-        targetTypeName: String,
-        worldId: String
+        inputPathFile: File, outputPathFile: File, sliceInputDir: File, sliceOutputDir: File,
+        lastSavedProgressIndex: Int, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
+        outputVersion: Version, targetTypeName: String, worldId: String
     ) {
         val srcDbDir = File(inputPathFile, "db")
         File(srcDbDir, "LOCK").delete()
 
-        val dbOptions = Options().createIfMissing(false)
-        dbOptions.writeBufferSize(4 * 1024 * 1024) 
-        dbOptions.blockSize(4 * 1024)
-
+        val dbOptions = Options().createIfMissing(false).writeBufferSize(4 * 1024 * 1024).blockSize(4 * 1024)
         srcDb = factory.open(srcDbDir, dbOptions)
 
         var currentSliceIndex = 0
         var lastProcessedKey: ByteArray? = null
         var hasMoreData = true
-        
         val CHUNK_LIMIT_PER_SLICE = 256
 
         while (hasMoreData) {
@@ -367,14 +303,10 @@ class ConversionWorker(
                     var skipCount = 0
                     while (skipIterator.hasNext() && skipCount < CHUNK_LIMIT_PER_SLICE) {
                         val entry = skipIterator.next()
-                        if (isBedrockChunkKey(entry.key)) {
-                            skipCount++
-                        }
+                        if (isBedrockChunkKey(entry.key)) skipCount++
                         lastProcessedKey = entry.key
                     }
-                    if (!skipIterator.hasNext()) {
-                        hasMoreData = false
-                    }
+                    if (!skipIterator.hasNext()) hasMoreData = false
                 }
                 currentSliceIndex++
                 continue
@@ -390,16 +322,13 @@ class ConversionWorker(
             sliceOutputDir.mkdirs()
 
             val levelDat = File(inputPathFile, "level.dat")
-            if (levelDat.exists()) {
-                copyFile(levelDat, File(sliceInputDir, "level.dat"))
-            }
+            if (levelDat.exists()) copyFile(levelDat, File(sliceInputDir, "level.dat"))
 
             val sliceDbDir = File(sliceInputDir, "db")
             sliceDbDir.mkdirs()
             File(sliceDbDir, "LOCK").delete()
 
-            val tempDbOptions = Options().createIfMissing(true)
-            tempDbOptions.writeBufferSize(2 * 1024 * 1024)
+            val tempDbOptions = Options().createIfMissing(true).writeBufferSize(2 * 1024 * 1024)
             val tempDb = factory.open(sliceDbDir, tempDbOptions)
 
             var loadedChunkCount = 0
@@ -416,26 +345,15 @@ class ConversionWorker(
                 while (readIterator.hasNext() && loadedChunkCount < CHUNK_LIMIT_PER_SLICE) {
                     if (isStopped || isSelfKilling) break
                     val entry = readIterator.next()
-                    val key = entry.key
-                    
-                    if (isBedrockChunkKey(key)) {
-                        tempDb.put(key, entry.value)
-                        loadedChunkCount++
-                    } else {
-                        tempDb.put(key, entry.value)
-                    }
-                    nextBoundaryKey = key
+                    if (isBedrockChunkKey(entry.key)) loadedChunkCount++
+                    tempDb.put(entry.key, entry.value)
+                    nextBoundaryKey = entry.key
                 }
-                
-                if (!readIterator.hasNext()) {
-                    hasMoreData = false
-                }
+                if (!readIterator.hasNext()) hasMoreData = false
             }
             tempDb.close()
 
-            if (loadedChunkCount == 0) {
-                break
-            }
+            if (loadedChunkCount == 0) break
 
             lastProcessedKey = nextBoundaryKey
             ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
@@ -455,9 +373,16 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
 
-            val sliceWriterOpt = encodingType!!.createWriter(sliceOutputDir, outputVersion, sliceConverter)
-            if (!sliceWriterOpt.isPresent) throw IllegalStateException("Failed to create writer.")
-            val sliceWriter = sliceWriterOpt.get()
+            // 【核心修复】：如果是 MINECLONIA，直接挂载我们写好的 MclLevelWriter 桥接到 Rust！
+            val sliceWriter = if (targetTypeName.equals("MINECLONIA", ignoreCase = true)) {
+                // 对于 Mineclonia，直接写到最终目录，不需要分片合并！
+                me.voltual.mcl.writer.MclLevelWriter(outputPathFile)
+            } else {
+                val sliceWriterOpt = encodingType?.createWriter(sliceOutputDir, outputVersion, sliceConverter)
+                    ?: throw IllegalStateException("Failed to create writer.")
+                if (!sliceWriterOpt.isPresent) throw IllegalStateException("Failed to create writer.")
+                sliceWriterOpt.get()
+            }
 
             val future = sliceConverter.convert(sliceReader, sliceWriter).future()
             while (!future.isDone) {
@@ -482,24 +407,9 @@ class ConversionWorker(
 
     private fun closeDatabases() {
         currentConverter?.cancel(null)
-        try {
-            srcDb?.close()
-        } catch (ignored: Exception) {}
-        finally {
-            srcDb = null
-        }
-        try {
-            targetDb?.close()
-        } catch (ignored: Exception) {}
-        finally {
-            targetDb = null
-        }
-        try {
-            sliceDb?.close()
-        } catch (ignored: Exception) {}
-        finally {
-            sliceDb = null
-        }
+        try { srcDb?.close() } catch (ignored: Exception) {} finally { srcDb = null }
+        try { targetDb?.close() } catch (ignored: Exception) {} finally { targetDb = null }
+        try { sliceDb?.close() } catch (ignored: Exception) {} finally { sliceDb = null }
     }
 
     private fun calculateWorldIdentity(inputDir: File): String {
@@ -533,6 +443,12 @@ class ConversionWorker(
     }
 
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
+        if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
+            // MclLevelWriter 已经通过 JNI 把数据直接写进最终的 map.sqlite 里了
+            // 所以这里完全不需要进行任何合并操作！这也是原生流性能极高的原因！
+            return
+        }
+
         if (targetFormat.contains("JAVA", ignoreCase = true)) {
             val subFolders = listOf("region", "poi", "entities")
             for (folderName in subFolders) {
