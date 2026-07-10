@@ -24,7 +24,7 @@ jobs:
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      # 缓存 Rust 工具链和 target 编译产物以提高 CI 构建效率
+      # 缓存工具链
       - name: Cache Rust & Cargo
         uses: actions/cache@v4
         with:
@@ -33,23 +33,25 @@ jobs:
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             rust/target/
-          key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+            tools/.cargo/
+            tools/.rustup/
+          key: ${{ runner.os }}-rust-ndk-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: |
-            ${{ runner.os }}-rust-
+            ${{ runner.os }}-rust-ndk-
 
       - name: Build Targets
         run: bash ./buildall.sh
 
-      # 上传用于主机调试的 x86_64 二进制文件
+      # 上传 Linux x86_64
       - name: Upload x86_64 Executable
         uses: actions/upload-artifact@v4
         with:
           name: mc2mt-cli-linux-x64
           path: rust/target/release/mc2mt-cli
 
-      # 上传可在 Termux 直接免 root 执行的 Aarch64 架构二进制文件
+      # 上传能在 Termux 原生直接免 root 运行的 Bionic 原生 Aarch64 独立程序
       - name: Upload Termux Aarch64 Executable
         uses: actions/upload-artifact@v4
         with:
           name: mc2mt-cli-termux-aarch64
-          path: rust/target/aarch64-unknown-linux-gnu/release/mc2mt-cli
+          path: rust/target/aarch64-linux-android/release/mc2mt-cli
