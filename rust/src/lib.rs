@@ -2,17 +2,17 @@ pub mod mc_map;
 pub mod convert;
 pub mod mt_map;
 
-use jni::objects::{JClass, JObject, JString};
-use jni::sys::{jboolean, jint, jshortArray, jbyteArray, jlong};
+use jni::objects::{JClass, JString, JByteArray, JShortArray};
+use jni::sys::{jboolean, jint};
 use jni::JNIEnv;
 use log::{error, info};
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 use std::path::Path;
 
-use crate::mt_map::{MTMap, MTPos, serialize_raw_chunk};
+use crate::mt_map::{MTMap, serialize_raw_chunk};
 
-// 使用全局的全局锁安全托管 MTMap 实例，使 Kotlin/Java 能够任意驱动转换生存期
+// 使用全局锁安全托管 MTMap 实例
 static GLOBAL_MT_MAP: Lazy<Mutex<Option<MTMap>>> = Lazy::new(|| Mutex::new(None));
 
 #[no_mangle]
@@ -22,7 +22,7 @@ pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_
             .with_max_level(log::LevelFilter::Info)
             .with_tag("MC2MT_Rust"),
     );
-    info!("MC2MT Fast-JNI Bridge Loaded");
+    info!("MC2MT Fast-JNI Bridge Loaded Successfully");
     jni::sys::JNI_VERSION_1_6
 }
 
@@ -57,7 +57,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
     }
 }
 
-/// 接收来自 JVM 物理边界推送的 Chunk 级高密度平面原始数据，直接执行零拷贝处理与数据库落盘
+/// 接收来自 JVM 物理边界推送的 Chunk 级平面原始数据，通过强类型安全映射进行无拷贝处理
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     mut env: JNIEnv,
@@ -65,13 +65,13 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     cx: jint,
     cy: jint,
     cz: jint,
-    block_ids: jshortArray,
-    param1: jbyteArray,
-    param2: jbyteArray,
-    local_names_json: jbyteArray,
-    metadata_json: jbyteArray,
+    block_ids: JShortArray,      // 修改点：直接使用强类型包装器类型
+    param1: JByteArray,          // 修改点：直接使用强类型包装器类型
+    param2: JByteArray,          // 修改点：直接使用强类型包装器类型
+    local_names_json: JByteArray,// 修改点：直接使用强类型包装器类型
+    metadata_json: JByteArray,   // 修改点：直接使用强类型包装器类型
 ) -> jboolean {
-    // 1. 获取本地映射名字表与 BlockEntity NBT JSON
+    // 1. 安全转换字节数组 (通过隐式强类型借用 &JByteArray)
     let names_bytes = match env.convert_byte_array(&local_names_json) {
         Ok(b) => b,
         Err(_) => return jni::sys::JNI_FALSE,
@@ -86,7 +86,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    // 2. 利用 Critical 锁提取超大物理内存指针，绕过 JVM 的 GC 性能开销
+    // 2. 利用强类型借用 `&JShortArray` / `&JByteArray` 获取原生临界区指针（Critical Lock）
     let raw_ids = unsafe {
         env.get_array_elements_critical(&block_ids, jni::objects::ReleaseMode::NoCopyBack)
     };
@@ -99,12 +99,12 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
 
     let (ok_status, chunk_result) = match (&raw_ids, &raw_p1, &raw_p2) {
         (Ok(ids_ptr), Ok(p1_ptr), Ok(p2_ptr)) => {
-            // 安全构造 Rust 切片映射（完全零拷贝！）
+            // 安全构造 Rust 内存切片（100% 堆上零拷贝！）
             let ids_slice = unsafe { std::slice::from_raw_parts(ids_ptr.as_ptr(), 4096) };
             let p1_slice = unsafe { std::slice::from_raw_parts(p1_ptr.as_ptr(), 4096) };
             let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.as_ptr(), 4096) };
 
-            // 执行高度并发优化的原生 Zlib 与数据打包
+            // 执行多线程高并发压缩与 Minetest 区块组协议组装
             match serialize_raw_chunk(
                 cx as i32,
                 cy as i32,
@@ -123,12 +123,12 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
             }
         }
         _ => {
-            error!("Failed to locking Java memory arrays safely.");
+            error!("Failed to lock JVM memory array pointers.");
             (false, None)
         }
     };
 
-    // 保证在出错或成功时都释放 JVM 指针以防内存锁泄漏
+    // 显式释放 JNI 临界区锁定（Critical Lock），防止虚拟机由于 GC 暂停而挂起
     drop(raw_ids);
     drop(raw_p1);
     drop(raw_p2);
@@ -137,7 +137,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         return jni::sys::JNI_FALSE;
     }
 
-    // 3. 直接在原生安全上下文中，将转换好的高密度区块刷入本地高速事务中
+    // 3. 提交至全局的 SQLite 物理事务中
     if let Some((pos, serialized_data)) = chunk_result {
         let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
         if let Some(ref mut map) = *global_map {
@@ -181,5 +181,5 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_closeNativeEngine
     _class: JClass,
 ) {
     let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
-    *global_map = None; // 原生结构析构，自动安全触发 Rust 线程安全的 connection.close()
+    *global_map = None; // 触发析构并执行 Connection 自动关闭
 }
