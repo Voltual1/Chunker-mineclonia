@@ -427,14 +427,16 @@ pub fn get_conversion(id: u16, data: u16) -> Option<ConversionData> {
 /// 对应 Map.hpp: #define BLOCK_NODE_IDX(x, y, z) (((y & 0xF) << 8) | ((z & 0xF) << 4) | (x & 0xF))
 #[inline]
 pub fn block_node_idx(x: usize, y: usize, z: usize) -> usize {
-    ((y & 0xF) << 8) | ((z & 0xF) << 4) | (x & 0xF)
+    // 内存序：z * 256 + y * 16 + x
+    (z << 8) | (y << 4) | x
 }
+
 
 #[inline]
 pub fn idx_to_xyz(idx: usize) -> (usize, usize, usize) {
     let x = idx & 0xF;
-    let z = (idx >> 4) & 0xF;
-    let y = (idx >> 8) & 0xF;
+    let y = (idx >> 4) & 0xF;
+    let z = (idx >> 8) & 0xF;
     (x, y, z)
 }
 

@@ -200,9 +200,10 @@ impl MCMap {
                                     if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                         if (te_y >> 4) == y as i32 {
                                             let mut te_cloned = te.clone();
-                                            if let Some(te_x) = te_cloned.get_mut_map().and_then(|m| m.get_mut("x")) {
-                                                if let NbtTag::Int(x_val) = te_x {
-                                                    *x_val = section_blocks.pos_x * 16 + 15 - (*x_val % 16);
+                                            // 【修复】：X 轴保持不变，只有绝对坐标 Z 轴进行对称反转
+                                            if let Some(te_z) = te_cloned.get_mut_map().and_then(|m| m.get_mut("z")) {
+                                                if let NbtTag::Int(z_val) = te_z {
+                                                    *z_val = -(*z_val) - 1;
                                                 }
                                             }
                                             section_blocks.tile_entities.push(te_cloned);
@@ -220,7 +221,13 @@ impl MCMap {
                         for te in tile_entities {
                             if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                 if (te_y >> 4) == y_slice as i32 {
-                                    section_blocks.tile_entities.push(te.clone());
+                                    let mut te_cloned = te.clone();
+                                    if let Some(te_z) = te_cloned.get_mut_map().and_then(|m| m.get_mut("z")) {
+                                        if let NbtTag::Int(z_val) = te_z {
+                                            *z_val = -(*z_val) - 1;
+                                        }
+                                    }
+                                    section_blocks.tile_entities.push(te_cloned);
                                 }
                             }
                         }
@@ -248,13 +255,14 @@ impl MCMap {
 }
 
 // ==========================================
-// 辅助解析算法：逆转坐标系和处理半字节 (4-bit)
+// 几何完美的 3D 坐标系重映射系统 (YZX -> ZYX)
 // ==========================================
 
 fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
-    let pos_x = -cp.x - 1;
+    // 【完美修复】：X 轴不反转，保持正北正东向；Z 轴进行镜像以符合 Luanti 右手系标准。
+    let pos_x = cp.x;
     let pos_y = y_slice;
-    let pos_z = -cp.z - 1; 
+    let pos_z = -cp.z - 1;
 
     let mut blocks = vec![0u16; NODES_PER_BLOCK];
     let mut data = vec![0u8; NODES_PER_BLOCK];
@@ -262,86 +270,68 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
     let mut block_light = vec![0u8; NODES_PER_BLOCK];
 
     if let Some(blocks_array) = section.get_byte_array("Blocks") {
-        reverse_x_axis(&mut blocks, blocks_array);
+        read_anvil_blocks(&mut blocks, blocks_array);
     }
-
     if let Some(add_array) = section.get_byte_array("Add") {
         let mut blocks_add = vec![0u8; NODES_PER_BLOCK];
-        expand_half_bytes(&mut blocks_add, add_array);
+        read_anvil_half_bytes(&mut blocks_add, add_array);
         for i in 0..NODES_PER_BLOCK {
             blocks[i] |= (blocks_add[i] as u16) << 8;
         }
     }
-
     if let Some(data_array) = section.get_byte_array("Data") {
-        expand_half_bytes(&mut data, data_array);
+        read_anvil_half_bytes(&mut data, data_array);
     }
-
     if let Some(sky_array) = section.get_byte_array("SkyLight") {
-        expand_half_bytes(&mut sky_light, sky_array);
+        read_anvil_half_bytes(&mut sky_light, sky_array);
     }
-
     if let Some(bl_array) = section.get_byte_array("BlockLight") {
-        expand_half_bytes(&mut block_light, bl_array);
+        read_anvil_half_bytes(&mut block_light, bl_array);
     } else {
         zero_bytes(&mut block_light);
     }
 
     post_process_blocks(&mut blocks, &mut data, &mut sky_light, &mut block_light);
 
-    Ok(MCBlock {
-        pos_x,
-        pos_y,
-        pos_z,
-        blocks,
-        data,
-        sky_light,
-        block_light,
-        tile_entities: Vec::new(),
-    })
+    Ok(MCBlock { pos_x, pos_y, pos_z, blocks, data, sky_light, block_light, tile_entities: Vec::new() })
 }
 
 fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
+    let pos_x = cp.x;
+    let pos_y = y_slice;
+    let pos_z = -cp.z - 1;
+
     let mut blocks = vec![0u16; NODES_PER_BLOCK];
     let mut data = vec![0u8; NODES_PER_BLOCK];
     let mut sky_light = vec![0u8; NODES_PER_BLOCK];
     let mut block_light = vec![0u8; NODES_PER_BLOCK];
 
     if let Some(blocks_array) = chunk_level.get_byte_array("Blocks") {
-        extract_slice(&mut blocks, blocks_array, y_slice);
+        read_region_blocks(&mut blocks, blocks_array, y_slice);
     }
     if let Some(data_array) = chunk_level.get_byte_array("Data") {
-        extract_slice_half_bytes(&mut data, data_array, y_slice);
+        read_region_half_bytes(&mut data, data_array, y_slice);
     }
     if let Some(sky_array) = chunk_level.get_byte_array("SkyLight") {
-        extract_slice_half_bytes(&mut sky_light, sky_array, y_slice);
+        read_region_half_bytes(&mut sky_light, sky_array, y_slice);
     }
     if let Some(bl_array) = chunk_level.get_byte_array("BlockLight") {
-        extract_slice_half_bytes(&mut block_light, bl_array, y_slice);
+        read_region_half_bytes(&mut block_light, bl_array, y_slice);
     }
 
-    Ok(MCBlock {
-        pos_x: cp.x,
-        pos_y: y_slice,
-        pos_z: -cp.z - 1, 
-        blocks,
-        data,
-        sky_light,
-        block_light,
-        tile_entities: Vec::new(),
-    })
+    post_process_blocks(&mut blocks, &mut data, &mut sky_light, &mut block_light);
+
+    Ok(MCBlock { pos_x, pos_y, pos_z, blocks, data, sky_light, block_light, tile_entities: Vec::new() })
 }
 
-/// 【终极修复点】：将源数据的 Anvil 布局 (YZX) 重映射并转换到标准的 Minetest (ZYX) 排布。
-/// 这样在 Rust 内存中解开直接就是标准的 ZYX 序，后面直接线性遍历输出即完美对齐，世界彻底回正！
-fn reverse_x_axis(data: &mut [u16], raw: &[u8]) {
-    for z in 0..16 {
-        for y in 0..16 {
-            for x in 0..16 {
-                // Minetest 目标索引 (ZYX)
-                let mt_idx = z * 256 + y * 16 + x;
-                // Minecraft 源数据索引 (YZX)，带上 X轴反转 (15-x) 以及 Z 轴的镜像位移以修正偏角
-                let mc_idx = (y << 8) | (((15 - z) & 0xF) << 4) | (x & 0xF);
+/// Anvil (1.2 ~ 1.12.2) 内存直接映射提取
+fn read_anvil_blocks(data: &mut [u16], raw: &[u8]) {
+    for mt_z in 0..16 {
+        for mt_y in 0..16 {
+            for mt_x in 0..16 {
+                let mt_idx = mt_z * 256 + mt_y * 16 + mt_x;
+                let mc_z = 15 - mt_z; // Z反转映射
+                let mc_idx = mt_y * 256 + mc_z * 16 + mt_x;
                 if mc_idx < raw.len() {
                     data[mt_idx] = raw[mc_idx] as u16;
                 }
@@ -350,68 +340,60 @@ fn reverse_x_axis(data: &mut [u16], raw: &[u8]) {
     }
 }
 
-/// 同理，对 param1 & param2 等半字节 (4-bit) 数据也采用标准 (ZYX) 的空间轴射转换
-fn expand_half_bytes(data: &mut [u8], raw: &[u8]) {
-    for z in 0..16 {
-        for y in 0..16 {
-            for x in (0..16).step_by(2) {
-                // ZYX 的两个相邻坐标
-                let mt_idx1 = z * 256 + y * 16 + x;
-                let mt_idx2 = z * 256 + y * 16 + (x + 1);
+fn read_anvil_half_bytes(data: &mut [u8], raw: &[u8]) {
+    for mt_z in 0..16 {
+        for mt_y in 0..16 {
+            for mt_x in 0..16 {
+                let mt_idx = mt_z * 256 + mt_y * 16 + mt_x;
+                let mc_z = 15 - mt_z;
+                let mc_byte_idx = mt_y * 128 + mc_z * 8 + (mt_x / 2);
+                if mc_byte_idx < raw.len() {
+                    let b = raw[mc_byte_idx];
+                    if mt_x % 2 == 0 {
+                        data[mt_idx] = b & 0xF;
+                    } else {
+                        data[mt_idx] = (b >> 4) & 0xF;
+                    }
+                }
+            }
+        }
+    }
+}
 
-                // 根据原始 YZX 在 raw 中提取一个字节中的两个半字节值
-                let mc_x_half = x >> 1;
-                let mc_idx = (y << 7) | (((15 - z) & 0xF) << 3) | mc_x_half;
-                
+/// Region (Beta 1.3 ~ 1.1) 内存直接映射提取
+fn read_region_blocks(data: &mut [u16], raw: &[u8], y_slice: u8) {
+    for mt_z in 0..16 {
+        for mt_y in 0..16 {
+            for mt_x in 0..16 {
+                let mt_idx = mt_z * 256 + mt_y * 16 + mt_x;
+                let mc_z = 15 - mt_z;
+                let mc_idx = mt_x * 2048 + mc_z * 128 + (y_slice as usize) * 16 + mt_y;
                 if mc_idx < raw.len() {
-                    let b = raw[mc_idx];
-                    data[mt_idx1] = b & 0xF;
-                    data[mt_idx2] = (b >> 4) & 0xF;
+                    data[mt_idx] = raw[mc_idx] as u16;
                 }
             }
         }
     }
 }
 
-fn extract_slice(data: &mut [u16], raw: &[u8], y_slice: u8) {
-    let mut key = (y_slice as usize) << 4;
-    let mut data_key = 0;
-    for _y in 0..16 {
-        for _z in 0..16 {
-            for _x in 0..16 {
-                if key < raw.len() {
-                    data[data_key] = raw[key] as u16;
+fn read_region_half_bytes(data: &mut [u8], raw: &[u8], y_slice: u8) {
+    for mt_z in 0..16 {
+        for mt_y in 0..16 {
+            for mt_x in 0..16 {
+                let mt_idx = mt_z * 256 + mt_y * 16 + mt_x;
+                let mc_z = 15 - mt_z;
+                let global_y = (y_slice as usize) * 16 + mt_y;
+                let mc_byte_idx = mt_x * 1024 + mc_z * 64 + (global_y / 2);
+                if mc_byte_idx < raw.len() {
+                    let b = raw[mc_byte_idx];
+                    if global_y % 2 == 0 {
+                        data[mt_idx] = b & 0xF;
+                    } else {
+                        data[mt_idx] = (b >> 4) & 0xF;
+                    }
                 }
-                data_key += 1;
-                key += 2048;
             }
-            key = (key & 0x7FF) + 128;
         }
-        key = (key & 0x7F) + 1;
-    }
-}
-
-fn extract_slice_half_bytes(data: &mut [u8], raw: &[u8], y_slice: u8) {
-    let mut key = (y_slice as usize) << 3;
-    let mut data_key_1 = 0;
-    let mut data_key_2 = 256;
-    for _y in (0..16).step_by(2) {
-        for _z in 0..16 {
-            for _x in 0..16 {
-                if key < raw.len() {
-                    let b = raw[key];
-                    data[data_key_1] = b & 0xF;
-                    data[data_key_2] = (b >> 4) & 0xF;
-                }
-                data_key_1 += 1;
-                data_key_2 += 1;
-                key += 1024;
-            }
-            key = (key & 0x3FF) + 64;
-        }
-        key = (key & 0x3F) + 1;
-        data_key_1 += 256;
-        data_key_2 += 256;
     }
 }
 
