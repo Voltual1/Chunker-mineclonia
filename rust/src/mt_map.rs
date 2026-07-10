@@ -33,23 +33,10 @@ pub struct MTMap {
 }
 
 impl MTMap {
-    /// 新增：专门供给 JNI 使用的根据 db 路径初始化的静态生命周期方法
-    pub fn new_from_db_path(db_path: &Path, spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
+    /// 纯粹的数据库初始化通道：供 JVM/Kotlin 分片写入（MclSqliteSaver）使用
+    pub fn new_from_db_path(db_path: &Path, _spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
         let parent = db_path.parent().unwrap_or(Path::new("."));
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create output dir: {}", e))?;
-
-        // 写入 world.mt 配置文件
-        let world_mt_path = parent.join("world.mt");
-        let world_mt_content = format!(
-            "backend = sqlite3\n\
-             player_backend = sqlite3\n\
-             auth_backend = sqlite3\n\
-             mod_storage_backend = sqlite3\n\
-             gameid = mineclonia\n\
-             static_spawnpoint = ({}, {}, {})\n",
-            spawn_pos.0, spawn_pos.1, spawn_pos.2
-        );
-        let _ = std::fs::write(&world_mt_path, world_mt_content);
 
         let conn = Connection::open(&db_path)
             .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
@@ -61,14 +48,56 @@ impl MTMap {
                 pos INT PRIMARY KEY,
                 data BLOB
              );
-             BEGIN TRANSACTION;" // 直接在初始化开启事务，提升 Native 极速写入性能
+             BEGIN TRANSACTION;" // 显式开启高速批量事务
         ).map_err(|e| format!("Failed to initialize database: {}", e))?;
 
         Ok(MTMap { conn })
     }
 
+    /// 完整世界目录初始化通道：供 Rust 顶层 convertMap（MC2MTLib）调用
+    /// 包含 world.mt、单节点世界生成器和 init.lua 出生点保护脚本的完整建立
     pub fn new<P: AsRef<Path>>(path: P, spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
         let path = path.as_ref();
+        
+        // 1. 确保世界输出根目录存在
+        std::fs::create_dir_all(path).map_err(|e| format!("Failed to create output dir: {}", e))?;
+
+        // 2. 写入 world.mt 配置文件 (包含后端定义和静态出生点)
+        let world_mt_path = path.join("world.mt");
+        let world_mt_content = format!(
+            "backend = sqlite3\n\
+             player_backend = sqlite3\n\
+             auth_backend = sqlite3\n\
+             mod_storage_backend = sqlite3\n\
+             gameid = mineclonia\n\
+             static_spawnpoint = ({}, {}, {})\n",
+            spawn_pos.0, spawn_pos.1, spawn_pos.2
+        );
+        std::fs::write(&world_mt_path, world_mt_content).map_err(|e| e.to_string())?;
+
+        // 3. 写入强制单节点生成器和出生点劫持 Lua 脚本 (放置在世界专属 mods 目录)
+        let mod_dir = path.join("worldmods").join("__mc2mt");
+        std::fs::create_dir_all(&mod_dir).map_err(|e| e.to_string())?;
+        
+        let init_lua_path = mod_dir.join("init.lua");
+        let init_lua_content = format!(
+            "minetest.set_mapgen_params({{chunksize = 1}})\n\
+             minetest.set_mapgen_params({{mgname = 'singlenode'}})\n\
+             \n\
+             -- 强制出生点保护，防止初次加载掉落虚空\n\
+             local spawn_pos = {{x={}, y={}, z={}}}\n\
+             minetest.register_on_newplayer(function(player)\n\
+                 player:set_pos(spawn_pos)\n\
+             end)\n\
+             minetest.register_on_respawnplayer(function(player)\n\
+                 player:set_pos(spawn_pos)\n\
+                 return true\n\
+             end)\n",
+            spawn_pos.0, spawn_pos.1, spawn_pos.2
+        );
+        std::fs::write(&init_lua_path, init_lua_content).map_err(|e| e.to_string())?;
+
+        // 4. 调用底层的数据库连接建立流程
         let db_path = path.join("map.sqlite");
         Self::new_from_db_path(&db_path, spawn_pos)
     }
@@ -103,7 +132,7 @@ impl MTMap {
 }
 
 // =========================================================================
-// 新增：高并发 Fast-JNI 区块压缩并封装 Minetest v25 序列化协议的方法
+// 高并发 Fast-JNI 区块压缩并封装 Minetest v25 序列化协议的方法
 // =========================================================================
 
 #[derive(Serialize, Deserialize)]
