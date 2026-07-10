@@ -87,7 +87,8 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     };
 
     // 2. 利用局部变量生命周期拆分，顺序获取 JVM 内存指针，绕过 mutable borrow 独占限制
-    let (ids_ptr, p1_ptr, p2_ptr) = unsafe {
+// 修改点：完美对应 unsafe 块返回的 6 元组（3 个内存保护守卫 + 3 个零拷贝原生裸指针）
+let (ids_ptr, p1_ptr, p2_ptr, ids_raw, p1_raw, p2_raw) = unsafe {
         // 第一段：提取 Block IDs 并复制其原始裸指针
         let ids_gate = match env.get_array_elements_critical(&block_ids, jni::objects::ReleaseMode::NoCopyBack) {
             Ok(g) => g,
@@ -121,9 +122,10 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     };
 
     // 3. 在完全安全的原生上下文中构造内存切片（100% 零拷贝，完美规避生命周期借用冲突）
-    let ids_slice = unsafe { std::slice::from_raw_parts(p2_ptr.3, 4096) };
-    let p1_slice = unsafe { std::slice::from_raw_parts(p2_ptr.4, 4096) };
-    let p2_slice = unsafe { std::slice::from_raw_parts(p2_ptr.5, 4096) };
+// 修改点：直接使用解构提取出的物理裸指针，100% 零拷贝极速映射为 Rust 连续安全切片
+let ids_slice = unsafe { std::slice::from_raw_parts(ids_raw, 4096) };
+let p1_slice = unsafe { std::slice::from_raw_parts(p1_raw, 4096) };
+let p2_slice = unsafe { std::slice::from_raw_parts(p2_raw, 4096) };
 
     // 4. 执行多线程高并发压缩与 Minetest 区块组协议组装
     let chunk_result = match serialize_raw_chunk(
