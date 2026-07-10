@@ -31,7 +31,18 @@ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
 linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
 EOF
 
-echo "=== 3. Building Termux compatible CLI (aarch64-linux-android) ==="
+echo "=== 3. Exporting C Cross-Compiler Envs for Sqlite3 ==="
+# 显式导出编译器和归档器，让 cc-rs 编译 sqlite3.c 时使用 NDK 的 Clang
+export CC_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+export AR_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+
+# 同样为 armv7 导出，防止后续需要
+export CC_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+export AR_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
+export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+
+echo "=== 4. Building Termux compatible CLI (aarch64-linux-android) ==="
 # 使用 aarch64-linux-android 目标进行编译
 $BASEDIR/tools/.cargo/bin/rustup target add aarch64-linux-android
 $BASEDIR/tools/.cargo/bin/cargo build --bin mc2mt-cli --target aarch64-linux-android --release
