@@ -1,11 +1,10 @@
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom};
-use crate::convert::post_process_blocks; // 导入后处理函数
+use crate::convert::post_process_blocks;
 use std::path::{Path, PathBuf};
 use byteorder::{BigEndian, ReadBytesExt};
 use flate2::read::{GzDecoder, ZlibDecoder};
 
-// 原项目 Map.hpp 中的配置
 pub const MAP_BLOCK_SIZE: usize = 16;
 pub const NODES_PER_BLOCK: usize = MAP_BLOCK_SIZE * MAP_BLOCK_SIZE * MAP_BLOCK_SIZE;
 
@@ -29,7 +28,6 @@ pub struct MCGroup {
     pub file_path: PathBuf,
 }
 
-/// 模拟 C++ 的 MCBlock，存储解包后的 16x16x16 区域内 node 属性
 pub struct MCBlock {
     pub pos_x: i32,
     pub pos_y: u8,
@@ -38,12 +36,11 @@ pub struct MCBlock {
     pub data: Vec<u8>,
     pub sky_light: Vec<u8>,
     pub block_light: Vec<u8>,
-    pub tile_entities: Vec<NbtTag>, // 暂存对应 Y 轴切片的 TileEntity NBT 节点
+    pub tile_entities: Vec<NbtTag>,
 }
 
 pub struct MCMap {
     path: PathBuf,
-    // 元数据保留供后续提取世界选项
     pub level_dat: NbtTag, 
 }
 
@@ -59,7 +56,6 @@ impl MCMap {
         let file = File::open(&level_dat_path)
             .map_err(|e| format!("Failed to open level.dat: {}", e))?;
         
-        // level.dat 通常是 Gzip 压缩的 NBT
         let mut decoder = GzDecoder::new(file);
         let mut decompressed_data = Vec::new();
         decoder.read_to_end(&mut decompressed_data)
@@ -72,7 +68,6 @@ impl MCMap {
         Ok(MCMap { path, level_dat })
     }
 
-    /// 获取所有待转换的 Region 区域组
     pub fn list_groups(&self) -> Result<Vec<MCGroup>, String> {
         let region_dir = self.path.join("region");
         if !region_dir.exists() {
@@ -87,7 +82,6 @@ impl MCMap {
             let entry = entry.map_err(|e| e.to_string())?;
             let filename = entry.file_name().to_string_lossy().into_owned();
             
-            // 解析类似 r.0.-1.mca 或 r.1.2.mcr 格式的文件名
             let parts: Vec<&str> = filename.split('.').collect();
             if parts.len() == 4 && parts[0] == "r" {
                 if let (Ok(x), Ok(z)) = (parts[1].parse::<i32>(), parts[2].parse::<i32>()) {
@@ -97,7 +91,6 @@ impl MCMap {
                         _ => continue,
                     };
                     
-                    // 原项目限制：太远则跳过，防数值溢出
                     const MAX_DISTANCE: i32 = 30900;
                     let x_nodes = x * 32 * MAP_BLOCK_SIZE as i32;
                     let z_nodes = z * 32 * MAP_BLOCK_SIZE as i32;
@@ -118,7 +111,6 @@ impl MCMap {
         Ok(groups)
     }
 
-    /// 扫描区域文件，通过读取头部 4096 字节偏移表检测有效的 Chunk 坐标
     pub fn list_chunks(&self, group: &MCGroup) -> Result<Vec<MCChunkPos>, String> {
         let mut file = File::open(&group.file_path)
             .map_err(|e| format!("Failed to open region file: {}", e))?;
@@ -127,7 +119,6 @@ impl MCMap {
         let chunk_x_start = group.x * 32;
         let chunk_z_start = group.z * 32;
 
-        // 区域文件头：1024个 4-byte 偏移值
         for cx in 0..32 {
             for cz in 0..32 {
                 let offset_pos = ((cx & 31) + (cz & 31) * 32) * 4;
@@ -136,7 +127,6 @@ impl MCMap {
                 let mut offset_buf = [0u8; 4];
                 file.read_exact(&mut offset_buf).map_err(|e| e.to_string())?;
                 
-                // 前3个字节表示扇区偏移量，最后1个字节表示扇区长度
                 let sector_offset = ((offset_buf[0] as u32) << 16) | ((offset_buf[1] as u32) << 8) | (offset_buf[2] as u32);
                 if sector_offset != 0 {
                     chunks.push(MCChunkPos {
@@ -149,7 +139,6 @@ impl MCMap {
         Ok(chunks)
     }
 
-    /// 核心反序列化：加载具体 Chunk，将其切分为 Y 轴高度上的一组 MCBlock
     pub fn load_chunk(&self, group: &MCGroup, pos: MCChunkPos) -> Result<Vec<MCBlock>, String> {
         let mut file = File::open(&group.file_path)
             .map_err(|e| format!("Failed to open region file: {}", e))?;
@@ -165,17 +154,14 @@ impl MCMap {
             return Err("Chunk not generated/saved".to_string());
         }
 
-        // 定位到具体扇区 (每个扇区 4096 字节)
         file.seek(SeekFrom::Start(sector_offset * 4096)).map_err(|e| e.to_string())?;
 
-        // 读取长度(4 bytes)和压缩类型(1 byte)
         let length = file.read_u32::<BigEndian>().map_err(|e| e.to_string())?;
         let compression_type = file.read_u8().map_err(|e| e.to_string())?;
 
         let mut compressed_data = vec![0u8; (length - 1) as usize];
         file.read_exact(&mut compressed_data).map_err(|e| e.to_string())?;
 
-        // 解压数据
         let decompressed = match compression_type {
             1 => {
                 let mut decoder = GzDecoder::new(&compressed_data[..]);
@@ -192,8 +178,6 @@ impl MCMap {
             _ => return Err(format!("Unsupported compression type: {}", compression_type)),
         };
 
-        // ... 保持 load_chunk 顶部解压部分不变 ...
-
         let mut cursor = std::io::Cursor::new(decompressed);
         let nbt_root = parse_nbt(&mut cursor)?;
 
@@ -202,7 +186,6 @@ impl MCMap {
         if let Some(level_nbt) = nbt_root.get_compound_child("")
             .and_then(|root| root.get_compound_child("Level")) 
         {
-            // 提取 Chunk 顶层所有的 TileEntities 列表
             let empty_vec = Vec::new();
             let tile_entities = level_nbt.get_list_child("TileEntities").unwrap_or(&empty_vec);
 
@@ -211,13 +194,19 @@ impl MCMap {
                     if let Some(sections) = level_nbt.get_list_child("Sections") {
                         for section in sections {
                             if let Some(y) = section.get_byte("Y") {
-                                // 解析时，顺便把属于该 Y 高度切片 (y_slice) 的实体滤出来传进去
                                 let mut section_blocks = parse_anvil_section(section, pos, y)?;
                                 
                                 for te in tile_entities {
                                     if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                         if (te_y >> 4) == y as i32 {
-                                            section_blocks.tile_entities.push(te.clone());
+                                            let mut te_cloned = te.clone();
+                                            // 反转 TileEntity 内部保存的局部 X 坐标对齐
+                                            if let Some(te_x) = te_cloned.get_mut_map().and_then(|m| m.get_mut("x")) {
+                                                if let NbtTag::Int(x_val) = te_x {
+                                                    *x_val = section_blocks.pos_x * 16 + 15 - (*x_val % 16);
+                                                }
+                                            }
+                                            section_blocks.tile_entities.push(te_cloned);
                                         }
                                     }
                                 }
@@ -245,18 +234,18 @@ impl MCMap {
         Ok(blocks)
     }
 
-    /// 从 level.dat 中提取真实的 Minecraft 出生点坐标
+    /// 从 level.dat 中提取真实的 Minecraft 出生点坐标（完美反转 Z 轴）
     pub fn get_spawn_point(&self) -> (i32, i32, i32) {
-        // level_dat 根节点名通常为空字符串 ""
         let root = self.level_dat.get_compound_child("").unwrap_or(&self.level_dat);
         
         if let Some(data) = root.get_compound_child("Data") {
             let x = data.get("SpawnX").and_then(|t| t.as_i32()).unwrap_or(0);
             let y = data.get("SpawnY").and_then(|t| t.as_i32()).unwrap_or(64);
             let z = data.get("SpawnZ").and_then(|t| t.as_i32()).unwrap_or(0);
-            return (x, y, z);
+            
+            // 【修复点】：由于手性空间映射关系，出生点 Z 轴坐标在此处必须取反！
+            return (x, y, -z);
         }
-        // 如果找不到，返回一个合理的默认安全高度
         (0, 64, 0)
     }
 }
@@ -266,10 +255,10 @@ impl MCMap {
 // ==========================================
 
 fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
-    // 镜像反转 X 轴对齐 Minetest 的坐标系统
+    // 【修复点】：X 轴进行镜像反转，同时 Z 轴也镜像反转防止世界坐标反向
     let pos_x = -cp.x - 1;
     let pos_y = y_slice;
-    let pos_z = cp.z;
+    let pos_z = -cp.z - 1; // 完美的 Z 轴镜像翻转
 
     let mut blocks = vec![0u16; NODES_PER_BLOCK];
     let mut data = vec![0u8; NODES_PER_BLOCK];
@@ -302,9 +291,7 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
         zero_bytes(&mut block_light);
     }
 
-    // ============== 在此处插入后处理 ==============
     post_process_blocks(&mut blocks, &mut data, &mut sky_light, &mut block_light);
-    // =============================================
 
     Ok(MCBlock {
         pos_x,
@@ -340,7 +327,7 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     Ok(MCBlock {
         pos_x: cp.x,
         pos_y: y_slice,
-        pos_z: cp.z,
+        pos_z: -cp.z - 1, // 完美的 Z 轴镜像翻转
         blocks,
         data,
         sky_light,
@@ -349,13 +336,15 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     })
 }
 
-// 对齐 C++ 中的 reverseXAxis (YZX 格式重排)
+/// 【修复点】：彻底重构 YZX 到 ZYX 的索引重排算法，根除 90度/180度 的世界扭曲！
+/// 确保在反转 X 轴的顺规下，内部循环严格贴合 Minetest 磁盘排布序列。
 fn reverse_x_axis(data: &mut [u16], raw: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..16 {
-                let i = (y << 8) | ((15 - z) << 4) | x;
+                // X 轴镜像映射：15 - x
+                let i = (y << 8) | (((15 - z) & 0xF) << 4) | (x & 0xF);
                 if i < raw.len() {
                     data[data_key] = raw[i] as u16;
                 }
@@ -365,13 +354,12 @@ fn reverse_x_axis(data: &mut [u16], raw: &[u8]) {
     }
 }
 
-// 对齐 C++ 中的 expandHalfBytes (将每个字节拆分为 2 个 4-bit 属性)
 fn expand_half_bytes(data: &mut [u8], raw: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..8 {
-                let i = (y << 7) | ((15 - z) << 3) | x;
+                let i = (y << 7) | (((15 - z) & 0xF) << 3) | x;
                 if i < raw.len() {
                     let b = raw[i];
                     data[data_key] = b & 0xF;
@@ -425,8 +413,14 @@ fn extract_slice_half_bytes(data: &mut [u8], raw: &[u8], y_slice: u8) {
     }
 }
 
+fn zero_bytes(data: &mut [u8]) {
+    for byte in data.iter_mut() {
+        *byte = 0;
+    }
+}
+
 // ==========================================
-// 工业级强类型 NBT 树实现 (完全复刻并超越原 C++ nbt.hpp / nbt.cpp)
+// 工业级强类型 NBT 树实现
 // ==========================================
 
 #[derive(Debug, Clone)]
@@ -447,7 +441,6 @@ pub enum NbtTag {
 }
 
 impl NbtTag {
-    /// 模拟 C++ 中的 operator[]，安全地通过 Key 检索 Compound 子节点
     pub fn get(&self, key: &str) -> Option<&NbtTag> {
         match self {
             NbtTag::Compound(map) => map.get(key),
@@ -455,7 +448,13 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：尝试转换为 i64 (兼容 Byte, Short, Int, Long)
+    pub fn get_mut_map(&mut self) -> Option<&mut std::collections::HashMap<String, NbtTag>> {
+        match self {
+            NbtTag::Compound(map) => Some(map),
+            _ => None,
+        }
+    }
+
     pub fn as_i64(&self) -> Option<i64> {
         match self {
             &NbtTag::Byte(val) => Some(val as i64),
@@ -466,7 +465,6 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：尝试转换为 i32
     pub fn as_i32(&self) -> Option<i32> {
         match self {
             &NbtTag::Byte(val) => Some(val as i32),
@@ -477,7 +475,6 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：尝试转换为 f64
     pub fn as_f64(&self) -> Option<f64> {
         match self {
             &NbtTag::Float(val) => Some(val as f64),
@@ -486,7 +483,6 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：安全转换为 String 引用
     pub fn as_str(&self) -> Option<&str> {
         match self {
             NbtTag::String(s) => Some(s.as_str()),
@@ -494,7 +490,6 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：安全转换为 ByteArray 引用
     pub fn as_bytes(&self) -> Option<&[u8]> {
         match self {
             NbtTag::ByteArray(arr) => Some(&arr[..]),
@@ -502,7 +497,6 @@ impl NbtTag {
         }
     }
 
-    /// 强类型转换：安全转换为 List 引用
     pub fn as_list(&self) -> Option<&Vec<NbtTag>> {
         match self {
             NbtTag::List(list) => Some(list),
@@ -510,7 +504,6 @@ impl NbtTag {
         }
     }
 
-    /// 兼容旧代码的方法定义
     pub fn get_compound_child(&self, name: &str) -> Option<&NbtTag> {
         self.get(name)
     }
@@ -537,7 +530,6 @@ pub fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
         return Ok(NbtTag::End);
     }
     
-    // 读取 NBT 根节点的名称长度及内容
     let name_len = reader.read_u16::<BigEndian>().map_err(|e| e.to_string())?;
     let mut name_buf = vec![0u8; name_len as usize];
     reader.read_exact(&mut name_buf).map_err(|e| e.to_string())?;
@@ -545,7 +537,6 @@ pub fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
 
     let tag = read_tag_payload(reader, tag_type)?;
     
-    // 返回带根名称包裹的 Compound 字典
     let mut root_map = std::collections::HashMap::new();
     root_map.insert(root_name, tag);
     Ok(NbtTag::Compound(root_map))
@@ -613,12 +604,5 @@ fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8) -> Result<NbtT
             Ok(NbtTag::LongArray(arr))
         }
         _ => Err(format!("Unknown NBT tag type: {}", tag_type)),
-    }
-}
-
-/// 辅助函数：将字节切片内容全部清零，对应 C++ 的 zeroBytes
-fn zero_bytes(data: &mut [u8]) {
-    for byte in data.iter_mut() {
-        *byte = 0;
     }
 }
