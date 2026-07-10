@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
-use std::sync::Arc;
 use once_cell::sync::Lazy;
 
 // 定义 Minetest content_t 类型为 u16
