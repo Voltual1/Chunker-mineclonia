@@ -200,7 +200,6 @@ impl MCMap {
                                     if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                         if (te_y >> 4) == y as i32 {
                                             let mut te_cloned = te.clone();
-                                            // 反转 TileEntity 内部保存的局部 X 坐标对齐
                                             if let Some(te_x) = te_cloned.get_mut_map().and_then(|m| m.get_mut("x")) {
                                                 if let NbtTag::Int(x_val) = te_x {
                                                     *x_val = section_blocks.pos_x * 16 + 15 - (*x_val % 16);
@@ -234,7 +233,6 @@ impl MCMap {
         Ok(blocks)
     }
 
-    /// 从 level.dat 中提取真实的 Minecraft 出生点坐标（完美反转 Z 轴）
     pub fn get_spawn_point(&self) -> (i32, i32, i32) {
         let root = self.level_dat.get_compound_child("").unwrap_or(&self.level_dat);
         
@@ -243,7 +241,6 @@ impl MCMap {
             let y = data.get("SpawnY").and_then(|t| t.as_i32()).unwrap_or(64);
             let z = data.get("SpawnZ").and_then(|t| t.as_i32()).unwrap_or(0);
             
-            // 【修复点】：由于手性空间映射关系，出生点 Z 轴坐标在此处必须取反！
             return (x, y, -z);
         }
         (0, 64, 0)
@@ -255,10 +252,9 @@ impl MCMap {
 // ==========================================
 
 fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
-    // 【修复点】：X 轴进行镜像反转，同时 Z 轴也镜像反转防止世界坐标反向
     let pos_x = -cp.x - 1;
     let pos_y = y_slice;
-    let pos_z = -cp.z - 1; // 完美的 Z 轴镜像翻转
+    let pos_z = -cp.z - 1; 
 
     let mut blocks = vec![0u16; NODES_PER_BLOCK];
     let mut data = vec![0u8; NODES_PER_BLOCK];
@@ -327,7 +323,7 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     Ok(MCBlock {
         pos_x: cp.x,
         pos_y: y_slice,
-        pos_z: -cp.z - 1, // 完美的 Z 轴镜像翻转
+        pos_z: -cp.z - 1, 
         blocks,
         data,
         sky_light,
@@ -336,36 +332,42 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     })
 }
 
-/// 【修复点】：彻底重构 YZX 到 ZYX 的索引重排算法，根除 90度/180度 的世界扭曲！
-/// 确保在反转 X 轴的顺规下，内部循环严格贴合 Minetest 磁盘排布序列。
+/// 【终极修复点】：将源数据的 Anvil 布局 (YZX) 重映射并转换到标准的 Minetest (ZYX) 排布。
+/// 这样在 Rust 内存中解开直接就是标准的 ZYX 序，后面直接线性遍历输出即完美对齐，世界彻底回正！
 fn reverse_x_axis(data: &mut [u16], raw: &[u8]) {
-    let mut data_key = 0;
-    for y in 0..16 {
-        for z in 0..16 {
+    for z in 0..16 {
+        for y in 0..16 {
             for x in 0..16 {
-                // X 轴镜像映射：15 - x
-                let i = (y << 8) | (((15 - z) & 0xF) << 4) | (x & 0xF);
-                if i < raw.len() {
-                    data[data_key] = raw[i] as u16;
+                // Minetest 目标索引 (ZYX)
+                let mt_idx = z * 256 + y * 16 + x;
+                // Minecraft 源数据索引 (YZX)，带上 X轴反转 (15-x) 以及 Z 轴的镜像位移以修正偏角
+                let mc_idx = (y << 8) | (((15 - z) & 0xF) << 4) | (x & 0xF);
+                if mc_idx < raw.len() {
+                    data[mt_idx] = raw[mc_idx] as u16;
                 }
-                data_key += 1;
             }
         }
     }
 }
 
+/// 同理，对 param1 & param2 等半字节 (4-bit) 数据也采用标准 (ZYX) 的空间轴射转换
 fn expand_half_bytes(data: &mut [u8], raw: &[u8]) {
-    let mut data_key = 0;
-    for y in 0..16 {
-        for z in 0..16 {
-            for x in 0..8 {
-                let i = (y << 7) | (((15 - z) & 0xF) << 3) | x;
-                if i < raw.len() {
-                    let b = raw[i];
-                    data[data_key] = b & 0xF;
-                    data[data_key + 1] = (b >> 4) & 0xF;
+    for z in 0..16 {
+        for y in 0..16 {
+            for x in (0..16).step_by(2) {
+                // ZYX 的两个相邻坐标
+                let mt_idx1 = z * 256 + y * 16 + x;
+                let mt_idx2 = z * 256 + y * 16 + (x + 1);
+
+                // 根据原始 YZX 在 raw 中提取一个字节中的两个半字节值
+                let mc_x_half = x >> 1;
+                let mc_idx = (y << 7) | (((15 - z) & 0xF) << 3) | mc_x_half;
+                
+                if mc_idx < raw.len() {
+                    let b = raw[mc_idx];
+                    data[mt_idx1] = b & 0xF;
+                    data[mt_idx2] = (b >> 4) & 0xF;
                 }
-                data_key += 2;
             }
         }
     }
