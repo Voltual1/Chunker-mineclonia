@@ -3,7 +3,6 @@ package me.voltual.mcl.writer
 import me.voltual.mcl.core.MclConverterManager
 import me.voltual.mcl.mapping.MclMappingInitializer
 
-
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
 import com.hivemc.chunker.conversion.encoding.base.writer.LevelWriter
@@ -16,10 +15,15 @@ class MclLevelWriter(val outputDir: File) : LevelWriter {
     private lateinit var manager: MclConverterManager
 
     override fun writeLevel(chunkerLevel: ChunkerLevel): WorldWriter {
-        // 初始化映射注册表
         MclMappingInitializer.initialize()
-        // 初始化存储管理器
-        manager = MclConverterManager(outputDir)
+        
+        // 从 Chunker 元数据提取世界出生点
+        val spawnX = chunkerLevel.spawnX ?: 0
+        val spawnY = chunkerLevel.spawnY ?: 64
+        val spawnZ = chunkerLevel.spawnZ ?: 0
+
+        // 构建原生高速处理器
+        manager = MclConverterManager(outputDir, spawnX, spawnY, spawnZ)
         return MclWorldWriter(manager)
     }
 

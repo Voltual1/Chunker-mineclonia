@@ -1,266 +1,93 @@
 package me.voltual.mcl.core
 
 import java.io.File
-import java.lang.reflect.Method
-import java.util.concurrent.Executors
-import java.util.concurrent.ExecutorService
+import com.google.gson.Gson
 
-class MclSqliteSaver(dbPath: String) : AutoCloseable {
-    private var isAndroid = false
+/**
+ * Mineclonia 高速 SQLite 存储引擎 (Rust Fast-JNI 重构版本)
+ */
+class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : AutoCloseable {
     
-    // JDBC 引擎字段
-    private var jdbcConnection: Any? = null
-    private var jdbcInsertStmt: Any? = null
-    
-    // 安卓原生引擎反射字段
-    private var androidDb: Any? = null
-    private var androidInsertStmt: Any? = null
-    private var androidBindLongMethod: Method? = null
-    private var androidBindBlobMethod: Method? = null
-    private var androidExecuteInsertMethod: Method? = null
-    private var androidClearBindingsMethod: Method? = null
-    private var androidBeginTransactionMethod: Method? = null
-    private var androidSetTransactionSuccessfulMethod: Method? = null
-    private var androidEndTransactionMethod: Method? = null
-    private var androidInTransactionMethod: Method? = null
-    private var androidCloseDbMethod: Method? = null
-    private var androidCloseStmtMethod: Method? = null
+    private val gson = Gson()
 
-    // 自动分批提交计数器
-    private var saveCount = 0
-    private val AUTO_COMMIT_THRESHOLD = 500
+    companion object {
+        init {
+            // 加载 Rust 编译后的高速 C 动态运行库
+            System.loadLibrary("mc2mt")
+        }
 
-    // 专属的单线程执行器，确保所有 SQLite 操作在同一线程顺序执行，彻底杜绝多线程事务死锁
-    private val databaseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
-        Thread(runnable, "MclSqliteSaver-Worker")
+        // =========================================================================
+        // 原生 C ABI 接口方法声明
+        // =========================================================================
+        @JvmStatic
+        private external fun initNativeEngine(
+            dbPath: String, 
+            spawnX: Int, 
+            spawnY: Int, 
+            spawnZ: Int
+        ): Boolean
+
+        @JvmStatic
+        private external fun writeChunkFast(
+            cx: Int, cy: Int, cz: Int,
+            blockIds: ShortArray,
+            param1: ByteArray,
+            param2: ByteArray,
+            localNamesJson: ByteArray,
+            metadataJson: ByteArray
+        ): Boolean
+
+        @JvmStatic
+        private external fun flushNativeEngine(): Boolean
+
+        @JvmStatic
+        private external fun closeNativeEngine()
     }
 
     init {
+        // 创建目标数据库文件夹
         val file = File(dbPath)
         file.parentFile?.mkdirs()
 
-        try {
-            // 探测当前运行环境是否为安卓系统
-            Class.forName("android.database.sqlite.SQLiteDatabase")
-            isAndroid = true
-        } catch (e: ClassNotFoundException) {
-            isAndroid = false
-        }
-
-        // 将初始化操作提交至单线程队列中执行并等待完成
-        databaseExecutor.submit {
-            if (isAndroid) {
-                initAndroid(dbPath)
-            } else {
-                initJdbc(dbPath)
-            }
-        }.get()
-    }
-
-    private fun initAndroid(dbPath: String) {
-        try {
-            val dbClass = Class.forName("android.database.sqlite.SQLiteDatabase")
-            val stmtClass = Class.forName("android.database.sqlite.SQLiteStatement")
-            val cursorClass = Class.forName("android.database.Cursor")
-            
-            val openMethod = dbClass.getMethod(
-                "openOrCreateDatabase", 
-                String::class.java, 
-                Class.forName("android.database.sqlite.SQLiteDatabase\$CursorFactory")
-            )
-            androidDb = openMethod.invoke(null, dbPath, null)
-            
-            // 使用 rawQuery 安全执行 PRAGMA 语句，避免 execSQL 报错
-            val rawQueryMethod = dbClass.getMethod("rawQuery", String::class.java, Array<String>::class.java)
-            val moveToFirstMethod = cursorClass.getMethod("moveToFirst")
-            val closeCursorMethod = cursorClass.getMethod("close")
-
-            val safeExecutePragma = { pragmaSql: String ->
-                val cursor = rawQueryMethod.invoke(androidDb, pragmaSql, null)
-                if (cursor != null) {
-                    moveToFirstMethod.invoke(cursor)
-                    closeCursorMethod.invoke(cursor)
-                }
-            }
-
-            safeExecutePragma("PRAGMA synchronous = OFF;")
-            safeExecutePragma("PRAGMA journal_mode = MEMORY;")
-            
-            // CREATE TABLE 不需要返回结果，使用 execSQL 执行
-            val execSQLMethod = dbClass.getMethod("execSQL", String::class.java)
-            execSQLMethod.invoke(androidDb, """
-                CREATE TABLE IF NOT EXISTS `blocks` (
-                    `pos` INT PRIMARY KEY,
-                    `data` BLOB
-                );
-            """.trimIndent())
-            
-            val compileMethod = dbClass.getMethod("compileStatement", String::class.java)
-            androidInsertStmt = compileMethod.invoke(androidDb, "INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
-            
-            androidBindLongMethod = stmtClass.getMethod("bindLong", Int::class.javaPrimitiveType, Long::class.javaPrimitiveType)
-            androidBindBlobMethod = stmtClass.getMethod("bindBlob", Int::class.javaPrimitiveType, ByteArray::class.java)
-            androidExecuteInsertMethod = stmtClass.getMethod("executeInsert")
-            androidClearBindingsMethod = stmtClass.getMethod("clearBindings")
-            
-            androidBeginTransactionMethod = dbClass.getMethod("beginTransaction")
-            androidSetTransactionSuccessfulMethod = dbClass.getMethod("setTransactionSuccessful")
-            androidEndTransactionMethod = dbClass.getMethod("endTransaction")
-            androidInTransactionMethod = dbClass.getMethod("inTransaction")
-            
-            androidCloseDbMethod = dbClass.getMethod("close")
-            androidCloseStmtMethod = stmtClass.getMethod("close")
-            
-            // 开启首个批处理事务
-            androidBeginTransactionMethod?.invoke(androidDb)
-        } catch (e: Exception) {
-            e.printStackTrace()
-            // 如果反射初始化发生任何异常，自动降级至 JDBC 驱动
-            isAndroid = false
-            initJdbc(dbPath)
+        // 初始化原生数据库事务和出生点
+        val success = initNativeEngine(dbPath, spawnX, spawnY, spawnZ)
+        if (!success) {
+            throw RuntimeException("Failed to initialize Rust native SQLite database engine.")
         }
     }
 
-    private fun initJdbc(dbPath: String) {
-        try {
-            val driverClass = Class.forName("java.sql.DriverManager")
-            val getConnectionMethod = driverClass.getMethod("getConnection", String::class.java)
-            val conn = getConnectionMethod.invoke(null, "jdbc:sqlite:$dbPath")
-            jdbcConnection = conn
-            
-            val setAutoCommitMethod = conn.javaClass.getMethod("setAutoCommit", Boolean::class.javaPrimitiveType)
-            setAutoCommitMethod.invoke(conn, false)
-            
-            val createStatementMethod = conn.javaClass.getMethod("createStatement")
-            val statement = createStatementMethod.invoke(conn)
-            val executeMethod = statement.javaClass.getMethod("execute", String::class.java)
-            executeMethod.invoke(statement, "PRAGMA synchronous = OFF;")
-            executeMethod.invoke(statement, "PRAGMA journal_mode = MEMORY;")
-            executeMethod.invoke(statement, """
-                CREATE TABLE IF NOT EXISTS `blocks` (
-                    `pos` INT PRIMARY KEY,
-                    `data` BLOB
-                );
-            """.trimIndent())
-            statement.javaClass.getMethod("close").invoke(statement)
-            
-            val prepareStatementMethod = conn.javaClass.getMethod("prepareStatement", String::class.java)
-            jdbcInsertStmt = prepareStatementMethod.invoke(conn, "INSERT OR REPLACE INTO `blocks` (`pos`, `data`) VALUES (?, ?)")
-        } catch (e: Exception) {
-            throw RuntimeException("Failed to initialize JDBC SQLite driver", e)
-        }
-    }
+    /**
+     * 将整个 Chunk 数据推送到 JNI 临界区，实现物理极速落盘
+     */
+    fun saveChunkNatively(
+        cx: Int, cy: Int, cz: Int,
+        blockIds: ShortArray,
+        param1: ByteArray,
+        param2: ByteArray,
+        localNames: List<String>,
+        metadata: Map<Int, MclBlockEntityData>
+    ) {
+        val namesJsonBytes = gson.toJson(localNames).toByteArray(Charsets.UTF_8)
+        val metaJsonBytes = gson.toJson(metadata).toByteArray(Charsets.UTF_8)
 
-    fun saveBlock(pos: MclPos, data: ByteArray) {
-        // 异步提交到单线程队列，不阻塞 Chunker 的工作线程
-        databaseExecutor.submit {
-            if (isAndroid) {
-                try {
-                    androidClearBindingsMethod?.invoke(androidInsertStmt)
-                    androidBindLongMethod?.invoke(androidInsertStmt, 1, pos.encode())
-                    androidBindBlobMethod?.invoke(androidInsertStmt, 2, data)
-                    androidExecuteInsertMethod?.invoke(androidInsertStmt)
-                    
-                    saveCount++
-                    if (saveCount >= AUTO_COMMIT_THRESHOLD) {
-                        commitInternal()
-                        saveCount = 0
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            } else {
-                try {
-                    val setLongMethod = jdbcInsertStmt!!.javaClass.getMethod("setLong", Int::class.javaPrimitiveType, Long::class.javaPrimitiveType)
-                    val setBytesMethod = jdbcInsertStmt!!.javaClass.getMethod("setBytes", Int::class.javaPrimitiveType, ByteArray::class.java)
-                    val addBatchMethod = jdbcInsertStmt!!.javaClass.getMethod("addBatch")
-                    
-                    setLongMethod.invoke(jdbcInsertStmt, 1, pos.encode())
-                    setBytesMethod.invoke(jdbcInsertStmt, 2, data)
-                    addBatchMethod.invoke(jdbcInsertStmt)
-                    
-                    saveCount++
-                    if (saveCount >= AUTO_COMMIT_THRESHOLD) {
-                        commitInternal()
-                        saveCount = 0
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
+        val status = writeChunkFast(
+            cx, cy, cz,
+            blockIds,
+            param1,
+            param2,
+            namesJsonBytes,
+            metaJsonBytes
+        )
+        if (!status) {
+            System.err.println("[MclSqliteSaver] Native error occurred writing chunk at: ($cx, $cy, $cz)")
         }
     }
 
     fun commit() {
-        // 提交到单线程队列并阻塞等待，确保数据完全写入
-        databaseExecutor.submit {
-            commitInternal()
-            saveCount = 0
-        }.get()
-    }
-
-    private fun commitInternal() {
-        if (isAndroid) {
-            try {
-                val inTx = androidInTransactionMethod?.invoke(androidDb) as? Boolean ?: false
-                if (inTx) {
-                    androidSetTransactionSuccessfulMethod?.invoke(androidDb)
-                    androidEndTransactionMethod?.invoke(androidDb)
-                }
-                androidBeginTransactionMethod?.invoke(androidDb)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        } else {
-            try {
-                val executeBatchMethod = jdbcInsertStmt!!.javaClass.getMethod("executeBatch")
-                val commitMethod = jdbcConnection!!.javaClass.getMethod("commit")
-                executeBatchMethod.invoke(jdbcInsertStmt)
-                commitMethod.invoke(jdbcConnection)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-        }
+        flushNativeEngine()
     }
 
     override fun close() {
-        // 提交关闭操作到单线程队列，等待所有未完成的写入及提交执行完毕
-        databaseExecutor.submit {
-            if (isAndroid) {
-                try {
-                    val inTx = androidInTransactionMethod?.invoke(androidDb) as? Boolean ?: false
-                    if (inTx) {
-                        androidSetTransactionSuccessfulMethod?.invoke(androidDb)
-                        androidEndTransactionMethod?.invoke(androidDb)
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                try {
-                    androidCloseStmtMethod?.invoke(androidInsertStmt)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                try {
-                    androidCloseDbMethod?.invoke(androidDb)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            } else {
-                try {
-                    jdbcInsertStmt?.javaClass?.getMethod("close")?.invoke(jdbcInsertStmt)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-                try {
-                    jdbcConnection?.javaClass?.getMethod("close")?.invoke(jdbcConnection)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }.get()
-        
-        // 关闭单线程执行器
-        databaseExecutor.shutdown()
+        closeNativeEngine()
     }
 }

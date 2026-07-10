@@ -7,7 +7,12 @@ import me.voltual.mcl.mapping.MclBlockEntityRegistry
 import java.io.File
 import java.util.logging.Logger
 
-class MclConverterManager(val outputDir: File) : AutoCloseable {
+class MclConverterManager(
+    val outputDir: File, 
+    spawnX: Int = 0, 
+    spawnY: Int = 64, 
+    spawnZ: Int = 0
+) : AutoCloseable {
     private val logger = Logger.getLogger("MclConverterManager")
     private val saver: MclSqliteSaver
 
@@ -28,12 +33,10 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
         }
 
         val dbPath = File(outputDir, "map.sqlite").absolutePath
-        saver = MclSqliteSaver(dbPath)
+        // 跨界传递出生点，保证生存期无缝
+        saver = MclSqliteSaver(dbPath, spawnX, spawnY - 4 + 1, spawnZ)
     }
 
-    /**
-     * 处理从 Chunker 读取到的一个区块列 (Column)
-     */
     fun convertColumn(column: ChunkerColumn) {
         val chunkX = column.position.chunkX
         val chunkZ = column.position.chunkZ
@@ -41,64 +44,75 @@ class MclConverterManager(val outputDir: File) : AutoCloseable {
         for ((yByte, chunk) in column.chunks) {
             val y = yByte.toInt()
             
-            val mclNodes = ArrayList<MclNode>(4096)
+            // 构建零拷贝平面数组数组
+            val blockIds = ShortArray(4096)
+            val param1 = ByteArray(4096)
+            val param2 = ByteArray(4096)
+            
+            val localNames = mutableListOf<String>()
+            val nameToLocalId = mutableMapOf<String, Short>()
             val metadata = mutableMapOf<Int, MclBlockEntityData>()
             
             val palette = chunk.palette
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            // 完全对齐 C++ 内部的 YZX 局部循环顺序
+            var i = 0
+            // 完全对齐 C++ / Rust 统一的 YZX 局部循环顺序
             for (localY in 0 until 16) {
                 for (localZ in 0 until 16) {
                     for (localX in 0 until 16) {
-                        // Minecraft X 轴在转换到 Minetest 时需要被反转
                         val mcX = 15 - localX 
                         val mcY = localY
                         val mcZ = localZ
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
-                        
-                        // 转换方块类型和状态
                         val node = MclMappingRegistry.convert(identifier)
+                        
+                        // 计算局部名字 ID
+                        val localId = nameToLocalId.getOrPut(node.name) {
+                            val nextId = localNames.size.toShort()
+                            localNames.add(node.name)
+                            nextId
+                        }
+                        
+                        blockIds[i] = localId
                         
                         // 处理光照
                         if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
-                            node.setLight(bl, sl)
+                            
+                            val dayLight = Math.max(bl.toInt(), sl.toInt()) and 0x0F
+                            val nightLight = bl.toInt() and 0x0F
+                            param1[i] = ((nightLight shl 4) or dayLight).toByte()
                         } else {
-                            node.param1 = if (y < 4) 0x00.toByte() else 0x0F.toByte()
+                            param1[i] = (if (y < 4) 0x00 else 0x0F).toByte()
                         }
                         
-                        mclNodes.add(node)
+                        param2[i] = node.param2
                         
-                        // 处理方块实体
+                        // 处理方块实体 (BlockEntity)
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
-                                val blockIdx = (localY shl 8) or (localZ shl 4) or localX
-                                metadata[blockIdx] = data
+                                metadata[i] = data
                             }
                         }
+                        i++
                     }
                 }
             }
 
-            // 对齐 C++ 的全局坐标变换：
-            // Minecraft 的 X 轴在区域里是反向的 (-chunkX - 1)
-            // Minetest 的 Y 轴偏移 -4 以对齐海平面 (Y=64 -> Y=0)
-            val mclPos = MclPos(-chunkX - 1, y - 4, chunkZ)
-            
-            // 序列化
-            val serializedData = MclBlockSerializer.serialize(
-                mclNodes, 
-                metadata, 
-                isUnderground = (y - 4) < 0
+            // 直接调用 Rust 动态链接库并发序列化压缩与写入
+            saver.saveChunkNatively(
+                chunkX, y, chunkZ,
+                blockIds,
+                param1,
+                param2,
+                localNames,
+                metadata
             )
-            
-            // 写入数据库
-            saver.saveBlock(mclPos, serializedData)
         }
     }
 
