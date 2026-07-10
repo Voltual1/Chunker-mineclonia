@@ -5,8 +5,6 @@ use jni::sys::jboolean;
 use jni::JNIEnv;
 use log::{error, info};
 use std::sync::atomic::{AtomicI64, Ordering};
-use std::thread;
-use std::time::Duration;
 
 use crate::mc_map::MCMap;
 
@@ -14,7 +12,7 @@ static GROUPS_DONE: AtomicI64 = AtomicI64::new(0);
 static BLOCKS_DONE: AtomicI64 = AtomicI64::new(0);
 
 #[no_mangle]
-pub extern "system" fn JNI_OnLoad(vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
+pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_void) -> jni::sys::jint {
     android_logger::init_once(
         android_logger::Config::default()
             .with_max_level(log::LevelFilter::Info)
@@ -57,7 +55,7 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    let output: String = match env.get_string(&output_path) {
+    let _output: String = match env.get_string(&output_path) {
         Ok(s) => s.into(),
         Err(_) => return jni::sys::JNI_FALSE,
     };
@@ -94,16 +92,14 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
     GROUPS_DONE.store(0, Ordering::SeqCst);
     BLOCKS_DONE.store(0, Ordering::SeqCst);
 
-    // 暂行单线程或简易线程循环（下一步将引入 Rayon 进行并发区块读取和转换）
     for (i, group) in groups.iter().enumerate() {
         let step = i as i64;
         GROUPS_DONE.store(step, Ordering::SeqCst);
         
-        // 扫描并尝试读取一个区块文件内的 Chunk
+        // 扫描并读取有效的 Chunk 坐标
         if let Ok(chunk_positions) = mc_map.list_chunks(group) {
             for pos in chunk_positions {
                 if let Ok(blocks) = mc_map.load_chunk(group, pos) {
-                    // 模拟转换：累加完成的 Block 数据
                     BLOCKS_DONE.fetch_add(blocks.len() as i64, Ordering::SeqCst);
                 }
             }

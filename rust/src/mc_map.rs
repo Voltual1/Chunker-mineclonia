@@ -55,7 +55,7 @@ impl MCMap {
             return Err("level.dat not found".to_string());
         }
 
-        let mut file = File::open(&level_dat_path)
+        let file = File::open(&level_dat_path)
             .map_err(|e| format!("Failed to open level.dat: {}", e))?;
         
         // level.dat 通常是 Gzip 压缩的 NBT
