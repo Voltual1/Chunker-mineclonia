@@ -11,7 +11,7 @@ cargo build --bin mc2mt-cli --release
 cd "$BASEDIR"
 
 echo "=== 2. Configuring Android NDK Toolchain ==="
-# 运行我们之前写好的 NDK 准备脚本
+# 运行 NDK 准备脚本
 chmod +x rust-build/pre_build_mc2mt_android.sh
 chmod +x rust-build/setenv-android.sh
 ./rust-build/pre_build_mc2mt_android.sh
@@ -20,27 +20,26 @@ chmod +x rust-build/setenv-android.sh
 export ANDROID_NDK="$BASEDIR/android-ndk-r26d"
 . ./rust-build/setenv-android.sh
 
-# 在 rust 目录下临时配置 NDK 链接器
+# 在 rust 目录下临时配置 NDK 链接器（修正为无 API 版本号的 clang 路径）
 cd rust
 mkdir -p .cargo
 cat > .cargo/config.toml << EOF
 [target.aarch64-linux-android]
-linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
 
 [target.armv7-linux-androideabi]
-linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
 EOF
 
 echo "=== 3. Exporting C Cross-Compiler Envs for Sqlite3 ==="
-# 显式导出编译器和归档器，让 cc-rs 编译 sqlite3.c 时使用 NDK 的 Clang
-export CC_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+# 显式导出编译器和归档器（修正为无 API 版本号的 clang 路径）
+export CC_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
 export AR_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
 
-# 同样为 armv7 导出，防止后续需要
-export CC_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+export CC_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
 export AR_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
-export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
 
 echo "=== 4. Building Termux compatible CLI (aarch64-linux-android) ==="
 # 使用 aarch64-linux-android 目标进行编译

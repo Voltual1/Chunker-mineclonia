@@ -56,19 +56,19 @@ cd .cargo
 CURR_DIR=`pwd`
 echo Entered directory $CURR_DIR
 
-# Create a config file
+# Create a config file (修正为正确的 clang 文件名)
 cat > config.toml << EOF
 [target]
  [target.armv7-linux-androideabi]
- linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
  [target.arm-linux-androideabi]
- linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi30-clang"
+ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
  [target.aarch64-linux-android]
- linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android30-clang"
+ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
  [target.x86_64-linux-android]
- linker = "${ANDROID_TOOLCHAIN_DIR}/bin/x86_64-linux-android30-clang"
+ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/x86_64-linux-android-clang"
  [target.i686-linux-android]
- linker = "${ANDROID_TOOLCHAIN_DIR}/bin/i686-linux-android30-clang"
+ linker = "${ANDROID_TOOLCHAIN_DIR}/bin/i686-linux-android-clang"
 EOF
 
 echo "Rust pre-build setup completed."
