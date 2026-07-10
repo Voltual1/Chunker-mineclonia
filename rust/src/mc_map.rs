@@ -1,10 +1,10 @@
 // mc_map.rs
 
 use std::fs::File;
-use std::io::{Read, Seek, SeekFrom};
+use std::io::{Read, Seek, SeekFrom, Cursor};
 use crate::convert::post_process_blocks;
 use std::path::{Path, PathBuf};
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt};
 use flate2::read::{GzDecoder, ZlibDecoder};
 
 pub const MAP_BLOCK_SIZE: usize = 16;
@@ -55,17 +55,29 @@ impl MCMap {
             return Err("level.dat not found".to_string());
         }
 
-        let file = File::open(&level_dat_path)
+        let mut file = File::open(&level_dat_path)
             .map_err(|e| format!("Failed to open level.dat: {}", e))?;
         
-        let mut decoder = GzDecoder::new(file);
-        let mut decompressed_data = Vec::new();
-        decoder.read_to_end(&mut decompressed_data)
-            .map_err(|e| format!("Failed to decompress level.dat: {}", e))?;
+        let mut buffer = Vec::new();
+        file.read_to_end(&mut buffer).map_err(|e| e.to_string())?;
 
-        let mut cursor = std::io::Cursor::new(decompressed_data);
-        let level_dat = parse_nbt(&mut cursor)
-            .map_err(|e| format!("Failed to parse level.dat NBT: {}", e))?;
+        // 自动探测格式
+        let level_dat = if buffer.starts_with(&[0x1f, 0x8b]) {
+            // 1. Java 版：GZip 压缩 + 大端序
+            let mut decoder = GzDecoder::new(&buffer[..]);
+            let mut decompressed = Vec::new();
+            decoder.read_to_end(&mut decompressed).map_err(|e| format!("Java GZip error: {}", e))?;
+            let mut cursor = Cursor::new(decompressed);
+            parse_nbt(&mut cursor, true)? // Big Endian
+        } else {
+            // 2. 基岩版：未压缩 + 8字节头 + 小端序
+            // 头部：[0..3] 版本, [4..7] NBT 长度
+            if buffer.len() < 8 {
+                return Err("Bedrock level.dat too short".to_string());
+            }
+            let mut cursor = Cursor::new(&buffer[8..]);
+            parse_nbt(&mut cursor, false)? // Little Endian
+        };
 
         Ok(MCMap { path, level_dat })
     }
@@ -73,7 +85,10 @@ impl MCMap {
     pub fn list_groups(&self) -> Result<Vec<MCGroup>, String> {
         let region_dir = self.path.join("region");
         if !region_dir.exists() {
-            return Err("region directory not found".to_string());
+            // 如果没有 region 文件夹，说明这可能是一个基岩版存档
+            // 目前 Rust 核心解析主要针对 Java 版的 MCA/MCR。
+            // 基岩版的转换逻辑目前由 Kotlin 端的 LevelDB 处理。
+            return Ok(Vec::new());
         }
 
         let mut groups = Vec::new();
@@ -141,7 +156,7 @@ impl MCMap {
         Ok(chunks)
     }
 
-        pub fn load_chunk(&self, group: &MCGroup, pos: MCChunkPos) -> Result<Vec<MCBlock>, String> {
+    pub fn load_chunk(&self, group: &MCGroup, pos: MCChunkPos) -> Result<Vec<MCBlock>, String> {
         let mut file = File::open(&group.file_path)
             .map_err(|e| format!("Failed to open region file: {}", e))?;
 
@@ -180,8 +195,8 @@ impl MCMap {
             _ => return Err(format!("Unsupported compression type: {}", compression_type)),
         };
 
-        let mut cursor = std::io::Cursor::new(decompressed);
-        let nbt_root = parse_nbt(&mut cursor)?;
+        let mut cursor = Cursor::new(decompressed);
+        let nbt_root = parse_nbt(&mut cursor, true)?; // MCA chunks are always Big Endian
 
         let mut blocks = Vec::new();
         
@@ -202,8 +217,6 @@ impl MCMap {
                                     if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                         if (te_y >> 4) == y as i32 {
                                             let mut te_cloned = te.clone();
-                                            // 【完全同步 C++】：tile_entities X坐标反转映射：
-                                            // t["x"] = pos.x * MAP_BLOCK_SIZE + (MAP_BLOCK_SIZE-1) - t["x"] % 16
                                             if let Some(te_x) = te_cloned.get_mut_map().and_then(|m| m.get_mut("x")) {
                                                 if let NbtTag::Int(x_val) = te_x {
                                                     let global_x = *x_val;
@@ -211,7 +224,6 @@ impl MCMap {
                                                     *x_val = block_pos_x * 16 + 15 - (global_x % 16);
                                                 }
                                             }
-                                            // 【完全同步 C++】：y 轴保持本地相对：(y & 0xF) - 16
                                             if let Some(te_y_mut) = te_cloned.get_mut_map().and_then(|m| m.get_mut("y")) {
                                                 if let NbtTag::Int(y_val) = te_y_mut {
                                                     *y_val = (*y_val & 0xF) - 16;
@@ -233,7 +245,6 @@ impl MCMap {
                             if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
                                 if (te_y >> 4) == y_slice as i32 {
                                     let mut te_cloned = te.clone();
-                                    // 【完全同步 C++】：与 Anvil 相似，但在 Regions 下 C++ 代码中的 X 轴只做了相对值转换
                                     if let Some(te_y_mut) = te_cloned.get_mut_map().and_then(|m| m.get_mut("y")) {
                                         if let NbtTag::Int(y_val) = te_y_mut {
                                             *y_val = (*y_val & 0xF) - 16;
@@ -259,20 +270,17 @@ impl MCMap {
             let x = data.get("SpawnX").and_then(|t| t.as_i32()).unwrap_or(0);
             let y = data.get("SpawnY").and_then(|t| t.as_i32()).unwrap_or(64);
             let z = data.get("SpawnZ").and_then(|t| t.as_i32()).unwrap_or(0);
-            
-            // 【完全同步 C++】：C++ 默认直接返回原始出生点，我们在 Rust 里对齐即可
             return (x, y, z);
         }
         (0, 64, 0)
     }
 }
 
-// ===================================================
-// 完全复刻 C++ 轴反转与重排列的三维几何系统
-// ===================================================
+// ==========================================
+// 辅助解析方法：支持大小端切换
+// ==========================================
 
 fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
-    // 【完全同步 C++】：pos = {-cp.x - 1, y_slice, cp.z}
     let pos_x = -cp.x - 1;
     let pos_y = y_slice;
     let pos_z = cp.z;
@@ -308,7 +316,6 @@ fn parse_anvil_section(section: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<
 }
 
 fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Result<MCBlock, String> {
-    // 【完全同步 C++】：pos = {cp.x, y_slice, cp.z}
     let pos_x = cp.x;
     let pos_y = y_slice;
     let pos_z = cp.z;
@@ -336,14 +343,11 @@ fn parse_region_slice(chunk_level: &NbtTag, cp: MCChunkPos, y_slice: u8) -> Resu
     Ok(MCBlock { pos_x, pos_y, pos_z, blocks, data, sky_light, block_light, tile_entities: Vec::new() })
 }
 
-/// 【完全同步 C++】：reverseXAxis 
-/// 它名为反转X轴，实际上是在把 YZX 数据重新映射成 ZYX 格式时，**反转了内部的 Z 轴**（即 (15 - z) 逻辑）
 fn reverse_x_axis(data: &mut [u16], l: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..16 {
-                // i = (y << 8) | (((15 - z) << 4) | (x);
                 let i = (y << 8) | ((15 - z) << 4) | x;
                 if i < l.len() {
                     data[data_key] = l[i] as u16;
@@ -354,14 +358,11 @@ fn reverse_x_axis(data: &mut [u16], l: &[u8]) {
     }
 }
 
-/// 【完全同步 C++】：expandHalfBytes
-/// 完成半字节到字节解压的同时，同样反转内部的 Z 轴
 fn expand_half_bytes(data: &mut [u8], l: &[u8]) {
     let mut data_key = 0;
     for y in 0..16 {
         for z in 0..16 {
             for x in 0..(16 / 2) {
-                // i = (y << 7) | (((15 - z) << 3) | x;
                 let i = (y << 7) | ((15 - z) << 3) | x;
                 if i < l.len() {
                     let b = l[i];
@@ -374,8 +375,6 @@ fn expand_half_bytes(data: &mut [u8], l: &[u8]) {
     }
 }
 
-/// 【完全同步 C++】：extractSlice
-/// 对应 Regions 旧版格式从 XZY 转换为 YZX
 fn extract_slice(data: &mut [u16], l: &[u8], y_slice: u8) {
     let mut key = (y_slice as usize) << 4;
     let mut data_key = 0;
@@ -394,8 +393,6 @@ fn extract_slice(data: &mut [u16], l: &[u8], y_slice: u8) {
     }
 }
 
-/// 【完全同步 C++】：extractSliceHalfBytes
-/// 对应 Regions 旧版格式的 4-bit 提取与转换
 fn extract_slice_half_bytes(data: &mut [u8], l: &[u8], y_slice: u8) {
     let mut key = (y_slice as usize) << 3;
     let mut data_key_1 = 0;
@@ -415,7 +412,7 @@ fn extract_slice_half_bytes(data: &mut [u8], l: &[u8], y_slice: u8) {
             key = (key & 0x3FF) + 64;
         }
         key = (key & 0x3F) + 1;
-        data_key_1 += 256; // 跳过一层 (16*16)
+        data_key_1 += 256;
         data_key_2 += 256;
     }
 }
@@ -525,50 +522,74 @@ impl NbtTag {
     }
 }
 
-pub fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
+pub fn parse_nbt<R: Read + Seek>(reader: &mut R, big_endian: bool) -> Result<NbtTag, String> {
     let tag_type = reader.read_u8().map_err(|e| e.to_string())?;
     if tag_type == 0 {
         return Ok(NbtTag::End);
     }
     
-    let name_len = reader.read_u16::<BigEndian>().map_err(|e| e.to_string())?;
+    // 读取 Root 名称长度（总是大端或小端对应）
+    let name_len = if big_endian {
+        reader.read_u16::<BigEndian>().map_err(|e| e.to_string())?
+    } else {
+        reader.read_u16::<LittleEndian>().map_err(|e| e.to_string())?
+    };
+
     let mut name_buf = vec![0u8; name_len as usize];
     reader.read_exact(&mut name_buf).map_err(|e| e.to_string())?;
     let root_name = String::from_utf8_lossy(&name_buf).into_owned();
 
-    let tag = read_tag_payload(reader, tag_type)?;
+    let tag = read_tag_payload(reader, tag_type, big_endian)?;
     
     let mut root_map = std::collections::HashMap::new();
     root_map.insert(root_name, tag);
     Ok(NbtTag::Compound(root_map))
 }
 
-fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8) -> Result<NbtTag, String> {
+fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8, be: bool) -> Result<NbtTag, String> {
     match tag_type {
         1 => Ok(NbtTag::Byte(reader.read_i8().map_err(|e| e.to_string())?)),
-        2 => Ok(NbtTag::Short(reader.read_i16::<BigEndian>().map_err(|e| e.to_string())?)),
-        3 => Ok(NbtTag::Int(reader.read_i32::<BigEndian>().map_err(|e| e.to_string())?)),
-        4 => Ok(NbtTag::Long(reader.read_i64::<BigEndian>().map_err(|e| e.to_string())?)),
-        5 => Ok(NbtTag::Float(reader.read_f32::<BigEndian>().map_err(|e| e.to_string())?)),
-        6 => Ok(NbtTag::Double(reader.read_f64::<BigEndian>().map_err(|e| e.to_string())?)),
+        2 => {
+            let val = if be { reader.read_i16::<BigEndian>() } else { reader.read_i16::<LittleEndian>() };
+            Ok(NbtTag::Short(val.map_err(|e| e.to_string())?))
+        },
+        3 => {
+            let val = if be { reader.read_i32::<BigEndian>() } else { reader.read_i32::<LittleEndian>() };
+            Ok(NbtTag::Int(val.map_err(|e| e.to_string())?))
+        },
+        4 => {
+            let val = if be { reader.read_i64::<BigEndian>() } else { reader.read_i64::<LittleEndian>() };
+            Ok(NbtTag::Long(val.map_err(|e| e.to_string())?))
+        },
+        5 => {
+            let val = if be { reader.read_f32::<BigEndian>() } else { reader.read_f32::<LittleEndian>() };
+            Ok(NbtTag::Float(val.map_err(|e| e.to_string())?))
+        },
+        6 => {
+            let val = if be { reader.read_f64::<BigEndian>() } else { reader.read_f64::<LittleEndian>() };
+            Ok(NbtTag::Double(val.map_err(|e| e.to_string())?))
+        },
         7 => {
-            let len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())? as usize;
+            let len = if be { reader.read_u32::<BigEndian>() } else { reader.read_u32::<LittleEndian>() };
+            let len = len.map_err(|e| e.to_string())? as usize;
             let mut buf = vec![0u8; len];
             reader.read_exact(&mut buf).map_err(|e| e.to_string())?;
             Ok(NbtTag::ByteArray(buf))
         }
         8 => {
-            let len = reader.read_u16::<BigEndian>().map_err(|e| e.to_string())? as usize;
+            let len = if be { reader.read_u16::<BigEndian>() } else { reader.read_u16::<LittleEndian>() };
+            let len = len.map_err(|e| e.to_string())? as usize;
             let mut buf = vec![0u8; len];
             reader.read_exact(&mut buf).map_err(|e| e.to_string())?;
             Ok(NbtTag::String(String::from_utf8_lossy(&buf).into_owned()))
         }
         9 => {
             let sub_type = reader.read_u8().map_err(|e| e.to_string())?;
-            let len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())? as usize;
+            let len = if be { reader.read_u32::<BigEndian>() } else { reader.read_u32::<LittleEndian>() };
+            let len = len.map_err(|e| e.to_string())? as usize;
             let mut list = Vec::with_capacity(len);
             for _ in 0..len {
-                list.push(read_tag_payload(reader, sub_type)?);
+                list.push(read_tag_payload(reader, sub_type, be)?);
             }
             Ok(NbtTag::List(list))
         }
@@ -579,28 +600,33 @@ fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8) -> Result<NbtT
                 if sub_type == 0 {
                     break;
                 }
-                let len = reader.read_u16::<BigEndian>().map_err(|e| e.to_string())? as usize;
+                let len = if be { reader.read_u16::<BigEndian>() } else { reader.read_u16::<LittleEndian>() };
+                let len = len.map_err(|e| e.to_string())? as usize;
                 let mut name_buf = vec![0u8; len];
                 reader.read_exact(&mut name_buf).map_err(|e| e.to_string())?;
                 let name = String::from_utf8_lossy(&name_buf).into_owned();
-                let val = read_tag_payload(reader, sub_type)?;
+                let val = read_tag_payload(reader, sub_type, be)?;
                 map.insert(name, val);
             }
             Ok(NbtTag::Compound(map))
         }
         11 => {
-            let len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())? as usize;
+            let len = if be { reader.read_u32::<BigEndian>() } else { reader.read_u32::<LittleEndian>() };
+            let len = len.map_err(|e| e.to_string())? as usize;
             let mut arr = Vec::with_capacity(len);
             for _ in 0..len {
-                arr.push(reader.read_i32::<BigEndian>().map_err(|e| e.to_string())?);
+                let val = if be { reader.read_i32::<BigEndian>() } else { reader.read_i32::<LittleEndian>() };
+                arr.push(val.map_err(|e| e.to_string())?);
             }
             Ok(NbtTag::IntArray(arr))
         }
         12 => {
-            let len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())? as usize;
+            let len = if be { reader.read_u32::<BigEndian>() } else { reader.read_u32::<LittleEndian>() };
+            let len = len.map_err(|e| e.to_string())? as usize;
             let mut arr = Vec::with_capacity(len);
             for _ in 0..len {
-                arr.push(reader.read_i64::<BigEndian>().map_err(|e| e.to_string())?);
+                let val = if be { reader.read_i64::<BigEndian>() } else { reader.read_i64::<LittleEndian>() };
+                arr.push(val.map_err(|e| e.to_string())?);
             }
             Ok(NbtTag::LongArray(arr))
         }
