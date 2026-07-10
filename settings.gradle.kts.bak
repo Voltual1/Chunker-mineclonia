@@ -39,6 +39,7 @@ include("cli", "app")
 
 include(":converter")
 include(":MinecloniaDecoder")
+include(":MC2MT")
 include(":creative-api")
 
 include(":pack-schema-api")
