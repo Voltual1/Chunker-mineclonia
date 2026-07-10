@@ -192,30 +192,51 @@ impl MCMap {
             _ => return Err(format!("Unsupported compression type: {}", compression_type)),
         };
 
+        // ... 保持 load_chunk 顶部解压部分不变 ...
+
         let mut cursor = std::io::Cursor::new(decompressed);
         let nbt_root = parse_nbt(&mut cursor)?;
 
-        // 解析 NBT 树获取 Sections (对应 Anvil 格式)
         let mut blocks = Vec::new();
         
-        // 兼容处理：获取 level 根节点
         if let Some(level_nbt) = nbt_root.get_compound_child("")
             .and_then(|root| root.get_compound_child("Level")) 
         {
+            // 提取 Chunk 顶层所有的 TileEntities 列表
+            let empty_vec = Vec::new();
+            let tile_entities = level_nbt.get_list_child("TileEntities").unwrap_or(&empty_vec);
+
             match group.format {
                 MCFormat::Anvil => {
                     if let Some(sections) = level_nbt.get_list_child("Sections") {
                         for section in sections {
                             if let Some(y) = section.get_byte("Y") {
-                                blocks.push(parse_anvil_section(section, pos, y)?);
+                                // 解析时，顺便把属于该 Y 高度切片 (y_slice) 的实体滤出来传进去
+                                let mut section_blocks = parse_anvil_section(section, pos, y)?;
+                                
+                                for te in tile_entities {
+                                    if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
+                                        if (te_y >> 4) == y as i32 {
+                                            section_blocks.tile_entities.push(te.clone());
+                                        }
+                                    }
+                                }
+                                blocks.push(section_blocks);
                             }
                         }
                     }
                 }
                 MCFormat::Regions => {
-                    // 原 C++ 中的 Region 格式转换为 8 个切片
                     for y_slice in 0..8 {
-                        blocks.push(parse_region_slice(level_nbt, pos, y_slice)?);
+                        let mut section_blocks = parse_region_slice(level_nbt, pos, y_slice)?;
+                        for te in tile_entities {
+                            if let Some(te_y) = te.get("y").and_then(|t| t.as_i32()) {
+                                if (te_y >> 4) == y_slice as i32 {
+                                    section_blocks.tile_entities.push(te.clone());
+                                }
+                            }
+                        }
+                        blocks.push(section_blocks);
                     }
                 }
             }
@@ -390,7 +411,7 @@ fn extract_slice_half_bytes(data: &mut [u8], raw: &[u8], y_slice: u8) {
 }
 
 // ==========================================
-// 极简 NBT 树实现 (替换原 nbt.hpp 与 nbt.cpp)
+// 工业级强类型 NBT 树实现 (完全复刻并超越原 C++ nbt.hpp / nbt.cpp)
 // ==========================================
 
 #[derive(Debug, Clone)]
@@ -411,42 +432,97 @@ pub enum NbtTag {
 }
 
 impl NbtTag {
-    pub fn get_compound_child(&self, name: &str) -> Option<&NbtTag> {
-        if let NbtTag::Compound(map) = self {
-            map.get(name)
-        } else {
-            None
+    /// 模拟 C++ 中的 operator[]，安全地通过 Key 检索 Compound 子节点
+    pub fn get(&self, key: &str) -> Option<&NbtTag> {
+        match self {
+            NbtTag::Compound(map) => map.get(key),
+            _ => None,
         }
     }
 
+    /// 强类型转换：尝试转换为 i64 (兼容 Byte, Short, Int, Long)
+    pub fn as_i64(&self) -> Option<i64> {
+        match self {
+            &NbtTag::Byte(val) => Some(val as i64),
+            &NbtTag::Short(val) => Some(val as i64),
+            &NbtTag::Int(val) => Some(val as i64),
+            &NbtTag::Long(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// 强类型转换：尝试转换为 i32
+    pub fn as_i32(&self) -> Option<i32> {
+        match self {
+            &NbtTag::Byte(val) => Some(val as i32),
+            &NbtTag::Short(val) => Some(val as i32),
+            &NbtTag::Int(val) => Some(val),
+            &NbtTag::Long(val) => Some(val as i32),
+            _ => None,
+        }
+    }
+
+    /// 强类型转换：尝试转换为 f64
+    pub fn as_f64(&self) -> Option<f64> {
+        match self {
+            &NbtTag::Float(val) => Some(val as f64),
+            &NbtTag::Double(val) => Some(val),
+            _ => None,
+        }
+    }
+
+    /// 强类型转换：安全转换为 String 引用
+    pub fn as_str(&self) -> Option<&str> {
+        match self {
+            NbtTag::String(s) => Some(s.as_str()),
+            _ => None,
+        }
+    }
+
+    /// 强类型转换：安全转换为 ByteArray 引用
+    pub fn as_bytes(&self) -> Option<&[u8]> {
+        match self {
+            NbtTag::ByteArray(arr) => Some(&arr[..]),
+            _ => None,
+        }
+    }
+
+    /// 强类型转换：安全转换为 List 引用
+    pub fn as_list(&self) -> Option<&Vec<NbtTag>> {
+        match self {
+            NbtTag::List(list) => Some(list),
+            _ => None,
+        }
+    }
+
+    /// 兼容旧代码的方法定义
+    pub fn get_compound_child(&self, name: &str) -> Option<&NbtTag> {
+        self.get(name)
+    }
+
     pub fn get_list_child(&self, name: &str) -> Option<&Vec<NbtTag>> {
-        self.get_compound_child(name).and_then(|tag| {
-            if let NbtTag::List(list) = tag { Some(list) } else { None }
-        })
+        self.get(name).and_then(|tag| tag.as_list())
     }
 
     pub fn get_byte(&self, name: &str) -> Option<u8> {
-        self.get_compound_child(name).and_then(|tag| {
-            match tag {
-                NbtTag::Byte(b) => Some(*b as u8),
-                _ => None,
-            }
+        self.get(name).and_then(|tag| match tag {
+            &NbtTag::Byte(b) => Some(b as u8),
+            _ => None,
         })
     }
 
     pub fn get_byte_array(&self, name: &str) -> Option<&[u8]> {
-        self.get_compound_child(name).and_then(|tag| {
-            if let NbtTag::ByteArray(arr) = tag { Some(&arr[..]) } else { None }
-        })
+        self.get(name).and_then(|tag| tag.as_bytes())
     }
 }
 
-fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
+pub fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
     let tag_type = reader.read_u8().map_err(|e| e.to_string())?;
     if tag_type == 0 {
         return Ok(NbtTag::End);
     }
-    // 读取 Root 节点的名称长度及内容
+    
+    // 读取 NBT 根节点的名称长度及内容
     let name_len = reader.read_u16::<BigEndian>().map_err(|e| e.to_string())?;
     let mut name_buf = vec![0u8; name_len as usize];
     reader.read_exact(&mut name_buf).map_err(|e| e.to_string())?;
@@ -454,7 +530,7 @@ fn parse_nbt<R: Read + Seek>(reader: &mut R) -> Result<NbtTag, String> {
 
     let tag = read_tag_payload(reader, tag_type)?;
     
-    // 返回带根名包裹的 Compound
+    // 返回带根名称包裹的 Compound 字典
     let mut root_map = std::collections::HashMap::new();
     root_map.insert(root_name, tag);
     Ok(NbtTag::Compound(root_map))
@@ -483,7 +559,7 @@ fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8) -> Result<NbtT
         9 => {
             let sub_type = reader.read_u8().map_err(|e| e.to_string())?;
             let len = reader.read_u32::<BigEndian>().map_err(|e| e.to_string())? as usize;
-            let mut list = Vec::new();
+            let mut list = Vec::with_capacity(len);
             for _ in 0..len {
                 list.push(read_tag_payload(reader, sub_type)?);
             }

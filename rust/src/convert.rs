@@ -126,13 +126,83 @@ pub static CONVERSION_TABLE: Lazy<ConversionTable> = Lazy::new(|| {
     };
 
     // ==========================================
-    // 复刻 conversions.h 中的方块材质转换关系
+    // Rust 声明式宏：复刻 C++ conversions.h 的展开体系
     // ==========================================
-    
-    // 空气
-    add_conv(0, "minecraft:air", &[], "air", 0, false, PostProcessType::None);
 
-    // 石头系列
+    // 1. 楼梯宏展开 (自动生成 8 种朝向的光照和 param2 映射)
+    macro_rules! conv_stair {
+        ($id:expr, $mcn:expr, $mtn:expr) => {
+            add_conv($id, $mcn, &[0], $mtn, 1, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[1], $mtn, 3, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[2], $mtn, 2, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[3], $mtn, 0, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[4], $mtn, 23, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[5], $mtn, 21, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[6], $mtn, 22, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[7], $mtn, 20, false, PostProcessType::UpdateNodeLight);
+        };
+    }
+
+    // 2. 半砖宏展开 (自动生成顶部和底部半砖映射)
+    macro_rules! conv_slab {
+        ($id:expr, $mcn:expr, $dbottom:expr, $dtop:expr, $mtn:expr) => {
+            add_conv($id, $mcn, &[$dbottom], $mtn, 0, false, PostProcessType::UpdateNodeLight);
+            add_conv($id, $mcn, &[$dtop], &format!("{}_top", $mtn), 0, false, PostProcessType::UpdateNodeLight);
+        };
+    }
+
+    // 3. 活板门宏展开
+    macro_rules! conv_trapdoor {
+        ($id:expr, $mcn:expr, $mtn:expr) => {
+            add_conv($id, $mcn, &[0], $mtn, 2, false, PostProcessType::None);
+            add_conv($id, $mcn, &[1], $mtn, 0, false, PostProcessType::None);
+            add_conv($id, $mcn, &[2], $mtn, 1, false, PostProcessType::None);
+            add_conv($id, $mcn, &[3], $mtn, 3, false, PostProcessType::None);
+            add_conv($id, $mcn, &[4], &format!("{}_open", $mtn), 2, false, PostProcessType::None);
+            add_conv($id, $mcn, &[5], &format!("{}_open", $mtn), 0, false, PostProcessType::None);
+            add_conv($id, $mcn, &[6], &format!("{}_open", $mtn), 1, false, PostProcessType::None);
+            add_conv($id, $mcn, &[7], &format!("{}_open", $mtn), 3, false, PostProcessType::None);
+            add_conv($id, $mcn, &[8], $mtn, 22, false, PostProcessType::None);
+            add_conv($id, $mcn, &[9], $mtn, 20, false, PostProcessType::None);
+            add_conv($id, $mcn, &[10], $mtn, 23, false, PostProcessType::None);
+            add_conv($id, $mcn, &[11], $mtn, 21, false, PostProcessType::None);
+            add_conv($id, $mcn, &[12], &format!("{}_open", $mtn), 22, false, PostProcessType::None);
+            add_conv($id, $mcn, &[13], &format!("{}_open", $mtn), 20, false, PostProcessType::None);
+            add_conv($id, $mcn, &[14], &format!("{}_open", $mtn), 23, false, PostProcessType::None);
+            add_conv($id, $mcn, &[15], &format!("{}_open", $mtn), 21, false, PostProcessType::None);
+        };
+    }
+
+    // 4. 原木旋转宏展开
+    macro_rules! conv_log {
+        ($id:expr, $mcn:expr, $d:expr, $mtn:expr) => {
+            add_conv($id, $mcn, &[$d], $mtn, 0, false, PostProcessType::None);
+            add_conv($id, $mcn, &[($d + 4)], $mtn, 12, false, PostProcessType::None);
+            add_conv($id, $mcn, &[($d + 8)], $mtn, 4, false, PostProcessType::None);
+            add_conv($id, $mcn, &[($d + 12)], $mtn, 0, false, PostProcessType::None);
+        };
+    }
+
+    // 5. 栅栏门旋转宏展开
+    macro_rules! conv_gate {
+        ($id:expr, $mcn:expr, $mtn:expr) => {
+            add_conv($id, $mcn, &[0], $mtn, 0, false, PostProcessType::None);
+            add_conv($id, $mcn, &[1], $mtn, 3, false, PostProcessType::None);
+            add_conv($id, $mcn, &[2], $mtn, 2, false, PostProcessType::None);
+            add_conv($id, $mcn, &[3], $mtn, 1, false, PostProcessType::None);
+            add_conv($id, $mcn, &[4], &format!("{}_open", $mtn), 0, false, PostProcessType::None);
+            add_conv($id, $mcn, &[5], &format!("{}_open", $mtn), 2, false, PostProcessType::None);
+            add_conv($id, $mcn, &[6], &format!("{}_open", $mtn), 3, false, PostProcessType::None);
+            add_conv($id, $mcn, &[7], &format!("{}_open", $mtn), 1, false, PostProcessType::None);
+        };
+    }
+
+    // ==========================================
+    // 补全所有方块数据映射
+    // ==========================================
+
+    // 空气与基础石头系列
+    add_conv(0, "minecraft:air", &[], "air", 0, false, PostProcessType::None);
     add_conv(1, "minecraft:stone", &[0], "mcl_core:stone", 0, false, PostProcessType::None);
     add_conv(1, "minecraft:stone", &[1], "mcl_core:granite", 0, false, PostProcessType::None);
     add_conv(1, "minecraft:stone", &[2], "mcl_core:granite_smooth", 0, false, PostProcessType::None);
@@ -141,7 +211,6 @@ pub static CONVERSION_TABLE: Lazy<ConversionTable> = Lazy::new(|| {
     add_conv(1, "minecraft:stone", &[5], "mcl_core:andesite", 0, false, PostProcessType::None);
     add_conv(1, "minecraft:stone", &[6], "mcl_core:andesite_smooth", 0, false, PostProcessType::None);
 
-    // 草方块与泥土
     add_conv(2, "minecraft:grass", &[], "mcl_core:dirt_with_grass", 0, false, PostProcessType::None);
     add_conv(3, "minecraft:dirt", &[0], "mcl_core:dirt", 0, false, PostProcessType::None);
     add_conv(3, "minecraft:dirt", &[1], "mcl_core:coarse_dirt", 0, false, PostProcessType::None);
@@ -156,31 +225,43 @@ pub static CONVERSION_TABLE: Lazy<ConversionTable> = Lazy::new(|| {
     add_conv(5, "minecraft:planks", &[4], "mcl_trees:wood_acacia", 0, false, PostProcessType::None);
     add_conv(5, "minecraft:planks", &[5], "mcl_trees:wood_dark_oak", 0, false, PostProcessType::None);
 
-    // 基岩、水、岩浆
+    // 基岩、流体、沙、碎石
     add_conv(7, "minecraft:bedrock", &[], "mcl_core:bedrock", 0, false, PostProcessType::None);
     add_conv(8, "minecraft:flowing_water", &[], "mcl_core:water_flowing", 0, false, PostProcessType::None);
     add_conv(9, "minecraft:water", &[], "mcl_core:water_source", 0, false, PostProcessType::None);
     add_conv(10, "minecraft:flowing_lava", &[], "mcl_core:lava_flowing", 0, false, PostProcessType::None);
     add_conv(11, "minecraft:lava", &[], "mcl_core:lava_source", 0, false, PostProcessType::None);
+    add_conv(12, "minecraft:sand", &[0], "mcl_core:sand", 0, false, PostProcessType::None);
+    add_conv(12, "minecraft:sand", &[1], "mcl_core:redsand", 0, false, PostProcessType::None);
+    add_conv(13, "minecraft:gravel", &[], "mcl_core:gravel", 0, false, PostProcessType::None);
 
-    // 矿石
+    // 矿石与原木系列
     add_conv(14, "minecraft:gold_ore", &[], "mcl_core:stone_with_gold", 0, false, PostProcessType::None);
     add_conv(15, "minecraft:iron_ore", &[], "mcl_core:stone_with_iron", 0, false, PostProcessType::None);
     add_conv(16, "minecraft:coal_ore", &[], "mcl_core:stone_with_coal", 0, false, PostProcessType::None);
+
+    conv_log!(17, "minecraft:log", 0, "mcl_trees:tree_oak");
+    conv_log!(17, "minecraft:log", 1, "mcl_trees:tree_spruce");
+    conv_log!(17, "minecraft:log", 2, "mcl_trees:tree_birch");
+    conv_log!(17, "minecraft:log", 3, "mcl_trees:tree_jungle");
+
+    // 树叶
+    add_conv(18, "minecraft:leaves", &[0, 8], "mcl_trees:leaves_oak", 0, false, PostProcessType::None);
+    add_conv(18, "minecraft:leaves", &[1, 9], "mcl_trees:leaves_spruce", 0, false, PostProcessType::None);
+    add_conv(18, "minecraft:leaves", &[2, 10], "mcl_trees:leaves_birch", 0, false, PostProcessType::None);
+    add_conv(18, "minecraft:leaves", &[3, 11], "mcl_trees:leaves_jungle", 0, false, PostProcessType::None);
+
+    add_conv(20, "minecraft:glass", &[], "mcl_core:glass", 0, false, PostProcessType::None);
     add_conv(21, "minecraft:lapis_ore", &[], "mcl_core:stone_with_lapis", 0, false, PostProcessType::None);
-    add_conv(56, "minecraft:diamond_ore", &[], "mcl_core:stone_with_diamond", 0, false, PostProcessType::None);
-    add_conv(73, "minecraft:redstone_ore", &[], "mcl_core:stone_with_redstone", 0, false, PostProcessType::None);
+    add_conv(22, "minecraft:lapis_block", &[], "mcl_core:lapisblock", 0, false, PostProcessType::None);
 
-    // 常用原木与树叶
-    add_conv(17, "minecraft:log", &[0, 4, 8, 12], "mcl_trees:tree_oak", 0, false, PostProcessType::None);
-    add_conv(17, "minecraft:log", &[1, 5, 9, 13], "mcl_trees:tree_spruce", 0, false, PostProcessType::None);
-    add_conv(17, "minecraft:log", &[2, 6, 10, 14], "mcl_trees:tree_birch", 0, false, PostProcessType::None);
-    add_conv(17, "minecraft:log", &[3, 7, 11, 15], "mcl_trees:tree_jungle", 0, false, PostProcessType::None);
-
-    add_conv(18, "minecraft:leaves", &[0, 8, 4, 12], "mcl_trees:leaves_oak", 0, false, PostProcessType::None);
-    add_conv(18, "minecraft:leaves", &[1, 9, 5, 13], "mcl_trees:leaves_spruce", 0, false, PostProcessType::None);
-    add_conv(18, "minecraft:leaves", &[2, 10, 6, 14], "mcl_trees:leaves_birch", 0, false, PostProcessType::None);
-    add_conv(18, "minecraft:leaves", &[3, 11, 7, 15], "mcl_trees:leaves_jungle", 0, false, PostProcessType::None);
+    // 活塞
+    add_conv(33, "minecraft:piston", &[0], "mesecons_piston:piston_down_normal_off", 0, false, PostProcessType::None);
+    add_conv(33, "minecraft:piston", &[1], "mesecons_piston:piston_up_normal_off", 0, false, PostProcessType::None);
+    add_conv(33, "minecraft:piston", &[2], "mesecons_piston:piston_normal_off", 2, false, PostProcessType::None);
+    add_conv(33, "minecraft:piston", &[3], "mesecons_piston:piston_normal_off", 0, false, PostProcessType::None);
+    add_conv(33, "minecraft:piston", &[4], "mesecons_piston:piston_normal_off", 1, false, PostProcessType::None);
+    add_conv(33, "minecraft:piston", &[5], "mesecons_piston:piston_normal_off", 3, false, PostProcessType::None);
 
     // 羊毛系列 (35)
     let wool_colors = [
@@ -192,29 +273,132 @@ pub static CONVERSION_TABLE: Lazy<ConversionTable> = Lazy::new(|| {
         add_conv(35, "minecraft:wool", &[data_val as u16], &mt_wool, 0, false, PostProcessType::None);
     }
 
-    // 火把 (50)
+    // 花卉、红石、铁轨、楼梯、门
+    add_conv(37, "minecraft:yellow_flower", &[], "mcl_flowers:dandelion", 0, false, PostProcessType::None);
+    add_conv(39, "minecraft:brown_mushroom", &[], "mcl_mushrooms:mushroom_brown", 0, false, PostProcessType::None);
+    add_conv(40, "minecraft:red_mushroom", &[], "mcl_mushrooms:mushroom_red", 0, false, PostProcessType::None);
+    add_conv(41, "minecraft:gold_block", &[], "mcl_core:goldblock", 0, false, PostProcessType::None);
+    add_conv(42, "minecraft:iron_block", &[], "mcl_core:ironblock", 0, false, PostProcessType::None);
+
+    conv_slab!(44, "minecraft:stone_slab", 0, 8, "mcl_stairs:slab_stone");
+    conv_slab!(44, "minecraft:stone_slab", 1, 9, "mcl_stairs:slab_sandstone");
+    conv_slab!(44, "minecraft:stone_slab", 2, 10, "mcl_stairs:slab_oak");
+    conv_slab!(44, "minecraft:stone_slab", 3, 11, "mcl_stairs:slab_cobble");
+    conv_slab!(44, "minecraft:stone_slab", 4, 12, "mcl_stairs:slab_brick_block");
+    conv_slab!(44, "minecraft:stone_slab", 5, 13, "mcl_stairs:slab_stonebrick");
+    conv_slab!(44, "minecraft:stone_slab", 6, 14, "mcl_stairs:slab_nether_brick");
+    conv_slab!(44, "minecraft:stone_slab", 7, 15, "mcl_stairs:slab_quartzblock");
+
+    add_conv(45, "minecraft:brick_block", &[], "mcl_core:brick_block", 0, false, PostProcessType::None);
+    add_conv(46, "minecraft:tnt", &[], "mcl_tnt:tnt", 0, false, PostProcessType::None);
+    add_conv(47, "minecraft:bookshelf", &[], "mcl_books:bookshelf", 0, false, PostProcessType::None);
+    add_conv(48, "minecraft:mossy_cobblestone", &[], "mcl_core:mossycobble", 0, false, PostProcessType::None);
+    add_conv(49, "minecraft:obsidian", &[], "mcl_core:obsidian", 0, false, PostProcessType::None);
+
+    // 火把与楼梯
     add_conv(50, "minecraft:torch", &[0, 5], "mcl_torches:torch", 1, false, PostProcessType::None);
     add_conv(50, "minecraft:torch", &[1], "mcl_torches:torch_wall", 3, false, PostProcessType::None);
     add_conv(50, "minecraft:torch", &[2], "mcl_torches:torch_wall", 2, false, PostProcessType::None);
     add_conv(50, "minecraft:torch", &[3], "mcl_torches:torch_wall", 4, false, PostProcessType::None);
     add_conv(50, "minecraft:torch", &[4], "mcl_torches:torch_wall", 5, false, PostProcessType::None);
 
-    // 楼梯 (以橡木楼梯 53 为代表，进行 facedir 映射)
-    let stair_params = [(0, 1), (1, 3), (2, 2), (3, 0), (4, 23), (5, 21), (6, 22), (7, 20)];
-    for &(mc_data, param2) in &stair_params {
-        add_conv(53, "minecraft:oak_stairs", &[mc_data], "mcl_stairs:stair_oak", param2, false, PostProcessType::UpdateNodeLight);
-        add_conv(67, "minecraft:stone_stairs", &[mc_data], "mcl_stairs:stair_cobble", param2, false, PostProcessType::UpdateNodeLight);
-    }
+    conv_stair!(53, "minecraft:oak_stairs", "mcl_stairs:stair_oak");
 
-    // 箱子 (54)
+    // 箱子与红石
     add_conv(54, "minecraft:chest", &[2], "mcl_chests:chest", 2, false, PostProcessType::None);
     add_conv(54, "minecraft:chest", &[3], "mcl_chests:chest", 0, false, PostProcessType::None);
     add_conv(54, "minecraft:chest", &[4], "mcl_chests:chest", 1, false, PostProcessType::None);
     add_conv(54, "minecraft:chest", &[5], "mcl_chests:chest", 3, false, PostProcessType::None);
 
-    // 门 (以木门 64 为例)
+    add_conv(56, "minecraft:diamond_ore", &[], "mcl_core:stone_with_diamond", 0, false, PostProcessType::None);
+    add_conv(57, "minecraft:diamond_block", &[], "mcl_core:diamondblock", 0, false, PostProcessType::None);
+    add_conv(58, "minecraft:crafting_table", &[], "mcl_crafting_table:crafting_table", 0, false, PostProcessType::None);
+
+    // 熔炉与门
+    add_conv(61, "minecraft:furnace", &[2], "mcl_furnaces:furnace", 2, false, PostProcessType::None);
+    add_conv(61, "minecraft:furnace", &[3], "mcl_furnaces:furnace", 0, false, PostProcessType::None);
+    add_conv(61, "minecraft:furnace", &[4], "mcl_furnaces:furnace", 1, false, PostProcessType::None);
+    add_conv(61, "minecraft:furnace", &[5], "mcl_furnaces:furnace", 3, false, PostProcessType::None);
+
     add_conv(64, "minecraft:wooden_door", &[0, 1, 2, 3], "mcl_doors:door_oak", 0, false, PostProcessType::DoorBottom);
     add_conv(64, "minecraft:wooden_door", &[8, 9, 10, 11, 12, 13, 14, 15], "mcl_doors:door_oak_t_1", 0, false, PostProcessType::DoorTop);
+
+    add_conv(65, "minecraft:ladder", &[2], "mcl_core:ladder", 5, false, PostProcessType::None);
+    add_conv(65, "minecraft:ladder", &[3], "mcl_core:ladder", 4, false, PostProcessType::None);
+    add_conv(65, "minecraft:ladder", &[4], "mcl_core:ladder", 2, false, PostProcessType::None);
+    add_conv(65, "minecraft:ladder", &[5], "mcl_core:ladder", 3, false, PostProcessType::None);
+
+    add_conv(66, "minecraft:rail", &[], "mcl_minecarts:rail", 0, false, PostProcessType::None);
+    conv_stair!(67, "minecraft:stone_stairs", "mcl_stairs:stair_cobble");
+
+    add_conv(73, "minecraft:redstone_ore", &[], "mcl_core:stone_with_redstone", 0, false, PostProcessType::None);
+    add_conv(79, "minecraft:ice", &[], "mcl_core:ice", 0, false, PostProcessType::None);
+    add_conv(80, "minecraft:snow", &[], "mcl_core:snowblock", 0, false, PostProcessType::None);
+    add_conv(81, "minecraft:cactus", &[], "mcl_core:cactus", 0, false, PostProcessType::None);
+    add_conv(82, "minecraft:clay", &[], "mcl_core:clay", 0, false, PostProcessType::None);
+    add_conv(83, "minecraft:reeds", &[], "mcl_core:reeds", 0, false, PostProcessType::None);
+    add_conv(85, "minecraft:fence", &[], "mcl_fences:oak_fence", 0, false, PostProcessType::None);
+
+    add_conv(87, "minecraft:netherrack", &[], "mcl_nether:netherrack", 0, false, PostProcessType::None);
+    add_conv(88, "minecraft:soul_sand", &[], "mcl_nether:soul_sand", 0, false, PostProcessType::None);
+    add_conv(89, "minecraft:glowstone", &[], "mcl_nether:glowstone", 0, false, PostProcessType::None);
+
+    conv_trapdoor!(96, "minecraft:trapdoor", "mcl_doors:trapdoor");
+    add_conv(98, "minecraft:stonebrick", &[0], "mcl_core:stonebrick", 0, false, PostProcessType::None);
+    add_conv(98, "minecraft:stonebrick", &[1], "mcl_core:stonebrickmossy", 0, false, PostProcessType::None);
+    add_conv(98, "minecraft:stonebrick", &[2], "mcl_core:stonebrickcracked", 0, false, PostProcessType::None);
+    add_conv(98, "minecraft:stonebrick", &[3], "mcl_core:stonebrickcarved", 0, false, PostProcessType::None);
+
+    add_conv(101, "minecraft:iron_bars", &[], "mcl_panes:bar", 0, false, PostProcessType::None);
+    add_conv(103, "minecraft:melon_block", &[], "mcl_farming:melon", 0, false, PostProcessType::None);
+    conv_gate!(107, "minecraft:fence_gate", "mcl_fences:oak_fence_gate");
+
+    conv_stair!(108, "minecraft:brick_stairs", "mcl_stairs:stair_brick_block");
+    conv_stair!(109, "minecraft:stone_brick_stairs", "mcl_stairs:stair_stonebrick");
+    add_conv(110, "minecraft:mycelium", &[], "mcl_core:mycelium", 0, false, PostProcessType::None);
+    add_conv(111, "minecraft:waterlily", &[], "mcl_flowers:waterlily", 0, false, PostProcessType::None);
+    add_conv(112, "minecraft:nether_brick", &[], "mcl_nether:nether_brick", 0, false, PostProcessType::None);
+    add_conv(113, "minecraft:nether_brick_fence", &[], "mcl_fences:nether_brick_fence", 0, false, PostProcessType::None);
+    conv_stair!(114, "minecraft:nether_brick_stairs", "mcl_stairs:stair_nether_brick");
+
+    add_conv(121, "minecraft:end_stone", &[], "mcl_end:end_stone", 0, false, PostProcessType::None);
+    add_conv(123, "minecraft:redstone_lamp", &[], "mcl_redstone_lamp:lamp_off", 0, false, PostProcessType::None);
+    add_conv(124, "minecraft:lit_redstone_lamp", &[], "mcl_redstone_lamp:lamp_on", 0, false, PostProcessType::None);
+
+    add_conv(125, "minecraft:double_wooden_slab", &[0], "mcl_stairs:slab_oak_double", 0, false, PostProcessType::None);
+    add_conv(125, "minecraft:double_wooden_slab", &[1], "mcl_stairs:slab_spruce_double", 0, false, PostProcessType::None);
+    add_conv(125, "minecraft:double_wooden_slab", &[2], "mcl_stairs:slab_birch_double", 0, false, PostProcessType::None);
+    add_conv(125, "minecraft:double_wooden_slab", &[3], "mcl_stairs:slab_jungle_double", 0, false, PostProcessType::None);
+    add_conv(125, "minecraft:double_wooden_slab", &[4], "mcl_stairs:slab_acacia_double", 0, false, PostProcessType::None);
+    add_conv(125, "minecraft:double_wooden_slab", &[5], "mcl_stairs:slab_dark_oak_double", 0, false, PostProcessType::None);
+
+    conv_slab!(126, "minecraft:wooden_slab", 0, 8, "mcl_stairs:slab_oak");
+    conv_slab!(126, "minecraft:wooden_slab", 1, 9, "mcl_stairs:slab_spruce");
+    conv_slab!(126, "minecraft:wooden_slab", 2, 10, "mcl_stairs:slab_birch");
+    conv_slab!(126, "minecraft:wooden_slab", 3, 11, "mcl_stairs:slab_jungle");
+    conv_slab!(126, "minecraft:wooden_slab", 4, 12, "mcl_stairs:slab_acacia");
+    conv_slab!(126, "minecraft:wooden_slab", 5, 13, "mcl_stairs:slab_dark_oak");
+
+    conv_stair!(128, "minecraft:sandstone_stairs", "mcl_stairs:stair_sandstone");
+    add_conv(129, "minecraft:emerald_ore", &[], "mcl_core:stone_with_emerald", 0, false, PostProcessType::None);
+    add_conv(133, "minecraft:emerald_block", &[], "mcl_core:emeraldblock", 0, false, PostProcessType::None);
+
+    conv_stair!(134, "minecraft:spruce_stairs", "mcl_stairs:stair_spruce");
+    conv_stair!(135, "minecraft:birch_stairs", "mcl_stairs:stair_birch");
+    conv_stair!(136, "minecraft:jungle_stairs", "mcl_stairs:stair_jungle");
+    add_conv(138, "minecraft:beacon", &[], "mcl_beacons:beacon_beam", 0, false, PostProcessType::None);
+    add_conv(145, "minecraft:anvil", &[], "mcl_anvils:anvil", 0, false, PostProcessType::None);
+
+    add_conv(152, "minecraft:redstone_block", &[], "mesecons_torch:redstoneblock", 0, false, PostProcessType::None);
+    add_conv(153, "minecraft:quartz_ore", &[], "mcl_nether:quartz_ore", 0, false, PostProcessType::None);
+    conv_stair!(156, "minecraft:quartz_stairs", "mcl_stairs:stair_quartzblock");
+
+    // 混凝土与混凝土粉末
+    for color_id in 0..16 {
+        let color = wool_colors[color_id];
+        add_conv(251, "minecraft:concrete", &[color_id as u16], &format!("mcl_colorblocks:concrete_{}", color), 0, false, PostProcessType::None);
+        add_conv(252, "minecraft:concrete_powder", &[color_id as u16], &format!("mcl_colorblocks:concrete_powder_{}", color), 0, false, PostProcessType::None);
+    }
 
     ConversionTable {
         numeric_table,
