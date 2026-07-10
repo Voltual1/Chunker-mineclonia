@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
+use crate::mc_map::NODES_PER_BLOCK; 
 
 // 定义 Minetest content_t 类型为 u16
 pub type ContentT = u16;

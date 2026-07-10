@@ -524,3 +524,10 @@ fn read_tag_payload<R: Read + Seek>(reader: &mut R, tag_type: u8) -> Result<NbtT
         _ => Err(format!("Unknown NBT tag type: {}", tag_type)),
     }
 }
+
+/// 辅助函数：将字节切片内容全部清零，对应 C++ 的 zeroBytes
+fn zero_bytes(data: &mut [u8]) {
+    for byte in data.iter_mut() {
+        *byte = 0;
+    }
+}
