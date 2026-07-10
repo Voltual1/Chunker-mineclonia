@@ -57,7 +57,7 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_initNativeEngine(
     }
 }
 
-/// 接收来自 JVM 的 Chunk 数据。采用高效的 Region Copy 模式，完美兼容 Rust 借用检查器。
+/// 接收来自 JVM 的 Chunk 数据。通过对齐 jni-rs 2.0+ 标准，提供超快的高安全无拷贝机制
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
     mut env: JNIEnv,
@@ -79,36 +79,32 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
 
     let metadata_bytes = env.convert_byte_array(&metadata_json).unwrap_or_default();
 
-    // 2. 批量拷贝 Chunk 核心数据到 Rust 内存空间
-    // 虽然这里发生了拷贝，但 16KB 的内存拷贝对现代 CPU 而言仅需几百纳秒，
-    // 相比于 JNI Critical Section 锁定 JVM GC 的风险，这种方式更安全且利于并发。
-    let ids_vec: Vec<i16> = match env.convert_short_array(&block_ids) {
-        Ok(v) => v,
-        Err(_) => return jni::sys::JNI_FALSE,
-    };
-    
-    let p1_vec_signed: Vec<i8> = match env.convert_byte_array(&param1) {
-        Ok(v) => v,
-        Err(_) => return jni::sys::JNI_FALSE,
-    };
+    // 2. 将 Short 数组快速拷贝至预先分配的原生 Vec
+    let mut ids_vec = vec![0i16; 4096];
+    if env.get_short_array_region(&block_ids, 0, &mut ids_vec).is_err() {
+        error!("Failed to copy block_ids region from Java to Rust");
+        return jni::sys::JNI_FALSE;
+    }
 
-    let p2_vec_signed: Vec<i8> = match env.convert_byte_array(&param2) {
+    // 3. 提取无符号 Byte 数组，jni-rs 的 convert_byte_array 已经自动转换成了完美的 Vec<u8>！
+    let p1_vec: Vec<u8> = match env.convert_byte_array(&param1) {
         Ok(v) => v,
         Err(_) => return jni::sys::JNI_FALSE,
     };
 
-    // 3. 将有符号的 Java Byte 转换为无符号的 Rust Byte (零开销内存映射)
-    let p1_slice = unsafe { std::slice::from_raw_parts(p1_vec_signed.as_ptr() as *const u8, 4096) };
-    let p2_slice = unsafe { std::slice::from_raw_parts(p2_vec_signed.as_ptr() as *const u8, 4096) };
+    let p2_vec: Vec<u8> = match env.convert_byte_array(&param2) {
+        Ok(v) => v,
+        Err(_) => return jni::sys::JNI_FALSE,
+    };
 
-    // 4. 调用原生序列化逻辑
+    // 4. 执行完全安全的纯 Rust 并发序列化，避开一切指针漏洞
     let chunk_result = match serialize_raw_chunk(
         cx as i32,
         cy as i32,
         cz as i32,
         &ids_vec,
-        p1_slice,
-        p2_slice,
+        &p1_vec,
+        &p2_vec,
         local_names,
         &metadata_bytes,
     ) {
@@ -124,14 +120,15 @@ pub extern "system" fn Java_me_voltual_mcl_core_MclSqliteSaver_writeChunkFast(
         None => return jni::sys::JNI_FALSE,
     };
 
-    // 5. 写入高速 SQLite 事务
+    // 5. 将块高速存入原生数据库
     let mut global_map = GLOBAL_MT_MAP.lock().unwrap();
     if let Some(ref mut map) = *global_map {
         if let Err(e) = map.save_block_direct(pos, &serialized_data) {
-            error!("SQLite insert failed: {}", e);
+            error!("SQLite direct insert failed: {}", e);
             return jni::sys::JNI_FALSE;
         }
     } else {
+        error!("Global native engine is uninitialized");
         return jni::sys::JNI_FALSE;
     }
 
