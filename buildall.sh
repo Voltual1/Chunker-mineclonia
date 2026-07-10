@@ -20,12 +20,7 @@ fi
 rustup default stable
 rustup target add aarch64-linux-android
 
-echo "=== 2. Building host native CLI (x86_64-linux-gnu) ==="
-cd rust
-cargo build --bin mc2mt-cli --release
-cd "$BASEDIR"
-
-echo "=== 3. Configuring Android NDK using cargo-ndk ==="
+echo "=== 2. Configuring Android NDK using cargo-ndk ==="
 # 安装最新版的 cargo-ndk
 cargo install cargo-ndk
 
@@ -45,11 +40,18 @@ if [ -z "$ANDROID_NDK_HOME" ]; then
 fi
 echo "Using NDK at: $ANDROID_NDK_HOME"
 
-echo "=== 4. Building Termux compatible CLI (aarch64-linux-android) ==="
+echo "=== 3. Building Rust JNI Shared Library (aarch64-linux-android) ==="
 cd rust
-# 【修复点】：使用 --platform 替代 -p，避免与 Cargo 的 --package 冲突！
-cargo ndk -t arm64-v8a --platform 30 build --bin mc2mt-cli --release
+# 使用 cargo-ndk 编译 release 版本的 cdylib
+cargo ndk -t arm64-v8a --platform 30 build --release
+
+echo "=== 4. Moving compiled .so to Android jniLibs ==="
+# 创建 Android 项目中存放原生库的特定目录
+JNILIBS_DIR="$BASEDIR/android/src/main/jniLibs/arm64-v8a"
+mkdir -p "$JNILIBS_DIR"
+
+# 拷贝生成的 libmc2mt.so 到 Android 目录
+cp target/aarch64-linux-android/release/libmc2mt.so "$JNILIBS_DIR/"
 
 echo "=== Compilation finished! ==="
-ls -l target/release/mc2mt-cli
-ls -l target/aarch64-linux-android/release/mc2mt-cli
+ls -l "$JNILIBS_DIR/libmc2mt.so"
