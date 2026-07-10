@@ -244,6 +244,21 @@ impl MCMap {
 
         Ok(blocks)
     }
+
+    /// 从 level.dat 中提取真实的 Minecraft 出生点坐标
+    pub fn get_spawn_point(&self) -> (i32, i32, i32) {
+        // level_dat 根节点名通常为空字符串 ""
+        let root = self.level_dat.get_compound_child("").unwrap_or(&self.level_dat);
+        
+        if let Some(data) = root.get_compound_child("Data") {
+            let x = data.get("SpawnX").and_then(|t| t.as_i32()).unwrap_or(0);
+            let y = data.get("SpawnY").and_then(|t| t.as_i32()).unwrap_or(64);
+            let z = data.get("SpawnZ").and_then(|t| t.as_i32()).unwrap_or(0);
+            return (x, y, z);
+        }
+        // 如果找不到，返回一个合理的默认安全高度
+        (0, 64, 0)
+    }
 }
 
 // ==========================================

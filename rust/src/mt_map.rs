@@ -36,15 +36,56 @@ pub struct MTMap {
     conn: Connection,
 }
 
+pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
+pub const BLOCK_Y_OFFSET: i32 = 4; // 暴露给外部计算出生点使用
+
 impl MTMap {
-    pub fn new<P: AsRef<Path>>(path: P) -> Result<Self, String> {
-        let db_path = path.as_ref().join("map.sqlite");
+    pub fn new<P: AsRef<Path>>(path: P, spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
+        let path = path.as_ref();
         
-        // 自动初始化 Minetest 格式的 SQLite 数据库
+        // 确保世界输出目录存在
+        std::fs::create_dir_all(path).map_err(|e| format!("Failed to create output dir: {}", e))?;
+
+        // 1. 写入 world.mt 配置文件 (包含静态出生点)
+        let world_mt_path = path.join("world.mt");
+        let world_mt_content = format!(
+            "backend = sqlite3\n\
+             player_backend = sqlite3\n\
+             auth_backend = sqlite3\n\
+             mod_storage_backend = sqlite3\n\
+             gameid = mineclonia\n\
+             static_spawnpoint = ({}, {}, {})\n",
+            spawn_pos.0, spawn_pos.1, spawn_pos.2
+        );
+        std::fs::write(&world_mt_path, world_mt_content).map_err(|e| e.to_string())?;
+
+        // 2. 写入强制单节点生成器和出生点劫持 Lua 脚本
+        let mod_dir = path.join("worldmods").join("__mc2mt");
+        std::fs::create_dir_all(&mod_dir).map_err(|e| e.to_string())?;
+        
+        let init_lua_path = mod_dir.join("init.lua");
+        let init_lua_content = format!(
+            "minetest.set_mapgen_params({{chunksize = 1}})\n\
+             minetest.set_mapgen_params({{mgname = 'singlenode'}})\n\
+             \n\
+             -- 强制出生点保护，防止初次加载掉落虚空\n\
+             local spawn_pos = {{x={}, y={}, z={}}}\n\
+             minetest.register_on_newplayer(function(player)\n\
+                 player:set_pos(spawn_pos)\n\
+             end)\n\
+             minetest.register_on_respawnplayer(function(player)\n\
+                 player:set_pos(spawn_pos)\n\
+                 return true\n\
+             end)\n",
+            spawn_pos.0, spawn_pos.1, spawn_pos.2
+        );
+        std::fs::write(&init_lua_path, init_lua_content).map_err(|e| e.to_string())?;
+
+        // 3. 初始化 Minetest 格式的 SQLite 数据库
+        let db_path = path.join("map.sqlite");
         let conn = Connection::open(&db_path)
             .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
 
-        // 优化写入性能的 PRAGMA 缓存配置
         conn.execute_batch(
             "PRAGMA synchronous = OFF;
              PRAGMA journal_mode = MEMORY;

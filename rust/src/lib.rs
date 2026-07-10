@@ -74,9 +74,27 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
             return jni::sys::JNI_FALSE;
         }
     };
+    
+    // 1. 初始化 MC 地图元数据
+    let mc_map = match MCMap::new(&input) {
+        Ok(m) => m,
+        Err(e) => {
+            error!("MCMap initialization failed: {}", e);
+            return jni::sys::JNI_FALSE;
+        }
+    };
+
+    // ++ 新增：提取并计算 Minetest 坐标系下的安全出生点 (Y轴高度+1防止卡地里)
+    let mc_spawn = mc_map.get_spawn_point();
+    let mt_spawn = (
+        mc_spawn.0,
+        mc_spawn.1 - crate::mt_map::BLOCK_Y_OFFSET + 1,
+        mc_spawn.2
+    );
+    info!("Extracted MC Spawn Point: {:?}, translated to MT Spawn Point: {:?}", mc_spawn, mt_spawn);
 
     // 2. 初始化输出 Minetest SQLite 数据库
-    let mut mt_map = match MTMap::new(&output) {
+    let mut mt_map = match MTMap::new(&output, mt_spawn) {
         Ok(m) => m,
         Err(e) => {
             error!("MTMap initialization failed: {}", e);

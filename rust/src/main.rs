@@ -36,8 +36,17 @@ fn main() {
         }
     };
 
+    // ++ 新增：计算出生点
+    let mc_spawn = mc_map.get_spawn_point();
+    let mt_spawn = (
+        mc_spawn.0,
+        mc_spawn.1 - mc2mt::mt_map::BLOCK_Y_OFFSET + 1,
+        mc_spawn.2
+    );
+    println!("Origin MC Spawn: {:?} -> Target Luanti Spawn: {:?}", mc_spawn, mt_spawn);
+
     // 2. 初始化输出 Minetest SQLite 数据库
-    let mut mt_map = match MTMap::new(output_path) {
+    let mut mt_map = match MTMap::new(output_path, mt_spawn) {
         Ok(m) => m,
         Err(e) => {
             eprintln!("Error: MTMap initialization failed: {}", e);
