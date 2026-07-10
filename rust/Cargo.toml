@@ -6,19 +6,18 @@ edition = "2021"
 
 [lib]
 name = "mc2mt"            
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"] # 增加 rlib 使得 bin 能静态链接 lib 中导出的解析方法
+
+[[bin]]
+name = "mc2mt-cli"
+path = "src/main.rs"
 
 [dependencies]
 jni = "0.21"               
 log = "0.4"
 android_logger = "0.13"
-# 替代原项目的 compression.cpp
 flate2 = "1.0"
-# 替代原项目的 endian.hpp
 byteorder = "1.4"
-# 替代原项目的 sqlite3.c 及 MTMap.cpp 中的 SQLite 操作
 rusqlite = { version = "0.29", features = ["bundled"] }
-# 替代 threads.cpp，用于并发解析 Chunk
 rayon = "1.8"
-# 全局安全静态变量初始化
 once_cell = "1.18"

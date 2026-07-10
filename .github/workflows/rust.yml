@@ -21,17 +21,35 @@ jobs:
         with:
           fetch-depth: 0
 
-      # 缓存 Rust 工具链和 target 编译产物
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 缓存 Rust 工具链和 target 编译产物以提高 CI 构建效率
       - name: Cache Rust & Cargo
         uses: actions/cache@v4
         with:
           path: |
-            ${{ github.workspace }}/tools/.cargo
-            ${{ github.workspace }}/tools/.rustup
-            ${{ github.workspace }}/rust/target
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            rust/target/
           key: ${{ runner.os }}-rust-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-rust-
 
-      - name: Build native
+      - name: Build Targets
         run: bash ./buildall.sh
+
+      # 上传用于主机调试的 x86_64 二进制文件
+      - name: Upload x86_64 Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc2mt-cli-linux-x64
+          path: rust/target/release/mc2mt-cli
+
+      # 上传可在 Termux 直接免 root 执行的 Aarch64 架构二进制文件
+      - name: Upload Termux Aarch64 Executable
+        uses: actions/upload-artifact@v4
+        with:
+          name: mc2mt-cli-termux-aarch64
+          path: rust/target/aarch64-unknown-linux-gnu/release/mc2mt-cli
