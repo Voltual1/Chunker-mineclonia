@@ -1,4 +1,5 @@
 pub mod mc_map;
+pub mod convert; 
 
 use jni::objects::{JClass, JObject, JString};
 use jni::sys::jboolean;
