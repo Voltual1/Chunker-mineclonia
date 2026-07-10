@@ -66,15 +66,6 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
 
     info!("Starting ultra-fast Rust Rayon database pipeline...");
 
-    // 1. 初始化输入地图
-    let mc_map = match MCMap::new(&input) {
-        Ok(m) => m,
-        Err(e) => {
-            error!("MCMap initialization failed: {}", e);
-            return jni::sys::JNI_FALSE;
-        }
-    };
-    
     // 1. 初始化 MC 地图元数据
     let mc_map = match MCMap::new(&input) {
         Ok(m) => m,
@@ -84,7 +75,7 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap(
         }
     };
 
-    // ++ 新增：提取并计算 Minetest 坐标系下的安全出生点 (Y轴高度+1防止卡地里)
+    // 提取并计算 Minetest 坐标系下的安全出生点 (Y轴高度+1防止卡地里)
     let mc_spawn = mc_map.get_spawn_point();
     let mt_spawn = (
         mc_spawn.0,

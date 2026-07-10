@@ -1,16 +1,19 @@
 use std::collections::HashMap;
 use std::path::Path;
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{params, Connection};
 use byteorder::{BigEndian, WriteBytesExt};
 use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write;
 
-use crate::mc_map::{MCBlock, MCChunkPos, MAP_BLOCK_SIZE, NODES_PER_BLOCK};
-use crate::convert::{get_conversion, ContentT, CONTENT_AIR, REGISTRY};
+use crate::mc_map::{MCBlock, NODES_PER_BLOCK};
+use crate::convert::{get_conversion, CONTENT_AIR, REGISTRY};
 
-// Minetest 序列化常量
-const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
+// =========================================================
+// 统一声明的全局常量（对外公开，供 lib.rs 和 main.rs 完美调用）
+// =========================================================
+pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
+pub const BLOCK_Y_OFFSET: i32 = 4; // 转换坐标系统的偏移量，使水面高度对齐
 
 /// 代表 Minetest 中的 3D 坐标
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -19,9 +22,6 @@ pub struct MTPos {
     pub y: i16,
     pub z: i16,
 }
-
-/// 转换坐标系统的偏移量，使水面高度对齐
-const BLOCK_Y_OFFSET: i32 = 4;
 
 /// 对齐 C++ 中的 encodePos，计算 SQLite 存储的主键
 #[inline]
@@ -35,9 +35,6 @@ pub fn encode_pos(pos: MTPos) -> i64 {
 pub struct MTMap {
     conn: Connection,
 }
-
-pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
-pub const BLOCK_Y_OFFSET: i32 = 4; // 暴露给外部计算出生点使用
 
 impl MTMap {
     pub fn new<P: AsRef<Path>>(path: P, spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
@@ -145,7 +142,7 @@ pub fn serialize_block(mcb: &MCBlock) -> Result<(MTPos, Vec<u8>), String> {
     data.write_u8(2).unwrap();
     data.write_u8(2).unwrap();
 
-    // 3. 将本地方块 ID 解析转换，并建立局部的 sbi_content（名称到序列化内部映射表的映射）
+    // 3. 将本地方块 ID 解析转换，并建立局部的 sbi_content
     let mut local_blocks = vec![0u16; NODES_PER_BLOCK];
     let mut local_param2 = vec![0u8; NODES_PER_BLOCK];
     let mut local_param1 = vec![0u8; NODES_PER_BLOCK];
