@@ -5,46 +5,49 @@ BASEDIR=$(dirname "$0")
 cd "$BASEDIR"
 BASEDIR=$(pwd)
 
-echo "=== 1. Building host native CLI (x86_64-linux-gnu) ==="
+# 临时将 Cargo 工具链加入 PATH
+export CARGO_HOME="$BASEDIR/tools/.cargo"
+export RUSTUP_HOME="$BASEDIR/tools/.rustup"
+export PATH="$CARGO_HOME/bin:$PATH"
+
+echo "=== 1. Setting up Rust Toolchain ==="
+if [ ! -f "tools/rustup.sh" ]; then
+    mkdir -p tools/.cargo tools/.rustup
+    curl https://sh.rustup.rs -sSf > tools/rustup.sh
+    chmod +x tools/rustup.sh
+    sh tools/rustup.sh --no-modify-path -y
+fi
+rustup default stable
+rustup target add aarch64-linux-android
+
+echo "=== 2. Building host native CLI (x86_64-linux-gnu) ==="
 cd rust
 cargo build --bin mc2mt-cli --release
 cd "$BASEDIR"
 
-echo "=== 2. Configuring Android NDK Toolchain ==="
-# 运行 NDK 准备脚本
-chmod +x rust-build/pre_build_mc2mt_android.sh
-chmod +x rust-build/setenv-android.sh
-./rust-build/pre_build_mc2mt_android.sh
+echo "=== 3. Configuring Android NDK using cargo-ndk ==="
+# 使用 cargo-ndk 可以完美自动处理 cc-rs 和 sqlite3 的所有 NDK sysroot/clang 变量！
+cargo install cargo-ndk
 
-# 导入 NDK 环境变量
-export ANDROID_NDK="$BASEDIR/android-ndk-r26d"
-. ./rust-build/setenv-android.sh
+# 清理可能引起冲突的旧配置
+rm -f rust/.cargo/config.toml
 
-# 在 rust 目录下临时配置 NDK 链接器（修正为无 API 版本号的 clang 路径）
-cd rust
-mkdir -p .cargo
-cat > .cargo/config.toml << EOF
-[target.aarch64-linux-android]
-linker = "${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
-
-[target.armv7-linux-androideabi]
-linker = "${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
-EOF
-
-echo "=== 3. Exporting C Cross-Compiler Envs for Sqlite3 ==="
-# 显式导出编译器和归档器（修正为无 API 版本号的 clang 路径）
-export CC_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
-export AR_aarch64_linux_android="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/aarch64-linux-android-clang"
-
-export CC_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
-export AR_armv7_linux_androideabi="${ANDROID_TOOLCHAIN_DIR}/bin/llvm-ar"
-export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="${ANDROID_TOOLCHAIN_DIR}/bin/armv7a-linux-androideabi-clang"
+# 确定 NDK 路径
+if [ -z "$ANDROID_NDK_HOME" ]; then
+    if [ -n "$ANDROID_NDK" ]; then
+        export ANDROID_NDK_HOME="$ANDROID_NDK"
+    elif [ -n "$ANDROID_NDK_LATEST_HOME" ]; then
+        export ANDROID_NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+    else
+        echo "Error: ANDROID_NDK_HOME is not set. Please set it to your NDK path."
+        exit 1
+    fi
+fi
+echo "Using NDK at: $ANDROID_NDK_HOME"
 
 echo "=== 4. Building Termux compatible CLI (aarch64-linux-android) ==="
-# 使用 aarch64-linux-android 目标进行编译
-$BASEDIR/tools/.cargo/bin/rustup target add aarch64-linux-android
-$BASEDIR/tools/.cargo/bin/cargo build --bin mc2mt-cli --target aarch64-linux-android --release
+cd rust
+cargo ndk -t arm64-v8a -p 30 build --bin mc2mt-cli --release
 
 echo "=== Compilation finished! ==="
 ls -l target/release/mc2mt-cli
