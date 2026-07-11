@@ -69,11 +69,8 @@ object MclDimensionMapping : MclMappingModule {
             MclNode(nodeName)
         })
 
-        // 下界岩浆 (mcl_nether:nether_lava)
+        // 下界岩浆
         registry.register(ChunkerVanillaBlockType.LAVA, BlockMapper { id ->
-            // 注意：Chunker 并不直接区分 Nether 还是 Overworld Lava，
-            // 通常由管理器根据维度 Y 坐标或上下文决定。这里我们提供标准映射，
-            // 真实的维度流体替换可以在 MclConverterManager 中做上下文增强。
             dsl.liquid("mcl_core:lava_source", "mcl_core:lava_flowing").map(id)
         })
 
@@ -88,7 +85,7 @@ object MclDimensionMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.PURPUR_BLOCK, dsl.simple("mcl_end:purpur_block"))
         registry.register(ChunkerVanillaBlockType.PURPUR_PILLAR, dsl.log("mcl_end:purpur_pillar"))
 
-        // 末地烛 (End Rod)
+        // 末地烛
         registry.register(ChunkerVanillaBlockType.END_ROD, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
             val param2 = when (facing) {
@@ -108,16 +105,13 @@ object MclDimensionMapping : MclMappingModule {
 
         // 末地传送门框架
         registry.register(ChunkerVanillaBlockType.END_PORTAL_FRAME, BlockMapper { id ->
-            val eye = id.getState(VanillaBlockStates.EYE) ?: com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool.FALSE
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH
-            // Mineclonia 中框架逻辑较为简单，param2 处理方向
             val param2 = when (facing) {
                 com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH -> 0
                 com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.EAST -> 1
                 com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.SOUTH -> 2
                 com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.WEST -> 3
             }.toByte()
-            // 如果有眼，Mineclonia 会通过 NodeMeta 处理，节点名保持一致
             MclNode("mcl_portals:endframe", param2 = param2)
         })
 
@@ -125,20 +119,34 @@ object MclDimensionMapping : MclMappingModule {
         // 3. 附属方块 (下界与末地材质的楼梯/台阶/墙)
         // ==========================================
         
-        // 下界材质
+        // 石英
         registerDimensionSubsets("quartzblock", "quartzblock", "quartz", hasWall = false)
         registerDimensionSubsets("quartz_smooth", "quartz_smooth", "smooth_quartz", hasWall = false)
-        registerDimensionSubsets("nether_brick", "nether_brick", "nether_brick", hasWall = true)
-        registerDimensionSubsets("red_nether_brick", "red_nether_brick", "red_nether_brick", hasWall = true)
-        registerDimensionSubsets("blackstone", "blackstone", "blackstone", hasWall = true)
-        registerDimensionSubsets("polished_blackstone", "polished_blackstone", "polished_blackstone", hasWall = true)
-        registerDimensionSubsets("polished_blackstone_brick", "polished_blackstone_brick", "polished_blackstone_brick", hasWall = true)
+        
+        // 红色与普通过渡地狱砖
+        registerDimensionSubsets("nether_brick", "nether_brick", "nether_brick", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.NETHER_BRICK_WALL, dsl.simple("mcl_walls:netherbrick"))
+        
+        registerDimensionSubsets("red_nether_brick", "red_nether_brick", "red_nether_brick", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.RED_NETHER_BRICK_WALL, dsl.simple("mcl_walls:rednetherbrick"))
+        
+        // 黑石与抛光黑石墙精准重定向覆盖 (依据 mcl_blackstone.init.lua)
+        registerDimensionSubsets("blackstone", "blackstone", "blackstone", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.BLACKSTONE_WALL, dsl.simple("mcl_blackstone:wall"))
+
+        registerDimensionSubsets("polished_blackstone", "polished_blackstone", "polished_blackstone", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_WALL, dsl.simple("mcl_blackstone:polishedwall"))
+
+        registerDimensionSubsets("polished_blackstone_brick", "polished_blackstone_brick", "polished_blackstone_brick", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_WALL, dsl.simple("mcl_blackstone:polishedbrickwall"))
 
         // 末地材质
-        registerDimensionSubsets("end_bricks", "end_bricks", "end_stone_brick", hasWall = true)
+        registerDimensionSubsets("end_bricks", "end_bricks", "end_stone_brick", hasWall = false)
+        // 【精准修正】：末地石砖墙拼写修正为 mcl_walls:endbricks (无下划线，无 s 后缀)
+        registry.register(ChunkerVanillaBlockType.END_STONE_BRICK_WALL, dsl.simple("mcl_walls:endbricks"))
+        
         registerDimensionSubsets("purpur_block", "purpur_block", "purpur", hasWall = false)
         
-        // 普通过渡
         registry.register(ChunkerVanillaBlockType.NETHER_BRICK_FENCE, dsl.simple("mcl_fences:nether_brick_fence"))
     }
 

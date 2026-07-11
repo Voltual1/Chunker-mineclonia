@@ -129,22 +129,22 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_DIAMOND_ORE, dsl.simple("mcl_deepslate:deepslate_with_diamond"))
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_COPPER_ORE, dsl.simple("mcl_deepslate:deepslate_with_copper"))
 
-        // 深层板岩楼梯/台阶/墙体独立精准匹配 (对照 mcl_deepslate.deepslate.lua 注册格式)
+        // 【精准修正】：根据运行期 Luanti 日志对深板岩墙进行完美重定向（映射到 mcl_walls:deepslate_xxx 命名空间）
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_cobbled"))
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_cobbled", "mcl_stairs:slab_deepslate_cobbled_top", "mcl_stairs:slab_deepslate_cobbled_double"))
-        registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_WALL, dsl.simple("mcl_deepslate:deepslate_cobbled_wall"))
+        registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_WALL, dsl.simple("mcl_walls:deepslate_cobbled"))
 
         registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_polished"))
         registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_polished", "mcl_stairs:slab_deepslate_polished_top", "mcl_stairs:slab_deepslate_polished_double"))
-        registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_WALL, dsl.simple("mcl_deepslate:deepslate_polished_wall"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_WALL, dsl.simple("mcl_walls:deepslate_polished"))
 
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_bricks"))
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_SLAB, dsl.slab("mcl_stairs:slab_deepslate_bricks", "mcl_stairs:slab_deepslate_bricks_top", "mcl_stairs:slab_deepslate_bricks_double"))
-        registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_WALL, dsl.simple("mcl_deepslate:deepslate_bricks_wall"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_WALL, dsl.simple("mcl_walls:deepslate_bricks"))
 
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_tiles"))
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_tiles", "mcl_stairs:slab_deepslate_tiles_top", "mcl_stairs:slab_deepslate_tiles_double"))
-        registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_WALL, dsl.simple("mcl_deepslate:deepslate_tiles_wall"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_WALL, dsl.simple("mcl_walls:deepslate_tiles"))
 
         // ==========================================
         // 7. 凝灰岩及其变种 (mcl_deepslate)
@@ -248,10 +248,7 @@ object MclCoreMapping : MclMappingModule {
      * 循环处理 16 色系方块（羊毛、地毯、陶瓦、带釉陶瓦、混凝土、混凝土粉末、染色玻璃与玻璃板）
      */
     private fun registerColoredSets() {
-        val registry = MclMappingRegistry
-        val dsl = MclMappingDsl
-
-        // Minecraft Enum Color -> (Mineclonia Dye Color, Mineclonia Shulker Color)
+        val registry = mclName ->
         val colorMap = mapOf(
             "WHITE" to Pair("white", "white"),
             "ORANGE" to Pair("orange", "orange"),
@@ -271,9 +268,12 @@ object MclCoreMapping : MclMappingModule {
             "BLACK" to Pair("black", "black")
         )
 
+        val registry = MclMappingRegistry
+        val dsl = MclMappingDsl
+
         for ((mcName, colors) in colorMap) {
-            val dColor = colors.first   // 标准染料名
-            val sColor = colors.second  // 潜影盒专用名
+            val dColor = colors.first   
+            val sColor = colors.second  
             
             // 羊毛
             registry.register(enumValueOf("${mcName}_WOOL"), dsl.simple("mcl_wool:$dColor"))
