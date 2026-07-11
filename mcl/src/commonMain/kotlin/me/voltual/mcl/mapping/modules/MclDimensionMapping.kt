@@ -133,16 +133,17 @@ object MclDimensionMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.CHORUS_FLOWER, dsl.simple("mcl_end:chorus_flower"))
 
         // 末地传送门框架
-        registry.register(ChunkerVanillaBlockType.END_PORTAL_FRAME, BlockMapper { id ->
-            val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH
-            val param2 = when (facing) {
-                com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH -> 0
-                com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.EAST -> 1
-                com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.SOUTH -> 2
-                com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.WEST -> 3
-            }.toByte()
-            MclNode("mcl_portals:endframe", param2 = param2)
-        })
+registry.register(ChunkerVanillaBlockType.END_PORTAL_FRAME, BlockMapper { id ->
+    val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH
+    val param2 = when (facing) {
+        com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.NORTH -> 0
+        com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.EAST -> 1
+        com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.SOUTH -> 2
+        com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.FacingDirectionHorizontal.WEST -> 3
+    }.toByte()
+    // 修正：从 mcl_portals:endframe 改为官方名称 mcl_portals:end_portal_frame
+    MclNode("mcl_portals:end_portal_frame", param2 = param2)
+})
 
         // ==========================================
         // 3. 附属方块 (下界与末地材质的楼梯/台阶/墙)
