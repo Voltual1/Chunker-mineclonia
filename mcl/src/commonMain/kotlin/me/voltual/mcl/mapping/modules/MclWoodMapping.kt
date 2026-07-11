@@ -178,7 +178,7 @@ object MclWoodMapping : MclMappingModule {
         val dsl = MclMappingDsl
         
         registry.register(ChunkerVanillaBlockType.BAMBOO_PLANKS, dsl.simple("mcl_bamboo:bamboo_plank"))
-        registry.register(ChunkerVanillaBlockType.BAMBOO_MOSAIC, dsl.simple("mcl_bamboo:bamboo_plank_mosaic"))
+        registry.register(ChunkerVanillaBlockType.BAMBOO_MOSAIC, dsl.simple("mcl_bamboo:bamboo_mosaic"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_STAIRS, dsl.stair("mcl_stairs:stair_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_MOSAIC_STAIRS, dsl.stair("mcl_stairs:stair_bamboo_mosaic"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_SLAB, dsl.slab("mcl_stairs:slab_bamboo", "mcl_stairs:slab_bamboo_top", "mcl_stairs:slab_bamboo_double"))

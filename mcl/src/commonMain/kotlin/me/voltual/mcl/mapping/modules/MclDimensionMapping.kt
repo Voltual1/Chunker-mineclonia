@@ -26,7 +26,7 @@ object MclDimensionMapping : MclMappingModule {
         
         // 下界矿石
         registry.register(ChunkerVanillaBlockType.NETHER_QUARTZ_ORE, dsl.simple("mcl_nether:quartz_ore"))
-        registry.register(ChunkerVanillaBlockType.NETHER_GOLD_ORE, dsl.simple("mcl_nether:gold_ore"))
+        registry.register(ChunkerVanillaBlockType.NETHER_GOLD_ORE, dsl.simple("mcl_blackstone:nether_gold"))
         registry.register(ChunkerVanillaBlockType.ANCIENT_DEBRIS, dsl.simple("mcl_nether:ancient_debris"))
         registry.register(ChunkerVanillaBlockType.NETHERITE_BLOCK, dsl.simple("mcl_nether:netheriteblock"))
 
