@@ -49,13 +49,42 @@ object MclDimensionMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.POLISHED_BASALT, dsl.log("mcl_blackstone:basalt_polished"))
         registry.register(ChunkerVanillaBlockType.SMOOTH_BASALT, dsl.simple("mcl_blackstone:basalt_smooth"))
 
-        // 黑石系列 (mcl_blackstone)
+        // ==========================================
+        // 黑石核心系列 (mcl_blackstone) 极速精准绑定
+        // ==========================================
         registry.register(ChunkerVanillaBlockType.BLACKSTONE, dsl.simple("mcl_blackstone:blackstone"))
-        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE, dsl.simple("mcl_blackstone:polished"))
-        registry.register(ChunkerVanillaBlockType.CHISELED_POLISHED_BLACKSTONE, dsl.simple("mcl_blackstone:chiseled_polished"))
-        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICKS, dsl.simple("mcl_blackstone:polished_bricks"))
-        registry.register(ChunkerVanillaBlockType.CRACKED_POLISHED_BLACKSTONE_BRICKS, dsl.simple("mcl_blackstone:polished_bricks_cracked"))
-        registry.register(ChunkerVanillaBlockType.GILDED_BLACKSTONE, dsl.simple("mcl_blackstone:gilded"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE, dsl.simple("mcl_blackstone:blackstone_polished"))
+        registry.register(ChunkerVanillaBlockType.CHISELED_POLISHED_BLACKSTONE, dsl.simple("mcl_blackstone:blackstone_chiseled_polished"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICKS, dsl.simple("mcl_blackstone:blackstone_brick_polished"))
+        registry.register(ChunkerVanillaBlockType.CRACKED_POLISHED_BLACKSTONE_BRICKS, dsl.simple("mcl_blackstone:blackstone_brick_polished_cracked"))
+        registry.register(ChunkerVanillaBlockType.GILDED_BLACKSTONE, dsl.simple("mcl_blackstone:blackstone_gilded"))
+
+        // 黑石楼梯与台阶精准绑定 (依据 Action 日志修正)
+        registry.register(ChunkerVanillaBlockType.BLACKSTONE_STAIRS, dsl.stair("mcl_stairs:stair_blackstone"))
+        registry.register(ChunkerVanillaBlockType.BLACKSTONE_SLAB, dsl.slab(
+            "mcl_stairs:slab_blackstone",
+            "mcl_stairs:slab_blackstone_top",
+            "mcl_stairs:slab_blackstone_double"
+        ))
+
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_STAIRS, dsl.stair("mcl_stairs:stair_blackstone_polished"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_SLAB, dsl.slab(
+            "mcl_stairs:slab_blackstone_polished",
+            "mcl_stairs:slab_blackstone_polished_top",
+            "mcl_stairs:slab_blackstone_polished_double"
+        ))
+
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_STAIRS, dsl.stair("mcl_stairs:stair_blackstone_brick_polished"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_SLAB, dsl.slab(
+            "mcl_stairs:slab_blackstone_brick_polished",
+            "mcl_stairs:slab_blackstone_brick_polished_top",
+            "mcl_stairs:slab_blackstone_brick_polished_double"
+        ))
+
+        // 黑石墙体精准绑定
+        registry.register(ChunkerVanillaBlockType.BLACKSTONE_WALL, dsl.simple("mcl_blackstone:wall"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_WALL, dsl.simple("mcl_blackstone:polishedwall"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_WALL, dsl.simple("mcl_blackstone:polishedbrickwall"))
 
         // 下界植被 (地狱孢子)
         registry.register(ChunkerVanillaBlockType.NETHER_WART, BlockMapper { id ->
@@ -123,22 +152,12 @@ object MclDimensionMapping : MclMappingModule {
         registerDimensionSubsets("quartzblock", "quartzblock", "quartz", hasWall = false)
         registerDimensionSubsets("quartz_smooth", "quartz_smooth", "smooth_quartz", hasWall = false)
         
-        // 地狱砖墙极速绑定修正
+        // 地狱砖墙极速绑定
         registerDimensionSubsets("nether_brick", "nether_brick", "nether_brick", hasWall = false)
         registry.register(ChunkerVanillaBlockType.NETHER_BRICK_WALL, dsl.simple("mcl_walls:netherbrick"))
         
         registerDimensionSubsets("red_nether_brick", "red_nether_brick", "red_nether_brick", hasWall = false)
         registry.register(ChunkerVanillaBlockType.RED_NETHER_BRICK_WALL, dsl.simple("mcl_walls:rednetherbrick"))
-        
-        // 【挖掘验证黄金修正】：根据 ACTION 挖掘日志直接精准绑定黑石墙，消灭所有下划线残余！
-        registerDimensionSubsets("blackstone", "blackstone", "blackstone", hasWall = false)
-        registry.register(ChunkerVanillaBlockType.BLACKSTONE_WALL, dsl.simple("mcl_blackstone:wall"))
-
-        registerDimensionSubsets("polished_blackstone", "polished_blackstone", "polished_blackstone", hasWall = false)
-        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_WALL, dsl.simple("mcl_blackstone:polishedwall"))
-
-        registerDimensionSubsets("polished_blackstone_brick", "polished_blackstone_brick", "polished_blackstone_brick", hasWall = false)
-        registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_WALL, dsl.simple("mcl_blackstone:polishedbrickwall"))
 
         // 末地材质 (末地砖墙没有下划线和 s)
         registerDimensionSubsets("end_bricks", "end_bricks", "end_stone_brick", hasWall = false)
