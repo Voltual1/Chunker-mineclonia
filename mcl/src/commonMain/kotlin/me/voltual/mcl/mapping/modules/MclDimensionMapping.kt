@@ -123,14 +123,14 @@ object MclDimensionMapping : MclMappingModule {
         registerDimensionSubsets("quartzblock", "quartzblock", "quartz", hasWall = false)
         registerDimensionSubsets("quartz_smooth", "quartz_smooth", "smooth_quartz", hasWall = false)
         
-        // 红色与普通过渡地狱砖
+        // 地狱砖墙极速绑定修正
         registerDimensionSubsets("nether_brick", "nether_brick", "nether_brick", hasWall = false)
         registry.register(ChunkerVanillaBlockType.NETHER_BRICK_WALL, dsl.simple("mcl_walls:netherbrick"))
         
         registerDimensionSubsets("red_nether_brick", "red_nether_brick", "red_nether_brick", hasWall = false)
         registry.register(ChunkerVanillaBlockType.RED_NETHER_BRICK_WALL, dsl.simple("mcl_walls:rednetherbrick"))
         
-        // 黑石与抛光黑石墙精准重定向覆盖 (依据 mcl_blackstone.init.lua)
+        // 【挖掘验证黄金修正】：根据 ACTION 挖掘日志直接精准绑定黑石墙，消灭所有下划线残余！
         registerDimensionSubsets("blackstone", "blackstone", "blackstone", hasWall = false)
         registry.register(ChunkerVanillaBlockType.BLACKSTONE_WALL, dsl.simple("mcl_blackstone:wall"))
 
@@ -140,9 +140,8 @@ object MclDimensionMapping : MclMappingModule {
         registerDimensionSubsets("polished_blackstone_brick", "polished_blackstone_brick", "polished_blackstone_brick", hasWall = false)
         registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BRICK_WALL, dsl.simple("mcl_blackstone:polishedbrickwall"))
 
-        // 末地材质
+        // 末地材质 (末地砖墙没有下划线和 s)
         registerDimensionSubsets("end_bricks", "end_bricks", "end_stone_brick", hasWall = false)
-        // 【精准修正】：末地石砖墙拼写修正为 mcl_walls:endbricks (无下划线，无 s 后缀)
         registry.register(ChunkerVanillaBlockType.END_STONE_BRICK_WALL, dsl.simple("mcl_walls:endbricks"))
         
         registerDimensionSubsets("purpur_block", "purpur_block", "purpur", hasWall = false)
