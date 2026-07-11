@@ -1,11 +1,4 @@
 //Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发和/或修改它。
-//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
@@ -42,14 +35,14 @@ class MclConverterManager(
             """.trimIndent())
         }
 
-        // 补全出生点保护模组
         val modDir = File(outputDir, "worldmods/__mc2mt")
         if (!modDir.exists()) {
             modDir.mkdirs()
+            // 修正：出生点 Y 轴真实节点偏移为 64 (4 个 Chunk 高度)
             File(modDir, "init.lua").writeText("""
                 minetest.set_mapgen_params({chunksize = 1})
                 minetest.set_mapgen_params({mgname = 'singlenode'})
-                local spawn_pos = {x=$spawnX, y=${spawnY - 4 + 1}, z=$spawnZ}
+                local spawn_pos = {x=$spawnX, y=${spawnY - 64 + 1}, z=$spawnZ}
                 minetest.register_on_newplayer(function(player)
                     player:set_pos(spawn_pos)
                 end)
@@ -86,12 +79,17 @@ class MclConverterManager(
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            for (localY in 0 until 16) {
-                for (localZ in 0 until 16) {
+            // 【核心修正 1】：调整为 Minetest 官方序列化规定的物理外层循环顺序：Z -> Y -> X
+            for (localZ in 0 until 16) {
+                for (localY in 0 until 16) {
                     for (localX in 0 until 16) {
-                        val mcX = 15 - localX 
+                        // 【核心修正 2】：摒弃所有的镜像轴翻转，执行最稳定的 1:1 绝对映射，保证建筑左右不颠倒
+                        val mcX = localX 
                         val mcY = localY
                         val mcZ = localZ
+                        
+                        // 【核心修正 3】：采用完全精确的 Minetest ZYX 平面数组计算公式
+                        val blockIdx = (localZ shl 8) or (localY shl 4) or localX
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
                         val node = MclMappingRegistry.convert(identifier)
@@ -102,7 +100,6 @@ class MclConverterManager(
                             id
                         }
                         
-                        val blockIdx = (localY shl 8) or (localZ shl 4) or localX
                         blockIds[blockIdx] = localId
 
                         if (blockLight != null && skyLight != null) {
@@ -120,6 +117,7 @@ class MclConverterManager(
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
+                                // 传入准确的 blockIdx，供 Rust 直接使用
                                 metadataMap[blockIdx] = data
                             }
                         }

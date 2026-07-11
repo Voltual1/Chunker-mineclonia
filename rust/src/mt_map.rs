@@ -165,9 +165,9 @@ pub fn serialize_raw_chunk(
     local_names: Vec<String>,
     metadata_json_bytes: &[u8],
 ) -> Result<(MTPos, Vec<u8>), String> {
-    // 1. Minetest 的物理映射变换与大端转换
+    // 【核心修正 4】：完全 1:1 无损坐标映射，抛弃旧 C++ 错误的反转逻辑，杜绝左右颠倒和区块错位
     let mt_pos = MTPos {
-        x: (-cx - 1) as i16,
+        x: cx as i16, 
         y: (cy - BLOCK_Y_OFFSET) as i16,
         z: cz as i16,
     };
@@ -183,7 +183,7 @@ pub fn serialize_raw_chunk(
     data.write_u8(2).unwrap(); // content_width
     data.write_u8(2).unwrap(); // params_width
 
-    // 2. 压缩节点流
+    // 2. 压缩节点流 (此时由于 Kotlin 已经按照 ZYX 排序了，我们直接写入，内存访问极为高效！)
     let mut node_buffer = Vec::with_capacity(NODES_PER_BLOCK * 4);
     for &id in block_ids {
         node_buffer.write_u16::<BigEndian>(id as u16).unwrap();
@@ -206,11 +206,9 @@ pub fn serialize_raw_chunk(
         meta_buffer.write_u8(1).unwrap(); // Version = 1
         meta_buffer.write_u16::<BigEndian>(metadata.len() as u16).unwrap();
         for (idx, m_val) in metadata {
-            // 物理 ZYX 坐标变换
-            let z = (idx >> 4) & 0xF;
-            let y = (idx >> 8) & 0xF;
-            let x = idx & 0xF;
-            let mt_idx = (z * 256 + y * 16 + x) as u16;
+            // 【核心修正 5】：因为 Kotlin 传过来的 idx 已经是完美的 Minetest [Z][Y][X] 索引
+            // 我们直接把它强转回 u16 供存储引擎使用，无需重新推算错位
+            let mt_idx = idx as u16;
 
             meta_buffer.write_u16::<BigEndian>(mt_idx).unwrap();
             meta_buffer.write_i32::<BigEndian>(m_val.fields.len() as i32).unwrap();
