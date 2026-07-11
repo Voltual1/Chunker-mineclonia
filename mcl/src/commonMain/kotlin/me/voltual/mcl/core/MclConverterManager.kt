@@ -142,15 +142,29 @@ class MclConverterManager(
 
             // 处理当前局部 Column 线程累积的调试元数据
             for ((blockIdx, debugText) in pendingDebugSigns) {
-                val debugMetadata = MclBlockEntityData(
-                    fields = mapOf(
-                        "text" to debugText,
-                        "infotext" to debugText,
-                        "formspec" to "size[8,4]textarea[0.5,0.5;7.5,3;text;;${debugText}]"
-                    )
-                )
-                metadataMap[blockIdx] = debugMetadata
-            }
+    // 1. 外观渲染 text：去除换行，将长类名缩短展示，防止被 Mineclonia 的 15字x4行 算法完全切碎
+    val shortVisualText = debugText.replace("[MISSING]\n", "")
+        .replace("ChunkerBlockIdentifier", "Missing:")
+        .take(60) // 告示牌最大容纳 4行 * 15字 = 60字
+
+    // 2. 核心修复：对 Formspec 的多行文本和特殊字符进行转义，防止 Minetest 解析器截断
+    // 将换行符 \n 替换为 Minetest 允许的转义换行，或者直接使用单行文本展示完整 ID
+    val escapedFormspecText = debugText
+        .replace("\\", "\\\\")
+        .replace("[", "\\[")
+        .replace("]", "\\]")
+        .replace(";", "\\;")
+        .replace("\n", ", ") // 将换行换成逗号，在一行内完整展示，防止 Formspec 语法截断
+
+    val debugMetadata = MclBlockEntityData(
+        fields = mapOf(
+            "text" to shortVisualText,               // 用于告示牌表面木纹渲染
+            "infotext" to debugText,                 // 鼠标指向告示牌时悬浮显示的完整信息 (最安全，绝对不会截断)
+            "formspec" to "size[10,5]textarea[0.5,0.5;9.5,4;text;未识别的方块详细ID (请勿编辑提交);${escapedFormspecText}]" // 修复后的编辑框
+        )
+    )
+    metadataMap[blockIdx] = debugMetadata
+}
 
             val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
             val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
