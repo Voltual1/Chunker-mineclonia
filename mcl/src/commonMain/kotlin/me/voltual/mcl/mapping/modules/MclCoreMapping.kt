@@ -129,7 +129,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_DIAMOND_ORE, dsl.simple("mcl_deepslate:deepslate_with_diamond"))
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_COPPER_ORE, dsl.simple("mcl_deepslate:deepslate_with_copper"))
 
-        // 【精准修正】：根据运行期 Luanti 日志对深板岩墙进行完美重定向（映射到 mcl_walls:deepslate_xxx 命名空间）
+        // 精准深板岩附属映射 (重定向至 mcl_walls 命名空间)
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_cobbled"))
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_cobbled", "mcl_stairs:slab_deepslate_cobbled_top", "mcl_stairs:slab_deepslate_cobbled_double"))
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_WALL, dsl.simple("mcl_walls:deepslate_cobbled"))
@@ -248,7 +248,6 @@ object MclCoreMapping : MclMappingModule {
      * 循环处理 16 色系方块（羊毛、地毯、陶瓦、带釉陶瓦、混凝土、混凝土粉末、染色玻璃与玻璃板）
      */
     private fun registerColoredSets() {
-        val registry = mclName ->
         val colorMap = mapOf(
             "WHITE" to Pair("white", "white"),
             "ORANGE" to Pair("orange", "orange"),
