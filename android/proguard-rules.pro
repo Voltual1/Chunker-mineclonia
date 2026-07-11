@@ -78,6 +78,11 @@
     <fields>;
 }
 
+-keep class com.hivemc.chunker.conversion.intermediate.level.ChunkerLevelSettings {
+    <fields>;
+    <methods>;
+}
+
 
 
 
