@@ -4,8 +4,6 @@ import me.voltual.mcl.core.MclBlockEntityData
 import me.voltual.mcl.core.MclInventory
 import me.voltual.mcl.core.MclItemStack
 import me.voltual.mcl.mapping.MclItemRegistry
-
-import com.google.gson.JsonElement
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
