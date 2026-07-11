@@ -155,6 +155,8 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("brick", "brick", "brick", hasWall = true, suffix = "_block")
         registerStoneSet("sandstone", "sandstone", "sandstone", hasWall = true)
         registerStoneSet("redsandstone", "redsandstone", "red_sandstone", hasWall = true)
+        
+        // 泥砖系列 (精确根据 mcl_walls.register.lua 注册 mudbrick 墙体)
         registerStoneSet("mudbrick", "mudbrick", "mud_brick", hasWall = true)
 
         // ==========================================
@@ -236,13 +238,13 @@ object MclCoreMapping : MclMappingModule {
         )
 
         for ((mcName, colors) in colorMap) {
-            val dColor = colors.first   // 标准染料名 (陶瓦/混凝土/羊毛)
+            val dColor = colors.first   // 标准染料名
             val sColor = colors.second  // 潜影盒专用名
             
-            // 羊毛 (例如 mcl_wool:red)
+            // 羊毛
             registry.register(enumValueOf("${mcName}_WOOL"), dsl.simple("mcl_wool:$dColor"))
             
-            // 地毯 (例如 mcl_wool:red_carpet) - 已根据 mcl_wool:init.lua 修复
+            // 地毯
             registry.register(enumValueOf("${mcName}_CARPET"), dsl.simple("mcl_wool:${dColor}_carpet"))
             
             // 混凝土与陶瓦
