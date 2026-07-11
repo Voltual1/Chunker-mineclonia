@@ -144,36 +144,23 @@ object MclMappingDsl {
     fun chest(baseNode: String) = BlockMapper { id ->
         val type = id.getState(VanillaBlockStates.CHEST_TYPE) ?: ChestType.SINGLE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-        
-        // Mineclonia Facedir 0-3
         val param2 = when (facing) {
             FacingDirectionHorizontal.NORTH -> 0
             FacingDirectionHorizontal.EAST -> 1
             FacingDirectionHorizontal.SOUTH -> 2
             FacingDirectionHorizontal.WEST -> 3
         }.toByte()
-
-        // 映射到 Mineclonia 实际渲染节点
         val suffix = when (type) {
             ChestType.SINGLE -> "_small"
             ChestType.LEFT -> "_left"
             ChestType.RIGHT -> "_right"
         }
-
         MclNode("$baseNode$suffix", param2 = param2)
     }
 
     // 13. 潜影盒特殊逻辑 (Shulker Box)
     fun shulkerBox(mclColor: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
-        
-        // Mineclonia 潜影盒在 init.lua 中的 shulker_box_rotations 映射
-        // MC DOWN (0) -> MT 1 (floor)
-        // MC UP (1)   -> MT 0 (ceiling)
-        // MC NORTH (2)-> MT 4 (z-)
-        // MC SOUTH (3)-> MT 5 (z+)
-        // MC WEST (4) -> MT 3 (x-)
-        // MC EAST (5) -> MT 2 (x+)
         val param2 = when (facing) {
             FacingDirection.DOWN -> 1
             FacingDirection.UP -> 0
@@ -182,7 +169,6 @@ object MclMappingDsl {
             FacingDirection.WEST -> 3
             FacingDirection.EAST -> 2
         }.toByte()
-
         MclNode("mcl_chests:${mclColor}_shulker_box_small", param2 = param2)
     }
 
@@ -304,48 +290,97 @@ object MclMappingDsl {
         MclNode(baseName, param2 = param2)
     }
 
-    // 20. 门映射
-    fun door(customBase: String) = BlockMapper { id ->
-        val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+    // 20. 围栏门 (Gate)
+    fun gate(targetName: String) = BlockMapper { id ->
         val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
-        val hinge = id.getState(VanillaBlockStates.DOOR_HINGE) ?: HingeSide.LEFT
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-        val style = if (hinge == HingeSide.RIGHT) "2" else "1"
-        val part = if (half == Half.TOP) "t" else "b"
-        var param2 = when (facing) {
+        val nodeName = if (open) "${targetName}_open" else targetName
+        val param2 = when (facing) {
             FacingDirectionHorizontal.NORTH -> 0
             FacingDirectionHorizontal.EAST -> 1
             FacingDirectionHorizontal.SOUTH -> 2
             FacingDirectionHorizontal.WEST -> 3
-        }
-        if (open) {
-            param2 = if (hinge == HingeSide.LEFT) (param2 + 1) % 4 else (param2 + 3) % 4
-        }
-        MclNode("${customBase}_${part}_${style}", param2 = param2.toByte())
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
     }
 
-    // 21. 活板门映射
-    fun trapdoor(customBase: String) = BlockMapper { id ->
-        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+    // 21. 双层高大植物
+    fun doublePlant(basename: String) = BlockMapper { id ->
         val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+        val suffix = if (half == Half.TOP) "_top" else ""
+        MclNode("mcl_flowers:$basename$suffix")
+    }
+
+    // 22. 大垂滴叶
+    fun bigDripleaf() = BlockMapper { id ->
+        val tilt = id.getState(VanillaBlockStates.TILT) ?: Tilt.NONE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-        val nodeName = if (open) "${customBase}_open" else customBase
-        var param2 = when (facing) {
+        val nodeName = when (tilt) {
+            Tilt.NONE -> "mcl_lush_caves:dripleaf_big"
+            Tilt.PARTIAL, Tilt.UNSTABLE -> "mcl_lush_caves:dripleaf_big_tipped_half"
+            Tilt.FULL -> "mcl_lush_caves:dripleaf_big_tipped_full"
+        }
+        val param2 = when (facing) {
             FacingDirectionHorizontal.NORTH -> 0
             FacingDirectionHorizontal.EAST -> 1
             FacingDirectionHorizontal.SOUTH -> 2
             FacingDirectionHorizontal.WEST -> 3
-        }
-        if (half == Half.TOP) {
-            param2 += 20
-        }
-        MclNode(nodeName, param2 = param2.toByte())
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
     }
 
-    // 22. 液体映射 (重复项已检查)
-    fun liquidMapping(source: String, flowing: String) = BlockMapper { id ->
-        val level = id.getState(VanillaBlockStates.LIQUID_LEVEL) ?: LiquidLevel._0
-        val isFlowing = id.getState(VanillaBlockStates.FLOWING) == Bool.TRUE
-        MclNode(if (isFlowing) flowing else source, param2 = level.ordinal.toByte())
+    // 23. 小垂滴叶
+    fun smallDripleaf() = BlockMapper { id ->
+        val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        val nodeName = if (half == Half.TOP) "mcl_lush_caves:dripleaf_small" else "mcl_lush_caves:dripleaf_small_stem"
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 24. 熔炉类激活态映射
+    fun furnaceLike(normal: String, active: String) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        val nodeName = if (lit) active else normal
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }.toByte()
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 25. 投掷器、发射器等动力容器
+    fun dispenserLike(baseName: String) = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.NORTH
+        when (facing) {
+            FacingDirection.UP -> MclNode("${baseName}_up")
+            FacingDirection.DOWN -> MclNode("${baseName}_down")
+            FacingDirection.NORTH -> MclNode(baseName, param2 = 0)
+            FacingDirection.EAST -> MclNode(baseName, param2 = 1)
+            FacingDirection.SOUTH -> MclNode(baseName, param2 = 2)
+            FacingDirection.WEST -> MclNode(baseName, param2 = 3)
+        }
+    }
+
+    // 26. 漏斗朝向与启停状态
+    fun hopper() = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL_DOWN) ?: FacingDirectionHorizontalDown.DOWN
+        val enabled = id.getState(VanillaBlockStates.ENABLED) == Bool.TRUE
+        val state = if (enabled) "" else "_disabled"
+        when (facing) {
+            FacingDirectionHorizontalDown.DOWN -> MclNode("mcl_hoppers:hopper$state")
+            FacingDirectionHorizontalDown.NORTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 0)
+            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
+            FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
+            FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
+        }
     }
 }
