@@ -74,12 +74,12 @@ class MclConverterManager(
             val localNamesList = ArrayList<String>()
             val metadataMap = HashMap<Int, MclBlockEntityData>()
             
+            // 【核心修正】：改为当前方法的线程局部变量，彻底杜绝 JVM 并发冲突
+            val pendingDebugSigns = HashMap<Int, String>()
+            
             val palette = chunk.palette
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
-
-            // 清理上一区块的调试告示牌缓存
-            MclMappingRegistry.pendingDebugSigns.clear()
 
             for (localZ in 0 until 16) {
                 for (localY in 0 until 16) {
@@ -92,8 +92,10 @@ class MclConverterManager(
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
                         
-                        // 【核心改动 1】：使用带调试挂载的转换入口
-                        val node = MclMappingRegistry.convertAndDebug(identifier, blockIdx)
+                        // 传入局部 Lambda 表达式收集当前线程未映射的方块提示信息
+                        val node = MclMappingRegistry.convertAndDebug(identifier, blockIdx) { idx, text ->
+                            pendingDebugSigns[idx] = text
+                        }
                         
                         val localId = nameToLocalId.getOrPut(node.name) {
                             val id = localNamesList.size.toShort()
@@ -128,7 +130,6 @@ class MclConverterManager(
                         
                         param2[blockIdx] = node.param2
 
-                        // 转换原生 Minecraft 方块实体
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
@@ -139,8 +140,8 @@ class MclConverterManager(
                 }
             }
 
-            // 【核心改动 2】：将生成的未识别调试告示牌，批量转存为真实的 Minetest 告示牌方块实体 NBT
-            for ((blockIdx, debugText) in MclMappingRegistry.pendingDebugSigns) {
+            // 处理当前局部 Column 线程累积的调试元数据
+            for ((blockIdx, debugText) in pendingDebugSigns) {
                 val debugMetadata = MclBlockEntityData(
                     fields = mapOf(
                         "text" to debugText,
