@@ -1,11 +1,4 @@
 //Copyright (C) 2025 Voltual
-// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
-//（或任意更新的版本）的条款重新分发和/或修改它。
-//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
-// 有关更多细节，请参阅 GNU 通用公共许可证。
-//
-// 你应该已经收到了一份 GNU 通用公共许可证的副本
-// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
@@ -45,7 +38,6 @@ class MclConverterManager(
         val modDir = File(outputDir, "worldmods/__mc2mt")
         if (!modDir.exists()) {
             modDir.mkdirs()
-            // 修正：出生点 Y 轴真实节点偏移为 64 (4 个 Chunk 高度)
             File(modDir, "init.lua").writeText("""
                 minetest.set_mapgen_params({chunksize = 1})
                 minetest.set_mapgen_params({mgname = 'singlenode'})
@@ -72,7 +64,7 @@ class MclConverterManager(
         val chunkZ = column.position.chunkZ
 
         for ((yByte, chunk) in column.chunks) {
-            val y = yByte.toInt() // Minecraft 原生 Chunk 的 Y 轴编号
+            val y = yByte.toInt()
             
             val blockIds = ShortArray(4096)
             val param1 = ByteArray(4096)
@@ -86,6 +78,9 @@ class MclConverterManager(
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
+            // 清理上一区块的调试告示牌缓存
+            MclMappingRegistry.pendingDebugSigns.clear()
+
             for (localZ in 0 until 16) {
                 for (localY in 0 until 16) {
                     for (localX in 0 until 16) {
@@ -96,7 +91,9 @@ class MclConverterManager(
                         val blockIdx = (localZ shl 8) or (localY shl 4) or localX
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
-                        val node = MclMappingRegistry.convert(identifier)
+                        
+                        // 【核心改动 1】：使用带调试挂载的转换入口
+                        val node = MclMappingRegistry.convertAndDebug(identifier, blockIdx)
                         
                         val localId = nameToLocalId.getOrPut(node.name) {
                             val id = localNamesList.size.toShort()
@@ -106,15 +103,12 @@ class MclConverterManager(
                         
                         blockIds[blockIdx] = localId
 
-                        // =========================================================================
-                        // 【光照核心修复逻辑】：
-                        // =========================================================================
+                        // 光照系统
                         var lightInited = false
                         if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
                             
-                            // 只有当获取到的非零有效光照时才使用原生光照，防止未渲染区块光照全黑
                             if (bl > 0 || sl > 0) {
                                 val dayLight = Math.max(bl.toInt(), sl.toInt()) and 0x0F
                                 val nightLight = bl.toInt() and 0x0F
@@ -124,18 +118,17 @@ class MclConverterManager(
                         }
                         
                         if (!lightInited) {
-                            // 如果是非空气、非水源等实心方块，且位于低于超平坦水平面（Minecraft Y = -60，即 Chunk y = -3）以下，则判定为黑暗。
-                            // 露天部分（空气或海平面以上的上层建筑）统一赋予最大日照强度 15 (0x0F)，彻底解决黑夜世界问题。
                             val isAirLike = node.name == "air" || node.name.contains("water")
                             if (y < -3 && !isAirLike) {
-                                param1[blockIdx] = 0x00.toByte() // 真正的地下埋藏部分：完全黑暗
+                                param1[blockIdx] = 0x00.toByte()
                             } else {
-                                param1[blockIdx] = 0x0F.toByte() // 露天及地表上方：完全明亮 (大世界天光)
+                                param1[blockIdx] = 0x0F.toByte()
                             }
                         }
                         
                         param2[blockIdx] = node.param2
 
+                        // 转换原生 Minecraft 方块实体
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
@@ -144,6 +137,18 @@ class MclConverterManager(
                         }
                     }
                 }
+            }
+
+            // 【核心改动 2】：将生成的未识别调试告示牌，批量转存为真实的 Minetest 告示牌方块实体 NBT
+            for ((blockIdx, debugText) in MclMappingRegistry.pendingDebugSigns) {
+                val debugMetadata = MclBlockEntityData(
+                    fields = mapOf(
+                        "text" to debugText,
+                        "infotext" to debugText,
+                        "formspec" to "size[8,4]textarea[0.5,0.5;7.5,3;text;;${debugText}]"
+                    )
+                )
+                metadataMap[blockIdx] = debugMetadata
             }
 
             val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
