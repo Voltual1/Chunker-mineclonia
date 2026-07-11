@@ -13,7 +13,8 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.Chunke
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclBlockEntityRegistry
 import me.voltual.mc2mt.MC2MTLib 
-import com.google.gson.Gson
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -23,7 +24,6 @@ class MclConverterManager(
     val spawnY: Int,
     val spawnZ: Int
 ) : AutoCloseable {
-    private val gson = Gson()
 
     init {
         if (!outputDir.exists()) {
@@ -172,8 +172,8 @@ class MclConverterManager(
     metadataMap[blockIdx] = debugMetadata
 }
 
-            val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
-            val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
+            val localNamesJson = Json.encodeToString(localNamesList).toByteArray(StandardCharsets.UTF_8)
+            val metadataJson = Json.encodeToString(metadataMap).toByteArray(StandardCharsets.UTF_8)
 
             MC2MTLib.writeChunkFast(chunkX, y, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
         }

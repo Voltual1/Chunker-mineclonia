@@ -1,11 +1,10 @@
 package me.voltual.mcl.core
 
 import java.io.File
-import com.google.gson.Gson
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.encodeToString
 
 class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : AutoCloseable {
-    
-    private val gson = Gson()
 
     companion object {
         init {
@@ -38,11 +37,9 @@ class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : Au
     }
 
     init {
-        // 创建目标数据库文件夹
         val file = File(dbPath)
         file.parentFile?.mkdirs()
 
-        // 初始化原生数据库事务和出生点
         val success = initNativeEngine(dbPath, spawnX, spawnY, spawnZ)
         if (!success) {
             throw RuntimeException("Failed to initialize Rust native SQLite database engine.")
@@ -60,8 +57,9 @@ class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : Au
         localNames: List<String>,
         metadata: Map<Int, MclBlockEntityData>
     ) {
-        val namesJsonBytes = gson.toJson(localNames).toByteArray(Charsets.UTF_8)
-        val metaJsonBytes = gson.toJson(metadata).toByteArray(Charsets.UTF_8)
+        // 使用 kotlinx.serialization 替代 Gson
+        val namesJsonBytes = Json.encodeToString(localNames).toByteArray(Charsets.UTF_8)
+        val metaJsonBytes = Json.encodeToString(metadata).toByteArray(Charsets.UTF_8)
 
         val status = writeChunkFast(
             cx, cy, cz,

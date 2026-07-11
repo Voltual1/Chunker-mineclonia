@@ -2,6 +2,7 @@ import org.jetbrains.kotlin.gradle.dsl.JvmTarget
 plugins {
     alias(libs.plugins.android.multiplatform.library)    
     alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.kotlin.serialization)    
     id("org.jetbrains.kotlinx.binary-compatibility-validator") version "0.14.0"
 }
 
@@ -29,6 +30,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("stdlib")) 
                 implementation(project(":cli"))
+                implementation(libs.kotlinx.serialization.json)    
             }
         }
         
