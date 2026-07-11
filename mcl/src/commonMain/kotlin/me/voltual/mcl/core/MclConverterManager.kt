@@ -1,4 +1,11 @@
 //Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
@@ -65,7 +72,7 @@ class MclConverterManager(
         val chunkZ = column.position.chunkZ
 
         for ((yByte, chunk) in column.chunks) {
-            val y = yByte.toInt()
+            val y = yByte.toInt() // Minecraft 原生 Chunk 的 Y 轴编号
             
             val blockIds = ShortArray(4096)
             val param1 = ByteArray(4096)
@@ -79,16 +86,13 @@ class MclConverterManager(
             val blockLight = chunk.blockLight
             val skyLight = chunk.skyLight
 
-            // 【核心修正 1】：调整为 Minetest 官方序列化规定的物理外层循环顺序：Z -> Y -> X
             for (localZ in 0 until 16) {
                 for (localY in 0 until 16) {
                     for (localX in 0 until 16) {
-                        // 【核心修正 2】：摒弃所有的镜像轴翻转，执行最稳定的 1:1 绝对映射，保证建筑左右不颠倒
                         val mcX = localX 
                         val mcY = localY
                         val mcZ = localZ
                         
-                        // 【核心修正 3】：采用完全精确的 Minetest ZYX 平面数组计算公式
                         val blockIdx = (localZ shl 8) or (localY shl 4) or localX
                         
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
@@ -102,14 +106,32 @@ class MclConverterManager(
                         
                         blockIds[blockIdx] = localId
 
+                        // =========================================================================
+                        // 【光照核心修复逻辑】：
+                        // =========================================================================
+                        var lightInited = false
                         if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
                             val sl = skyLight[mcX][mcY]?.get(mcZ) ?: 0
-                            val dayLight = Math.max(bl.toInt(), sl.toInt()) and 0x0F
-                            val nightLight = bl.toInt() and 0x0F
-                            param1[blockIdx] = ((nightLight shl 4) or dayLight).toByte()
-                        } else {
-                            param1[blockIdx] = (if (y < 4) 0x00 else 0x0F).toByte()
+                            
+                            // 只有当获取到的非零有效光照时才使用原生光照，防止未渲染区块光照全黑
+                            if (bl > 0 || sl > 0) {
+                                val dayLight = Math.max(bl.toInt(), sl.toInt()) and 0x0F
+                                val nightLight = bl.toInt() and 0x0F
+                                param1[blockIdx] = ((nightLight shl 4) or dayLight).toByte()
+                                lightInited = true
+                            }
+                        }
+                        
+                        if (!lightInited) {
+                            // 如果是非空气、非水源等实心方块，且位于低于超平坦水平面（Minecraft Y = -60，即 Chunk y = -3）以下，则判定为黑暗。
+                            // 露天部分（空气或海平面以上的上层建筑）统一赋予最大日照强度 15 (0x0F)，彻底解决黑夜世界问题。
+                            val isAirLike = node.name == "air" || node.name.contains("water")
+                            if (y < -3 && !isAirLike) {
+                                param1[blockIdx] = 0x00.toByte() // 真正的地下埋藏部分：完全黑暗
+                            } else {
+                                param1[blockIdx] = 0x0F.toByte() // 露天及地表上方：完全明亮 (大世界天光)
+                            }
                         }
                         
                         param2[blockIdx] = node.param2
@@ -117,7 +139,6 @@ class MclConverterManager(
                         val worldY = (y shl 4) + mcY
                         column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
-                                // 传入准确的 blockIdx，供 Rust 直接使用
                                 metadataMap[blockIdx] = data
                             }
                         }
