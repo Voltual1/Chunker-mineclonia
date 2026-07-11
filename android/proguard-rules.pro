@@ -78,8 +78,6 @@
     <fields>;
 }
 
--keep class me.voltual.mc2mt.** { *; }
--keep class me.voltual.mcl.core.MclSqliteSaver { *; }
 
 
 
