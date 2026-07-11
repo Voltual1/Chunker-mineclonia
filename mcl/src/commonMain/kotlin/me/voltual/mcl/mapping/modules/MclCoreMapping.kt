@@ -107,7 +107,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.MUD_BRICKS, dsl.simple("mcl_mud:mud_bricks"))
 
         // ==========================================
-        // 6. 深层泥板及其变种 (mcl_deepslate)
+        // 6. 深层板岩及其变种 (mcl_deepslate)
         // ==========================================
         registry.register(ChunkerVanillaBlockType.DEEPSLATE, dsl.log("mcl_deepslate:deepslate"))
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE, dsl.simple("mcl_deepslate:deepslate_cobbled"))
@@ -129,6 +129,23 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_DIAMOND_ORE, dsl.simple("mcl_deepslate:deepslate_with_diamond"))
         registry.register(ChunkerVanillaBlockType.DEEPSLATE_COPPER_ORE, dsl.simple("mcl_deepslate:deepslate_with_copper"))
 
+        // 深层板岩楼梯/台阶/墙体独立精准匹配 (对照 mcl_deepslate.deepslate.lua 注册格式)
+        registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_cobbled"))
+        registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_cobbled", "mcl_stairs:slab_deepslate_cobbled_top", "mcl_stairs:slab_deepslate_cobbled_double"))
+        registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE_WALL, dsl.simple("mcl_deepslate:deepslate_cobbled_wall"))
+
+        registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_polished"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_polished", "mcl_stairs:slab_deepslate_polished_top", "mcl_stairs:slab_deepslate_polished_double"))
+        registry.register(ChunkerVanillaBlockType.POLISHED_DEEPSLATE_WALL, dsl.simple("mcl_deepslate:deepslate_polished_wall"))
+
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_bricks"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_SLAB, dsl.slab("mcl_stairs:slab_deepslate_bricks", "mcl_stairs:slab_deepslate_bricks_top", "mcl_stairs:slab_deepslate_bricks_double"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_BRICK_WALL, dsl.simple("mcl_deepslate:deepslate_bricks_wall"))
+
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_STAIRS, dsl.stair("mcl_stairs:stair_deepslate_tiles"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_SLAB, dsl.slab("mcl_stairs:slab_deepslate_tiles", "mcl_stairs:slab_deepslate_tiles_top", "mcl_stairs:slab_deepslate_tiles_double"))
+        registry.register(ChunkerVanillaBlockType.DEEPSLATE_TILE_WALL, dsl.simple("mcl_deepslate:deepslate_tiles_wall"))
+
         // ==========================================
         // 7. 凝灰岩及其变种 (mcl_deepslate)
         // ==========================================
@@ -138,8 +155,24 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.CHISELED_TUFF, dsl.simple("mcl_deepslate:tuff_chiseled"))
         registry.register(ChunkerVanillaBlockType.CHISELED_TUFF_BRICKS, dsl.simple("mcl_deepslate:tuff_chiseled_bricks"))
 
+        // 凝灰岩附属楼梯台阶墙体
+        registerStoneSet("tuff", "tuff", "tuff", hasWall = true)
+        registerStoneSet("tuff_polished", "tuff_polished", "polished_tuff", hasWall = true)
+        registerStoneSet("tuff_brick", "tuff_brick", "tuff_brick", hasWall = true)
+
         // ==========================================
-        // 8. 楼梯、台阶与墙体集合注册 (Stairs, Slabs & Walls)
+        // 8. 苍白橡树树脂变体 (mcl_pale_oak.resin_blocks.lua)
+        // ==========================================
+        registry.register(ChunkerVanillaBlockType.RESIN_BLOCK, dsl.simple("mcl_pale_oak:block_of_resin"))
+        registry.register(ChunkerVanillaBlockType.RESIN_BRICKS, dsl.simple("mcl_pale_oak:resin_brick_block"))
+        registry.register(ChunkerVanillaBlockType.CHISELED_RESIN_BRICKS, dsl.simple("mcl_pale_oak:chiseled_resin_brick"))
+        
+        registry.register(ChunkerVanillaBlockType.RESIN_BRICK_STAIRS, dsl.stair("mcl_stairs:stair_resin_brick"))
+        registry.register(ChunkerVanillaBlockType.RESIN_BRICK_SLAB, dsl.slab("mcl_stairs:slab_resin_brick", "mcl_stairs:slab_resin_brick_top", "mcl_stairs:slab_resin_brick_double"))
+        registry.register(ChunkerVanillaBlockType.RESIN_BRICK_WALL, dsl.simple("mcl_pale_oak:resinbrick"))
+
+        // ==========================================
+        // 9. 楼梯、台阶与墙体集合注册 (Stairs, Slabs & Walls)
         // ==========================================
         registerStoneSet("cobble", "cobbles", "cobble", hasWall = true)
         registerStoneSet("mossycobble", "mossycobble", "mossy_cobblestone", hasWall = true)
@@ -156,18 +189,19 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("sandstone", "sandstone", "sandstone", hasWall = true)
         registerStoneSet("redsandstone", "redsandstone", "red_sandstone", hasWall = true)
         
-        // 泥砖系列 (精确根据 mcl_walls.register.lua 注册 mudbrick 墙体)
-        registerStoneSet("mudbrick", "mudbrick", "mud_brick", hasWall = true)
+        // 泥砖系列 (泥砖墙注册在 mcl_walls 模块)
+        registerStoneSet("mudbrick", "mudbrick", "mud_brick", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.MUD_BRICK_WALL, dsl.simple("mcl_walls:mudbrick"))
 
         // ==========================================
-        // 9. 箱子系列 (修复物理后缀)
+        // 10. 箱子系列 (修复物理后缀)
         // ==========================================
         registry.register(ChunkerVanillaBlockType.CHEST, dsl.chest("mcl_chests:chest"))
         registry.register(ChunkerVanillaBlockType.TRAPPED_CHEST, dsl.chest("mcl_chests:trapped_chest"))
         registry.register(ChunkerVanillaBlockType.ENDER_CHEST, dsl.directional("mcl_chests:ender_chest_small"))
 
         // ==========================================
-        // 10. 16色彩色方块与羊毛 (Colorblocks & Wool)
+        // 11. 16色彩色方块与羊毛 (Colorblocks & Wool)
         // ==========================================
         registerColoredSets()
     }
