@@ -37,7 +37,7 @@ object MclWoodMapping : MclMappingModule {
         // 10. 竹子 (Bamboo) - 特殊处理，因为没有 Log 概念
         registerBamboo()
 
-        // 11. 绯红 (Crimson) & 诡异 (Warped)
+        // 11. 绯红 (Crimson) & 诡异 (Warped) 下界木材套装注册
         registerNetherWood("CRIMSON", "crimson")
         registerNetherWood("WARPED", "warped")
     }
@@ -92,13 +92,12 @@ object MclWoodMapping : MclMappingModule {
         safeRegister(registry, "${chunkerPrefix}_SIGN") { dsl.simple("mcl_signs:standing_sign_$mclName") }
         safeRegister(registry, "${chunkerPrefix}_WALL_SIGN") { dsl.directional("mcl_signs:wall_sign_$mclName") }
         safeRegister(registry, "${chunkerPrefix}_HANGING_SIGN") { dsl.simple("mcl_signs:hanging_sign_$mclName") }
-        safeRegister(registry, "${chunkerPrefix}_WALL_HANGING_SIGN") { dsl.directional("mcl_signs:hanging_sign_${mclName}_wall") }
+        safeRegister(registry, "${chunkerPrefix}_WALL_HANGING_SIGN") { dsl.directional("mcl_signs:hanging_sign_wall_$mclName") }
 
         // 树叶 & 树苗
         if (hasLeaves) {
             safeRegister(registry, "${chunkerPrefix}_LEAVES") { dsl.simple("$modName:leaves_$mclName") }
             
-            // 解决 Chunker 的 MANGROVE_SAPLING 缺失问题
             val saplingEnumName = if (chunkerPrefix == "MANGROVE") "MANGROVE_PROPAGULE" else "${chunkerPrefix}_SAPLING"
             safeRegister(registry, saplingEnumName) { dsl.simple("mcl_trees:sapling_$mclName") }
         }
@@ -126,28 +125,46 @@ object MclWoodMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.BAMBOO_WALL_HANGING_SIGN, dsl.directional("mcl_signs:hanging_sign_bamboo_wall"))
     }
 
+    /**
+     * 极速精准对齐下界两套木材（Warped 诡异 与 Crimson 绯红）
+     */
     private fun registerNetherWood(chunkerPrefix: String, mclName: String) {
         val registry = MclMappingRegistry
         val dsl = MclMappingDsl
-        val mod = "mcl_crimson"
+        val mod = "mcl_trees"
 
-        registry.register(enumValueOf("${chunkerPrefix}_STEM"), dsl.log("$mod:${mclName}_stem"))
-        registry.register(enumValueOf("${chunkerPrefix}_HYPHAE"), dsl.log("$mod:${mclName}_hyphae"))
-        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_STEM"), dsl.log("$mod:stripped_${mclName}_stem"))
-        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_HYPHAE"), dsl.log("$mod:stripped_${mclName}_hyphae"))
-        registry.register(enumValueOf("${chunkerPrefix}_PLANKS"), dsl.simple("$mod:${mclName}_planks"))
-        registry.register(enumValueOf("${chunkerPrefix}_FENCE"), dsl.simple("$mod:${mclName}_fence"))
-        registry.register(enumValueOf("${chunkerPrefix}_FENCE_GATE"), dsl.gate("$mod:${mclName}_fence_gate"))
-        registry.register(enumValueOf("${chunkerPrefix}_DOOR"), dsl.door("$mod:${mclName}_door"))
-        registry.register(enumValueOf("${chunkerPrefix}_TRAPDOOR"), dsl.trapdoor("$mod:${mclName}_trapdoor"))
+        // 对应真实挖掘日志精准注册
+        registry.register(enumValueOf("${chunkerPrefix}_STEM"), dsl.log("$mod:tree_$mclName"))
+        registry.register(enumValueOf("${chunkerPrefix}_HYPHAE"), dsl.log("$mod:wood_$mclName"))
+        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_STEM"), dsl.log("$mod:stripped_$mclName"))
+        registry.register(enumValueOf("STRIPPED_${chunkerPrefix}_HYPHAE"), dsl.log("$mod:bark_stripped_$mclName"))
+        
+        // 特殊：下界木板名在 Mineclonia 中叫 bark_<color>
+        registry.register(enumValueOf("${chunkerPrefix}_PLANKS"), dsl.simple("$mod:bark_$mclName"))
+
+        // 其他功能性木质方块
+        registry.register(enumValueOf("${chunkerPrefix}_FENCE"), dsl.simple("mcl_fences:${mclName}_fence"))
+        registry.register(enumValueOf("${chunkerPrefix}_FENCE_GATE"), dsl.gate("mcl_fences:${mclName}_fence_gate"))
+        registry.register(enumValueOf("${chunkerPrefix}_DOOR"), dsl.door("mcl_doors:door_$mclName"))
+        registry.register(enumValueOf("${chunkerPrefix}_TRAPDOOR"), dsl.trapdoor("mcl_doors:trapdoor_$mclName"))
+        
+        // 楼梯/台阶 (在 Mineclonia 中，诡异木楼梯包含了“木板楼梯”和由“木块”制成的“树皮楼梯”)
         registry.register(enumValueOf("${chunkerPrefix}_STAIRS"), dsl.stair("mcl_stairs:stair_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_SLAB"), dsl.slab("mcl_stairs:slab_$mclName", "mcl_stairs:slab_${mclName}_top", "mcl_stairs:slab_${mclName}_double"))
+        registry.register(enumValueOf("${chunkerPrefix}_SLAB"), dsl.slab(
+            "mcl_stairs:slab_$mclName", 
+            "mcl_stairs:slab_${mclName}_top", 
+            "mcl_stairs:slab_${mclName}_double"
+        ))
+
+        // 按钮 & 压力板
         registry.register(enumValueOf("${chunkerPrefix}_BUTTON"), dsl.button(mclName))
         registry.register(enumValueOf("${chunkerPrefix}_PRESSURE_PLATE"), dsl.pressurePlate(mclName))
+
+        // 告示牌与吊挂牌系列（修复 wall 前缀顺序颠倒的缺陷）
         registry.register(enumValueOf("${chunkerPrefix}_SIGN"), dsl.simple("mcl_signs:standing_sign_$mclName"))
         registry.register(enumValueOf("${chunkerPrefix}_WALL_SIGN"), dsl.directional("mcl_signs:wall_sign_$mclName"))
         registry.register(enumValueOf("${chunkerPrefix}_HANGING_SIGN"), dsl.simple("mcl_signs:hanging_sign_$mclName"))
-        registry.register(enumValueOf("${chunkerPrefix}_WALL_HANGING_SIGN"), dsl.directional("mcl_signs:hanging_sign_${mclName}_wall"))
+        registry.register(enumValueOf("${chunkerPrefix}_WALL_HANGING_SIGN"), dsl.directional("mcl_signs:hanging_sign_wall_$mclName"))
     }
 
     /**
