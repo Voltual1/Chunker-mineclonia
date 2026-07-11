@@ -9,20 +9,19 @@ import com.google.gson.JsonElement
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
-import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType
 
-/**
- * 方块实体转换注册表
- */
 object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
 
     init {
-        // 注册已实现的转换器
-    register(ChestBlockEntity::class.java, ::convertChest)
-    // 修复：确保陷阱箱的数据也能通过 ChestBlockEntity 转换器无损导出
-    register(com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity::class.java, ::convertChest)    
+        // 注册箱子类容器 (共享 convertChest 逻辑)
+        register(ChestBlockEntity::class.java, ::convertChest)
+        register(TrappedChestBlockEntity::class.java, ::convertChest)
+        register(ShulkerBoxBlockEntity::class.java, ::convertChest)
+
         register(FurnaceBlockEntity::class.java, ::convertFurnace)
         register(SignBlockEntity::class.java, ::convertSign)
         register(JukeboxBlockEntity::class.java, ::convertJukebox)
@@ -34,19 +33,14 @@ object MclBlockEntityRegistry {
         converters[clazz] = converter as (BlockEntity) -> MclBlockEntityData
     }
 
-    /**
-     * 执行方块实体转换，供 MclConverterManager 调用
-     */
     fun convert(blockEntity: BlockEntity): MclBlockEntityData? {
         val converter = converters[blockEntity::class.java] ?: return null
         return converter(blockEntity)
     }
 
-    /**
-     * 1. 箱子转换 (Chest)
-     */
     private fun convertChest(chest: ChestBlockEntity): MclBlockEntityData {
-        val size = 27 // Mineclonia 标准单箱子
+        // Mineclonia 中大箱子逻辑由两个独立节点组成，每个节点通过元数据维护 27 格
+        val size = 27 
         val items = MutableList(size) { MclItemStack("", 0) }
 
         for ((slotByte, chunkerItem) in chest.items) {
@@ -58,16 +52,13 @@ object MclBlockEntityRegistry {
 
         return MclBlockEntityData(
             fields = mapOf(
-                "infotext" to "Chest",
-                "formspec" to "size[8,9]list[current_name;main;0,0;9,3;]list[current_player;main;0,5;8,4;]"
+                "infotext" to "Container",
+                "formspec" to "size[11.75,10.425]list[context;main;0.375,0.75;9,3;]list[current_player;main;0.375,5.1;9,3;9]list[current_player;main;0.375,9.05;9,1;]"
             ),
             inventories = mapOf("main" to MclInventory(9, items))
         )
     }
 
-    /**
-     * 2. 熔炉转换 (Furnace)
-     */
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
         val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
@@ -89,9 +80,6 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 3. 告示牌转换 (Sign)
-     */
     private fun convertSign(sign: SignBlockEntity): MclBlockEntityData {
         val textBuilder = StringBuilder()
         for (lineElement in sign.front.lines) {
@@ -109,9 +97,6 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 4. 唱片机转换 (Jukebox)
-     */
     private fun convertJukebox(jukebox: JukeboxBlockEntity): MclBlockEntityData {
         val record = jukebox.record
         val fields = mutableMapOf("infotext" to "Jukebox")
@@ -126,9 +111,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields, inventories)
     }
 
-    /**
-     * 5. 刷怪笼转换 (Spawner)
-     */
     private fun convertSpawner(spawner: SpawnerBlockEntity): MclBlockEntityData {
         val entityType = spawner.entityType
         val entityName = entityType?.let { "mcl_mobs:${it.toString().lowercase()}" } ?: "mcl_mobs:zombie"
