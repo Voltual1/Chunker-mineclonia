@@ -1,4 +1,11 @@
 //Copyright (C) 2025 Voltual
+// 本程序是自由软件：你可以根据自由软件基金会发布的 GNU 通用公共许可证第3版
+//（或任意更新的版本）的条款重新分发和/或修改它。
+//本程序是基于希望它有用而分发的，但没有任何担保；甚至没有适销性或特定用途适用性的隐含担保。
+// 有关更多细节，请参阅 GNU 通用公共许可证。
+//
+// 你应该已经收到了一份 GNU 通用公共许可证的副本
+// 如果没有，请查阅 <http://www.gnu.org/licenses/>.
 package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
@@ -142,13 +149,12 @@ class MclConverterManager(
 
             // 处理当前局部 Column 线程累积的调试元数据
             for ((blockIdx, debugText) in pendingDebugSigns) {
-    // 1. 外观渲染 text：去除换行，将长类名缩短展示，防止被 Mineclonia 的 15字x4行 算法完全切碎
     val shortVisualText = debugText.replace("[MISSING]\n", "")
         .replace("ChunkerBlockIdentifier", "Missing:")
         .take(60) // 告示牌最大容纳 4行 * 15字 = 60字
 
-    // 2. 核心修复：对 Formspec 的多行文本和特殊字符进行转义，防止 Minetest 解析器截断
-    // 将换行符 \n 替换为 Minetest 允许的转义换行，或者直接使用单行文本展示完整 ID
+    // 对 Formspec 的多行文本和特殊字符进行转义，防止 Minetest 解析器截断
+    // 将换行符 \n 替换为 Minetest 允许的转义换行
     val escapedFormspecText = debugText
         .replace("\\", "\\\\")
         .replace("[", "\\[")

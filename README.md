@@ -16,6 +16,7 @@
 感谢以下项目及贡献者（按字母顺序排列）：
 
 * [andob/android-awt](https://github.com/andob/android-awt)
+* [eltanschauung/MC2MT](https://github.com/eltanschauung/MC2MT)
 * [GeyserMC/PackConverter](https://github.com/GeyserMC/PackConverter)
 * [HiveGamesOSS/Chunker](https://github.com/HiveGamesOSS/Chunker)
 * [HiveGamesOSS/leveldb-mcpe-java](https://github.com/HiveGamesOSS/leveldb-mcpe-java)
@@ -26,7 +27,6 @@
 * [rikkahub/rikkahub](https://github.com/rikkahub/rikkahub)
 * [rollerozxa/MC2MT](https://github.com/rollerozxa/MC2MT)
 * [rust-keylock/rust-keylock-android](https://github.com/rust-keylock/rust-keylock-android)
-* [eltanschauung/MC2MT](https://github.com/eltanschauung/MC2MT)
 * [termux/termux-app](https://github.com/termux/termux-app)
 * [wolpi/prim-ftpd](https://github.com/wolpi/prim-ftpd)
 

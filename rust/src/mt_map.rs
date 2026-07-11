@@ -131,9 +131,6 @@ impl MTMap {
     }
 }
 
-// =========================================================================
-// 高并发 Fast-JNI 区块压缩并封装 Minetest v25 序列化协议的方法
-// =========================================================================
 
 #[derive(Serialize, Deserialize)]
 struct JniInventory {
@@ -164,8 +161,7 @@ pub fn serialize_raw_chunk(
     param2: &[u8],
     local_names: Vec<String>,
     metadata_json_bytes: &[u8],
-) -> Result<(MTPos, Vec<u8>), String> {
-    // 【核心修正 4】：完全 1:1 无损坐标映射，抛弃旧 C++ 错误的反转逻辑，杜绝左右颠倒和区块错位
+) -> Result<(MTPos, Vec<u8>), String> {    
     let mt_pos = MTPos {
         x: cx as i16, 
         y: (cy - BLOCK_Y_OFFSET) as i16,
@@ -183,7 +179,7 @@ pub fn serialize_raw_chunk(
     data.write_u8(2).unwrap(); // content_width
     data.write_u8(2).unwrap(); // params_width
 
-    // 2. 压缩节点流 (此时由于 Kotlin 已经按照 ZYX 排序了，我们直接写入，内存访问极为高效！)
+    // 2. 压缩节点流 (此时由于 Kotlin 已经按照 ZYX 排序了，直接写入
     let mut node_buffer = Vec::with_capacity(NODES_PER_BLOCK * 4);
     for &id in block_ids {
         node_buffer.write_u16::<BigEndian>(id as u16).unwrap();
@@ -206,8 +202,8 @@ pub fn serialize_raw_chunk(
         meta_buffer.write_u8(1).unwrap(); // Version = 1
         meta_buffer.write_u16::<BigEndian>(metadata.len() as u16).unwrap();
         for (idx, m_val) in metadata {
-            // 【核心修正 5】：因为 Kotlin 传过来的 idx 已经是完美的 Minetest [Z][Y][X] 索引
-            // 我们直接把它强转回 u16 供存储引擎使用，无需重新推算错位
+            // 因为 Kotlin 传过来的 idx 已经是 Minetest [Z][Y][X] 索引
+            // 直接把它强转回 u16 供存储引擎使用，无需重新推算错位
             let mt_idx = idx as u16;
 
             meta_buffer.write_u16::<BigEndian>(mt_idx).unwrap();
@@ -275,7 +271,6 @@ fn serialize_inventories_to_binary(buf: &mut Vec<u8>, invs: HashMap<String, JniI
     buf.write_all(&text_inv).unwrap();
 }
 
-/// 保持对原有 MCBlock 纯 Rust 解析支持，完美防止 Cli 构建报错破坏
 pub fn serialize_block(mcb: &MCBlock) -> Result<(MTPos, Vec<u8>), String> {
     let mt_pos = MTPos {
         x: mcb.pos_x as i16,

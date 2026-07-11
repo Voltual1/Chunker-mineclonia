@@ -41,7 +41,7 @@ class HomeViewModel : ViewModel() {
 
     val availableFormats: List<String> by lazy {
     val formats = mutableListOf<String>()
-    // 显式加入 Mineclonia 专属极速格式
+    // 显式加入 Mineclonia 
     formats.add("MINECLONIA_1_0_0")
     
     try {

@@ -93,7 +93,7 @@ fun NavigationDrawerItems(
             DrawerItem("decoder", "存档还原 // DECODE", IconSource.Vector(healing), DecoderDest),
             DrawerItem("logs", "系统日志 // LOGS", IconSource.Vector(WorkLog), LogViewer),
             DrawerItem("ftp_settings", "文件管理 // FTP", IconSource.Vector(Icons.Default.Share), FtpSettings),
-            DrawerItem("conversion_settings", "转换设置 // CONFIG", IconSource.Vector(Icons.Default.Settings), ChunkerSettings),
+            DrawerItem("conversion_settings", "Chunker设置 // CONFIG", IconSource.Vector(Icons.Default.Settings), ChunkerSettings),
             DrawerItem("cache_settings", "缓存管理 // CACHE", IconSource.Vector(Icons.Default.DeleteSweep), CacheSettings),
             DrawerItem("update_settings", "检查更新 // UPDATE", IconSource.Vector(Asusupdate), UpdateSettings),
             DrawerItem("settings", "主题校准 // THEME", IconSource.Vector(IcMenuSettings), ThemeCustomize),

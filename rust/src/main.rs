@@ -3,7 +3,6 @@ use std::path::Path;
 use std::time::Instant;
 use std::sync::atomic::Ordering;
 
-// 引入我们 lib 库里已经实现的模块
 use mc2mt::mc_map::MCMap;
 use mc2mt::mt_map::{serialize_block, MTMap};
 use mc2mt::convert::UNKNOWN_BLOCKS;

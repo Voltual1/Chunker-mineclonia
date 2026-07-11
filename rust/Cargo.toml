@@ -1,7 +1,7 @@
 [package]
 name = "mc2mt"           
 version = "1.0.0"         
-authors = ["Voltual", "CAN"]
+authors = ["Voltual"]
 edition = "2021"           
 
 [lib]

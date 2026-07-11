@@ -121,8 +121,6 @@ class ConversionWorker(
         val reader = readerOptional.get()
         val srcFormat = reader.encodingType.name
 
-        // 【修正点】：删除了原来错误的 Rust 顶层拦截逻辑，直接让所有格式走分片转换管线
-
         val workerId = id.toString()
         val sliceInputDir = File(context.cacheDir, "slice_input_$workerId")
         val sliceOutputDir = File(context.cacheDir, "slice_output_$workerId")
@@ -243,7 +241,7 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
-            // 【核心修复】：如果是 MINECLONIA，直接挂载我们写好的 MclLevelWriter 桥接到 Rust！
+            //如果是 MINECLONIA，直接挂载 MclLevelWriter 桥接到 Rust
             val sliceWriter = if (targetTypeName.equals("MINECLONIA", ignoreCase = true)) {
                 // 对于 Mineclonia，直接写到最终目录，不需要分片合并！
                 me.voltual.mcl.writer.MclLevelWriter(outputPathFile)
@@ -444,8 +442,6 @@ class ConversionWorker(
 
     private fun mergeOutputSlice(sliceOutputDir: File, finalOutputDir: File, targetFormat: String, factory: Iq80DBFactory) {
         if (targetFormat.equals("MINECLONIA", ignoreCase = true)) {
-            // MclLevelWriter 已经通过 JNI 把数据直接写进最终的 map.sqlite 里了
-            // 所以这里完全不需要进行任何合并操作！这也是原生流性能极高的原因！
             return
         }
 

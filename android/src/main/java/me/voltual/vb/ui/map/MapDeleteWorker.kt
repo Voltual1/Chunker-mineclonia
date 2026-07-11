@@ -51,7 +51,6 @@ class MapDeleteWorker(context: Context, params: WorkerParameters) : RemoteCorout
                     db.write(batch)
                 }
             } else {
-                // Java 逻辑保持
                 val dimFolder = when (dimension) {
                     Dimension.NETHER -> "DIM-1"
                     Dimension.THE_END -> "DIM1"

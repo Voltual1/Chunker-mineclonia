@@ -3,22 +3,15 @@ package me.voltual.mcl.core
 import java.io.File
 import com.google.gson.Gson
 
-/**
- * Mineclonia 高速 SQLite 存储引擎 (Rust Fast-JNI 重构版本)
- */
 class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : AutoCloseable {
     
     private val gson = Gson()
 
     companion object {
         init {
-            // 加载 Rust 编译后的高速 C 动态运行库
             System.loadLibrary("mc2mt")
         }
 
-        // =========================================================================
-        // 原生 C ABI 接口方法声明
-        // =========================================================================
         @JvmStatic
         private external fun initNativeEngine(
             dbPath: String, 
