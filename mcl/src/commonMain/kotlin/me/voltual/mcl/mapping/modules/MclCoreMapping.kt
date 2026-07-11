@@ -163,6 +163,13 @@ object MclCoreMapping : MclMappingModule {
         // 9. 16色彩色方块与羊毛 (Colorblocks & Wool)
         // ==========================================
         registerColoredSets()
+        
+        // ==========================================
+// 箱子与陷阱箱映射 (Chests & Trapped Chests)
+// ==========================================
+registry.register(ChunkerVanillaBlockType.CHEST, dsl.chest("mcl_chests:chest"))
+registry.register(ChunkerVanillaBlockType.TRAPPED_CHEST, dsl.chest("mcl_chests:trapped_chest"))
+registry.register(ChunkerVanillaBlockType.ENDER_CHEST, dsl.directional("mcl_chests:ender_chest_small"))
     }
 
     /**

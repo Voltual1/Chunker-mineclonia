@@ -734,4 +734,27 @@ object MclMappingDsl {
         }
         MclNode(nodeName, param2 = param2)
     }
+    
+    // 适配 Mineclonia 的单/双箱子物理节点与朝向计算
+fun chest(baseNode: String) = BlockMapper { id ->
+    val type = id.getState(VanillaBlockStates.CHEST_TYPE) ?: ChestType.SINGLE
+    val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+    
+    // 1. 计算 Facedir (param2)
+    val param2 = when (facing) {
+        FacingDirectionHorizontal.NORTH -> 0
+        FacingDirectionHorizontal.EAST -> 1
+        FacingDirectionHorizontal.SOUTH -> 2
+        FacingDirectionHorizontal.WEST -> 3
+    }.toByte()
+
+    // 2. 根据单双箱子状态映射到 Mineclonia 对应的注册节点名
+    val suffix = when (type) {
+        ChestType.SINGLE -> "_small"
+        ChestType.LEFT -> "_left"
+        ChestType.RIGHT -> "_right"
+    }
+
+    MclNode("$baseNode$suffix", param2 = param2)
+}
 }

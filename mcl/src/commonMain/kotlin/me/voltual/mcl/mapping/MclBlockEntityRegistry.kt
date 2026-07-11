@@ -20,7 +20,9 @@ object MclBlockEntityRegistry {
 
     init {
         // 注册已实现的转换器
-        register(ChestBlockEntity::class.java, ::convertChest)
+    register(ChestBlockEntity::class.java, ::convertChest)
+    // 修复：确保陷阱箱的数据也能通过 ChestBlockEntity 转换器无损导出
+    register(com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity::class.java, ::convertChest)    
         register(FurnaceBlockEntity::class.java, ::convertFurnace)
         register(SignBlockEntity::class.java, ::convertSign)
         register(JukeboxBlockEntity::class.java, ::convertJukebox)
