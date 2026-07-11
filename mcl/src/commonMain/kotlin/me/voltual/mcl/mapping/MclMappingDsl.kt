@@ -140,7 +140,7 @@ object MclMappingDsl {
         MclNode("mcl_pressureplates:pressure_plate_${basename}${suffix}")
     }
 
-    // 12. 修复后的箱子逻辑 (Chest / Trapped Chest)
+    // 12. 箱子逻辑
     fun chest(baseNode: String) = BlockMapper { id ->
         val type = id.getState(VanillaBlockStates.CHEST_TYPE) ?: ChestType.SINGLE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
@@ -158,7 +158,7 @@ object MclMappingDsl {
         MclNode("$baseNode$suffix", param2 = param2)
     }
 
-    // 13. 潜影盒特殊逻辑 (Shulker Box)
+    // 13. 潜影盒
     fun shulkerBox(mclColor: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
         val param2 = when (facing) {
@@ -382,5 +382,48 @@ object MclMappingDsl {
             FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
             FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
         }
+    }
+
+    // 27. 木质多重部件双叶门逻辑 (Wood Doors)
+    fun door(customBase: String) = BlockMapper { id ->
+        val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+        val hinge = id.getState(VanillaBlockStates.DOOR_HINGE) ?: HingeSide.LEFT
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        
+        val style = if (hinge == HingeSide.RIGHT) "2" else "1"
+        val part = if (half == Half.TOP) "t" else "b"
+        
+        var param2 = when (facing) {
+            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }
+        
+        if (open) {
+            param2 = if (hinge == HingeSide.LEFT) (param2 + 1) % 4 else (param2 + 3) % 4
+        }
+        MclNode("${customBase}_${part}_${style}", param2 = param2.toByte())
+    }
+
+    // 28. 木质活板门逻辑 (Wood Trapdoors)
+    fun trapdoor(customBase: String) = BlockMapper { id ->
+        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+        val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        
+        val nodeName = if (open) "${customBase}_open" else customBase
+        var param2 = when (facing) {
+            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }
+        
+        if (half == Half.TOP) {
+            param2 += 20
+        }
+        MclNode(nodeName, param2 = param2.toByte())
     }
 }
