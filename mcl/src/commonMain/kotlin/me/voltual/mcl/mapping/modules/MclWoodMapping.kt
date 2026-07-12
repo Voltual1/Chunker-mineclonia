@@ -73,7 +73,11 @@ object MclWoodMapping : MclMappingModule {
         safeRegister(registry, "${chunkerPrefix}_FENCE") { dsl.simple("mcl_fences:${mclName}_fence") }
         safeRegister(registry, "${chunkerPrefix}_FENCE_GATE") { dsl.gate("mcl_fences:${mclName}_fence_gate") }
         safeRegister(registry, "${chunkerPrefix}_DOOR") { dsl.door("mcl_doors:door_$mclName") }
-        safeRegister(registry, "${chunkerPrefix}_TRAPDOOR") { dsl.trapdoor("mcl_doors:trapdoor_$mclName") }
+        
+        // 橡木活板门在 Mineclonia 中没有 _oak 后缀，其他有
+        val trapdoorName = if (mclName == "oak") "mcl_doors:trapdoor" else "mcl_doors:trapdoor_$mclName"
+        safeRegister(registry, "${chunkerPrefix}_TRAPDOOR") { dsl.trapdoor(trapdoorName) }
+        
         safeRegister(registry, "${chunkerPrefix}_BUTTON") { dsl.button(mclName) }
         safeRegister(registry, "${chunkerPrefix}_PRESSURE_PLATE") { dsl.pressurePlate(mclName) }
 

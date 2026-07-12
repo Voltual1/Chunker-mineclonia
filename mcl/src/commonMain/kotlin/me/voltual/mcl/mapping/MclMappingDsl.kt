@@ -15,9 +15,9 @@ object MclMappingDsl {
     fun directional(targetName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.SOUTH -> 0
             FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.NORTH -> 2
             FacingDirectionHorizontal.WEST -> 3
         }.toByte()
         MclNode(targetName, param2 = param2)
@@ -28,9 +28,9 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
         val baseDir = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
+            FacingDirectionHorizontal.SOUTH -> 0
             FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
+            FacingDirectionHorizontal.NORTH -> 2
             FacingDirectionHorizontal.WEST -> 3
         }
         val param2 = if (half == Half.TOP) (baseDir + 20) else baseDir
@@ -96,8 +96,8 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (lit == Bool.TRUE) onName else offName
         val param2 = when (facing) {
+            FacingDirectionHorizontal.SOUTH -> 3 // 墙火把 facedir 映射逻辑不同，需独立维护
             FacingDirectionHorizontal.NORTH -> 2
-            FacingDirectionHorizontal.SOUTH -> 3
             FacingDirectionHorizontal.WEST -> 4
             FacingDirectionHorizontal.EAST -> 5
         }.toByte()
@@ -124,8 +124,8 @@ object MclMappingDsl {
                 FacingDirectionHorizontal.WEST -> 15
             }
             AttachmentType.WALL -> when (direction) {
-                FacingDirectionHorizontal.NORTH -> 2
                 FacingDirectionHorizontal.SOUTH -> 3
+                FacingDirectionHorizontal.NORTH -> 2
                 FacingDirectionHorizontal.WEST -> 4
                 FacingDirectionHorizontal.EAST -> 5
             }
@@ -145,10 +145,10 @@ object MclMappingDsl {
         val type = id.getState(VanillaBlockStates.CHEST_TYPE) ?: ChestType.SINGLE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }.toByte()
         val suffix = when (type) {
             ChestType.SINGLE -> "_small"
@@ -179,10 +179,10 @@ object MclMappingDsl {
         val delay = id.getState(VanillaBlockStates.DELAY) ?: Delay._1
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val baseDir = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }
         val nodeName: String
         val param2: Byte
@@ -204,10 +204,10 @@ object MclMappingDsl {
         val power = id.getState(VanillaBlockStates.POWER) ?: Power._0
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val baseDir = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }
         val state = if (powered == Bool.TRUE) "on" else "off"
         val modeStr = if (mode == ComparatorMode.COMPARE) "comp" else "sub"
@@ -264,10 +264,10 @@ object MclMappingDsl {
         val state = if (extended == Bool.TRUE) "_on" else "_off"
         
         val param2 = when (facing) {
-            FacingDirection.NORTH -> 0
-            FacingDirection.EAST -> 1
-            FacingDirection.SOUTH -> 2
-            FacingDirection.WEST -> 3
+            FacingDirection.SOUTH -> 0
+            FacingDirection.WEST -> 1
+            FacingDirection.NORTH -> 2
+            FacingDirection.EAST -> 3
             FacingDirection.DOWN -> 20
             FacingDirection.UP -> 4
         }.toByte()
@@ -282,10 +282,10 @@ object MclMappingDsl {
         val param2 = when (facing) {
             FacingDirection.DOWN -> 15
             FacingDirection.UP -> 1
-            FacingDirection.NORTH -> 0
-            FacingDirection.EAST -> 1
-            FacingDirection.SOUTH -> 2
-            FacingDirection.WEST -> 3
+            FacingDirection.SOUTH -> 0
+            FacingDirection.WEST -> 1
+            FacingDirection.NORTH -> 2
+            FacingDirection.EAST -> 3
         }.toByte()
         MclNode(baseName, param2 = param2)
     }
@@ -296,10 +296,10 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (open) "${targetName}_open" else targetName
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
@@ -321,10 +321,10 @@ object MclMappingDsl {
             Tilt.FULL -> "mcl_lush_caves:dripleaf_big_tipped_full"
         }
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
@@ -335,10 +335,10 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (half == Half.TOP) "mcl_lush_caves:dripleaf_small" else "mcl_lush_caves:dripleaf_small_stem"
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
@@ -349,10 +349,10 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (lit) active else normal
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
@@ -363,10 +363,10 @@ object MclMappingDsl {
         when (facing) {
             FacingDirection.UP -> MclNode("${baseName}_up")
             FacingDirection.DOWN -> MclNode("${baseName}_down")
-            FacingDirection.NORTH -> MclNode(baseName, param2 = 0)
-            FacingDirection.EAST -> MclNode(baseName, param2 = 1)
-            FacingDirection.SOUTH -> MclNode(baseName, param2 = 2)
-            FacingDirection.WEST -> MclNode(baseName, param2 = 3)
+            FacingDirection.SOUTH -> MclNode(baseName, param2 = 0)
+            FacingDirection.WEST -> MclNode(baseName, param2 = 1)
+            FacingDirection.NORTH -> MclNode(baseName, param2 = 2)
+            FacingDirection.EAST -> MclNode(baseName, param2 = 3)
         }
     }
 
@@ -377,10 +377,10 @@ object MclMappingDsl {
         val state = if (enabled) "" else "_disabled"
         when (facing) {
             FacingDirectionHorizontalDown.DOWN -> MclNode("mcl_hoppers:hopper$state")
-            FacingDirectionHorizontalDown.NORTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 0)
-            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
-            FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
-            FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
+            FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 0)
+            FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
+            FacingDirectionHorizontalDown.NORTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
+            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
         }
     }
 
@@ -395,10 +395,10 @@ object MclMappingDsl {
         val part = if (half == Half.TOP) "t" else "b"
         
         var param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }
         
         if (open) {
@@ -415,14 +415,16 @@ object MclMappingDsl {
         
         val nodeName = if (open) "${customBase}_open" else customBase
         var param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 0
-            FacingDirectionHorizontal.EAST -> 1
-            FacingDirectionHorizontal.SOUTH -> 2
-            FacingDirectionHorizontal.WEST -> 3
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.EAST -> 3
         }
         
         if (half == Half.TOP) {
             param2 += 20
+            // Mineclonia 特殊修正: Ceiling 状态下 21(East) 和 23(West) 对调
+            if (param2 == 21) param2 = 23 else if (param2 == 23) param2 = 21
         }
         MclNode(nodeName, param2 = param2.toByte())
     }

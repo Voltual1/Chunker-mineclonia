@@ -115,5 +115,27 @@ object MclRedstoneMapping : MclMappingModule {
 
             MclNode(nodeName, param2 = param2.toByte())
         })
+        registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
+        
+        // 13. 铁活板门 (Iron Trapdoor)
+        registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
+
+        // 14. 铜活板门系列 (Copper Trapdoors)
+        registerCopperTrapdoors()
+    }
+    private fun registerCopperTrapdoors() {
+        val registry = MclMappingRegistry
+        val dsl = MclMappingDsl
+        val prefixes = listOf("", "EXPOSED_", "WEATHERED_", "OXIDIZED_")
+        
+        for (prefix in prefixes) {
+            val mcBase = "${prefix}COPPER_TRAPDOOR"
+            val mclBase = "mcl_copper:${prefix.lowercase()}copper_trapdoor"
+            
+            // 正常版本
+            registry.register(enumValueOf(mcBase), dsl.trapdoor(mclBase))
+            // 涂蜡版本
+            registry.register(enumValueOf("WAXED_$mcBase"), dsl.trapdoor(mclBase))
+        }
     }
 }
