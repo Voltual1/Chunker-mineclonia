@@ -20,8 +20,10 @@ object MclItemRegistry {
         val type = identifier.itemStackType
         
         // 1. 如果该物品本质上是一个方块 (BlockItem)
+        // 修正：海泡菜、珊瑚、海带等都属于方块类型，将由 MclMappingRegistry 自动处理
         if (type is ChunkerVanillaBlockType) {
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
+            // 调用之前在 MclOceanMapping 等模块中注册的方块映射逻辑
             return MclMappingRegistry.convert(blockId).name
         }
 
@@ -58,7 +60,7 @@ object MclItemRegistry {
     }
 
     // ==========================================
-    // 物品映射字典 (根据 Chunker 源码修正)
+    // 物品映射字典 (仅包含纯物品 ChunkerVanillaItemType)
     // ==========================================
     private val itemMapping = mutableMapOf<ChunkerVanillaItemType, String>().apply {
         // 核心材料 (mcl_core)
@@ -72,8 +74,8 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.GOLD_NUGGET, "mcl_core:gold_nugget")
         put(ChunkerVanillaItemType.DIAMOND, "mcl_core:diamond")
         put(ChunkerVanillaItemType.EMERALD, "mcl_core:emerald")
-        put(ChunkerVanillaItemType.LAPIS_LAZULI, "mcl_core:lapis") // Chunker 名是 LAPIS_LAZULI
-        put(ChunkerVanillaItemType.QUARTZ, "mcl_nether:quartz")      // 修正: 对应 Chunker 的 QUARTZ
+        put(ChunkerVanillaItemType.LAPIS_LAZULI, "mcl_core:lapis")
+        put(ChunkerVanillaItemType.QUARTZ, "mcl_nether:quartz")
         put(ChunkerVanillaItemType.AMETHYST_SHARD, "mcl_amethyst:amethyst_shard")
         put(ChunkerVanillaItemType.RAW_IRON, "mcl_raw_ores:raw_iron")
         put(ChunkerVanillaItemType.RAW_GOLD, "mcl_raw_ores:raw_gold")
@@ -148,7 +150,12 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.DRAGON_BREATH, "mcl_potions:dragon_breath")
         put(ChunkerVanillaItemType.FERMENTED_SPIDER_EYE, "mcl_potions:fermented_spider_eye")
 
-        // 工具系列 (逻辑函数)
+        // 海洋系统纯物品 (mcl_ocean)
+        put(ChunkerVanillaItemType.PRISMARINE_SHARD, "mcl_ocean:prismarine_shard")
+        put(ChunkerVanillaItemType.PRISMARINE_CRYSTALS, "mcl_ocean:prismarine_crystals")
+        put(ChunkerVanillaItemType.DRIED_KELP, "mcl_ocean:dried_kelp")
+
+        // 工具系列
         registerToolSet("WOODEN", "wood")
         registerToolSet("STONE", "stone")
         registerToolSet("IRON", "iron")
@@ -191,32 +198,6 @@ object MclItemRegistry {
 
         // 染料
         registerDyes()
-
-// ==========================================
-// 海洋系统物品 (mcl_ocean)
-// ==========================================
-put(ChunkerVanillaItemType.PRISMARINE_SHARD, "mcl_ocean:prismarine_shard")
-put(ChunkerVanillaItemType.PRISMARINE_CRYSTALS, "mcl_ocean:prismarine_crystals")
-put(ChunkerVanillaItemType.SEA_PICKLE, "mcl_ocean:sea_pickle_1_dead_brain_coral_block")
-put(ChunkerVanillaItemType.DRIED_KELP, "mcl_ocean:dried_kelp")
-
-// 珊瑚植物作为物品 (Mineclonia 中通常映射到第一个基质变体)
-put(ChunkerVanillaItemType.TUBE_CORAL, "mcl_ocean:tube_coral")
-put(ChunkerVanillaItemType.BRAIN_CORAL, "mcl_ocean:brain_coral")
-put(ChunkerVanillaItemType.BUBBLE_CORAL, "mcl_ocean:bubble_coral")
-put(ChunkerVanillaItemType.FIRE_CORAL, "mcl_ocean:fire_coral")
-put(ChunkerVanillaItemType.HORN_CORAL, "mcl_ocean:horn_coral")
-
-put(ChunkerVanillaItemType.TUBE_CORAL_FAN, "mcl_ocean:tube_coral_fan")
-put(ChunkerVanillaItemType.BRAIN_CORAL_FAN, "mcl_ocean:brain_coral_fan")
-put(ChunkerVanillaItemType.BUBBLE_CORAL_FAN, "mcl_ocean:bubble_coral_fan")
-put(ChunkerVanillaItemType.FIRE_CORAL_FAN, "mcl_ocean:fire_coral_fan")
-put(ChunkerVanillaItemType.HORN_CORAL_FAN, "mcl_ocean:horn_coral_fan")
-
-// 海带与海草
-put(ChunkerVanillaItemType.KELP, "mcl_ocean:kelp")
-// 注意：Chunker 可能没有单独的 SEAGRASS 物品枚举，通常随方块转换
-
     }
 
     private fun MutableMap<ChunkerVanillaItemType, String>.registerToolSet(prefix: String, mcl: String) {
