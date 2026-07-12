@@ -143,5 +143,12 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.WEEPING_VINES_PLANT, dsl.simple("mcl_crimson:weeping_vines"))
         registry.register(ChunkerVanillaBlockType.TWISTING_VINES, dsl.simple("mcl_crimson:twisting_vines"))
         registry.register(ChunkerVanillaBlockType.TWISTING_VINES_PLANT, dsl.simple("mcl_crimson:twisting_vines"))
+                
+        registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM_BLOCK, dsl.mushroomBlock("brown"))
+        registry.register(ChunkerVanillaBlockType.RED_MUSHROOM_BLOCK, dsl.mushroomBlock("red"))
+        
+        registry.register(ChunkerVanillaBlockType.AZALEA_LEAVES, dsl.simple("mcl_trees:leaves_azalea"))
+        registry.register(ChunkerVanillaBlockType.FLOWERING_AZALEA_LEAVES, dsl.simple("mcl_trees:leaves_azalea_flowering"))
+
     }
 }

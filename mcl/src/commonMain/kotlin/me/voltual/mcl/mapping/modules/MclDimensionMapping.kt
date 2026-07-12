@@ -97,6 +97,8 @@ object MclDimensionMapping : MclMappingModule {
             }
             MclNode(nodeName)
         })
+        
+        registry.register(ChunkerVanillaBlockType.WARPED_WART_BLOCK, dsl.simple("mcl_crimson:warped_wart_block"))
 
         // 下界岩浆
         registry.register(ChunkerVanillaBlockType.LAVA, BlockMapper { id ->

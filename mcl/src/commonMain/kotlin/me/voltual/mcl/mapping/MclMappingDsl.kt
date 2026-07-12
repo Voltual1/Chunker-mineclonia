@@ -444,4 +444,29 @@ object MclMappingDsl {
         val pSuffix = if (powered) "_powered" else ""
         MclNode("$mclBase$state$pSuffix")
     }
+    
+    // 31. 巨型蘑菇块逻辑 (Mushroom Blocks)
+    // Mineclonia 格式: mcl_mushrooms:[color]_mushroom_block_cap_XXXXXX
+    // 顺序: Up, Down, East(+X), West(-X), North(+Z), South(-Z)
+    fun mushroomBlock(color: String) = BlockMapper { id ->
+        val up = if (id.getState(VanillaBlockStates.UP) == Bool.TRUE) "1" else "0"
+        val down = if (id.getState(VanillaBlockStates.DOWN) == Bool.TRUE) "1" else "0"
+        val east = if (id.getState(VanillaBlockStates.EAST) == Bool.TRUE) "1" else "0"
+        val west = if (id.getState(VanillaBlockStates.WEST) == Bool.TRUE) "1" else "0"
+        val north = if (id.getState(VanillaBlockStates.NORTH) == Bool.TRUE) "1" else "0"
+        val south = if (id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE) "1" else "0"
+        val bin = "$up$down$east$west$north$south"
+        MclNode("mcl_mushrooms:${color}_mushroom_block_cap_$bin")
+    }
+
+    // 32. 堆肥桶逻辑 (Composter)
+    fun composter() = BlockMapper { id ->
+        val level = id.getState(VanillaBlockStates.COMPOSTER_LEVEL) ?: ComposterLevel._0
+        val nodeName = when (level) {
+            ComposterLevel._0 -> "mcl_composters:composter"
+            ComposterLevel._8 -> "mcl_composters:composter_ready"
+            else -> "mcl_composters:composter_${level.ordinal}"
+        }
+        MclNode(nodeName)
+    }
 }

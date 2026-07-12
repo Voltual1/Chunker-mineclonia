@@ -324,9 +324,14 @@ object MclCoreMapping : MclMappingModule {
                 }
             }
         })
+        
+        registry.register(ChunkerVanillaBlockType.COMPOSTER, dsl.composter())
+
+        // 唱片机 (Jukebox)
+        registry.register(ChunkerVanillaBlockType.JUKEBOX, dsl.simple("mcl_jukebox:jukebox"))
+        
     }
-    
-    // ... [其余辅助注册函数保持不变] ...
+
 
     /**
      * 精准注册所有带流体炼药锅状态 (1-3级)
