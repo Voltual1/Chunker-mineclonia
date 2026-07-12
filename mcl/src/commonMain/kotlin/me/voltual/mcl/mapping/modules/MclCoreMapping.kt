@@ -205,8 +205,8 @@ object MclCoreMapping : MclMappingModule {
         // ==========================================
         // 9. 楼梯、台阶与墙体集合注册 (Stairs, Slabs & Walls)
         // ==========================================
-        // 修正：圆石墙的 Chunker 名称是 COBBLESTONE_WALL，因此 chunkerName 应为 "cobblestone"
-        registerStoneSet("cobble", "cobbles", "cobblestone", hasWall = true)
+        // 修正：圆石阶梯和半砖应使用 "cobble" (单数)
+        registerStoneSet("cobble", "cobble", "cobblestone", hasWall = true)
         registerStoneSet("mossycobble", "mossycobble", "mossy_cobblestone", hasWall = true)
         registerStoneSet("stone", "stone", "stone", hasWall = false)
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)

@@ -18,7 +18,9 @@ if [ ! -f "tools/rustup.sh" ]; then
     sh tools/rustup.sh --no-modify-path -y
 fi
 rustup default stable
+# 同时添加 v8a (arm64) 和 v7a (arm) 的 Target
 rustup target add aarch64-linux-android
+rustup target add armv7-linux-androideabi
 
 echo "=== 2. Configuring Android NDK using cargo-ndk ==="
 # 安装最新版的 cargo-ndk
@@ -40,18 +42,32 @@ if [ -z "$ANDROID_NDK_HOME" ]; then
 fi
 echo "Using NDK at: $ANDROID_NDK_HOME"
 
-echo "=== 3. Building Rust JNI Shared Library (aarch64-linux-android) ==="
+echo "=== 3. Building Rust JNI Shared Library ==="
 cd rust
-# 使用 cargo-ndk 编译 release 版本的 cdylib
+
+# --- 编译 arm64-v8a ---
+echo "Building for arm64-v8a..."
 cargo ndk -t arm64-v8a --platform 30 build --release
 
-echo "=== 4. Moving compiled .so to Android jniLibs ==="
-# 创建 Android 项目中存放原生库的特定目录
-JNILIBS_DIR="$BASEDIR/android/src/main/jniLibs/arm64-v8a"
-mkdir -p "$JNILIBS_DIR"
+# --- 编译 armeabi-v7a (新增) ---
+echo "Building for armeabi-v7a..."
+cargo ndk -t armeabi-v7a --platform 30 build --release
 
-# 拷贝生成的 libmc2mt.so 到 Android 目录
-cp target/aarch64-linux-android/release/libmc2mt.so "$JNILIBS_DIR/"
+
+echo "=== 4. Moving compiled .so to Android jniLibs ==="
+# --- 拷贝 arm64-v8a ---
+JNILIBS_V8A_DIR="$BASEDIR/android/src/main/jniLibs/arm64-v8a"
+mkdir -p "$JNILIBS_V8A_DIR"
+cp target/aarch64-linux-android/release/libmc2mt.so "$JNILIBS_V8A_DIR/"
+
+# --- 拷贝 armeabi-v7a (新增) ---
+JNILIBS_V7A_DIR="$BASEDIR/android/src/main/jniLibs/armeabi-v7a"
+mkdir -p "$JNILIBS_V7A_DIR"
+cp target/armv7-linux-androideabi/release/libmc2mt.so "$JNILIBS_V7A_DIR/"
+
 
 echo "=== Compilation finished! ==="
-ls -l "$JNILIBS_DIR/libmc2mt.so"
+echo "=== arm64-v8a: ==="
+ls -l "$JNILIBS_V8A_DIR/libmc2mt.so"
+echo "=== armeabi-v7a: ==="
+ls -l "$JNILIBS_V7A_DIR/libmc2mt.so"

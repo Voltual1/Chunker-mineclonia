@@ -75,30 +75,30 @@ jobs:
 
           echo "===  修复完成！ ==="
           
-      - name: Setup Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-
-      # 缓存Rust工具链
-      - name: Cache Rust & Cargo
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            rust/target/
-            tools/.cargo/
-            tools/.rustup/
-          key: ${{ runner.os }}-rust-ndk-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-rust-ndk-          
-
-      - name: Run Rust Build Script
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }} # 隐式注入 GitHub Runner 自带的 NDK
-        run: |
-          chmod +x ./buildall.sh
-          ./buildall.sh
+#      - name: Setup Rust toolchain
+#        uses: dtolnay/rust-toolchain@stable
+#
+#      # 缓存Rust工具链
+#      - name: Cache Rust & Cargo
+#        uses: actions/cache@v4
+#        with:
+#          path: |
+#            ~/.cargo/registry/index/
+#            ~/.cargo/registry/cache/
+#            ~/.cargo/git/db/
+#            rust/target/
+#            tools/.cargo/
+#            tools/.rustup/
+#          key: ${{ runner.os }}-rust-ndk-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+#          restore-keys: |
+#            ${{ runner.os }}-rust-ndk-          
+#
+#      - name: Run Rust Build Script
+#        env:
+#          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }} # 隐式注入 GitHub Runner 自带的 NDK
+#        run: |
+#          chmod +x ./buildall.sh
+#          ./buildall.sh
 
       - name: Build with Gradle
         run: ./gradlew assembleDebug
