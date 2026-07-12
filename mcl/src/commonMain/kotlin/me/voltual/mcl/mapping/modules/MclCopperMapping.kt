@@ -31,7 +31,7 @@ object MclCopperMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.WAXED_OXIDIZED_COPPER, dsl.simple("mcl_copper:block_oxidized_preserved"))
 
         // ==========================================
-        // 3. 切制铜块、楼梯、台阶 (Cut Copper Series)
+        // 3. 切制铜块、楼梯、台阶 (Cut Copper Series) - 修复后缀顺序
         // ==========================================
         // --- 正常版 ---
         registerCutCopperSet("", "copper")
@@ -164,7 +164,8 @@ object MclCopperMapping : MclMappingModule {
     }
 
     /**
-     * 辅助函数：注册切制铜及其楼梯、台阶
+     * 辅助函数：注册切制铜及其楼梯、台阶。
+     * 精准修复：针对 Preserved 变体，_preserved 后缀必须在绝对末尾。
      */
     private fun registerCutCopperSet(chunkerPrefix: String, mclBase: String, isWaxed: Boolean = false) {
         val registry = MclMappingRegistry
@@ -174,14 +175,15 @@ object MclCopperMapping : MclMappingModule {
         // 方块
         registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER"), dsl.simple("mcl_copper:block_${mclBase}_cut$waxedSuffix"))
 
-        // 楼梯 (Mineclonia 格式: mcl_stairs:stair_copper_xxx_cut)
+        // 楼梯 (格式: mcl_stairs:stair_copper_xxx_cut[_preserved])
         registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER_STAIRS"), dsl.stair("mcl_stairs:stair_${mclBase}_cut$waxedSuffix"))
 
-        // 台阶 (Mineclonia 格式: mcl_stairs:slab_copper_xxx_cut)
+        // 台阶 (格式: mcl_stairs:slab_copper_xxx_cut[_top/double][_preserved])
+        // 关键修复：_preserved 必须放在最后
         registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER_SLAB"), dsl.slab(
             "mcl_stairs:slab_${mclBase}_cut$waxedSuffix",
-            "mcl_stairs:slab_${mclBase}_cut${waxedSuffix}_top",
-            "mcl_stairs:slab_${mclBase}_cut${waxedSuffix}_double"
+            "mcl_stairs:slab_${mclBase}_cut_top$waxedSuffix",
+            "mcl_stairs:slab_${mclBase}_cut_double$waxedSuffix"
         ))
     }
 
