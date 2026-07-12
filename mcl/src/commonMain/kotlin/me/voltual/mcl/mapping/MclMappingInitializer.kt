@@ -12,7 +12,8 @@ object MclMappingInitializer {
             MclVegetationMapping,
             MclOceanMapping,
             MclCandleMapping,
-            MclBedMapping // 添加床与重生锚模块
+            MclBedMapping,
+            MclAmethystMapping // 添加紫水晶模块
         )
         
         println("正在加载 Mineclonia 映射模块...")
