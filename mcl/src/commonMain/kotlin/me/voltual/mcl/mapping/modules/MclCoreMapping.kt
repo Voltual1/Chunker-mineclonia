@@ -1,9 +1,13 @@
 package me.voltual.mcl.mapping.modules
 
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.*
+import me.voltual.mcl.mapping.BlockMapper
 import me.voltual.mcl.mapping.MclMappingModule
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclMappingDsl
+import me.voltual.mcl.core.MclNode
 
 object MclCoreMapping : MclMappingModule {
     override fun register() {
@@ -61,6 +65,22 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.COAL_BLOCK, dsl.simple("mcl_core:coalblock"))
         registry.register(ChunkerVanillaBlockType.OBSIDIAN, dsl.simple("mcl_core:obsidian"))
         registry.register(ChunkerVanillaBlockType.CRYING_OBSIDIAN, dsl.simple("mcl_core:crying_obsidian"))
+
+        // 蛋糕映射逻辑 (mcl_cake:cake_init.lua)
+        registry.register(ChunkerVanillaBlockType.CAKE, BlockMapper { id ->
+            val bites = id.getState(VanillaBlockStates.BITES) ?: Bites._0
+            val nodeName = when (bites) {
+                Bites._0 -> "mcl_cake:cake"
+                Bites._1 -> "mcl_cake:cake_6"
+                Bites._2 -> "mcl_cake:cake_5"
+                Bites._3 -> "mcl_cake:cake_4"
+                Bites._4 -> "mcl_cake:cake_3"
+                Bites._5 -> "mcl_cake:cake_2"
+                Bites._6 -> "mcl_cake:cake_1"
+                else -> "mcl_cake:cake"
+            }
+            MclNode(nodeName)
+        })
 
         // ==========================================
         // 2. 液体与冰雪 (mcl_core / mcl_nether / mcl_liquids)
@@ -176,7 +196,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.RESIN_BRICKS, dsl.simple("mcl_pale_oak:resin_brick_block"))
         registry.register(ChunkerVanillaBlockType.CHISELED_RESIN_BRICKS, dsl.simple("mcl_pale_oak:chiseled_resin_brick"))
         
-        registry.register(ChunkerVanillaBlockType.RESIN_BRICK_STAIRS, dsl.stair("mcl_stairs:stair_resin_brick"))
+        registry.register(ChunkerVanillaBlockType.RESIN_BRICK_STAIRS, dsl.stair("mcl_stairs:slab_resin_brick"))
         registry.register(ChunkerVanillaBlockType.RESIN_BRICK_SLAB, dsl.slab("mcl_stairs:slab_resin_brick", "mcl_stairs:slab_resin_brick_top", "mcl_stairs:slab_resin_brick_double"))
         registry.register(ChunkerVanillaBlockType.RESIN_BRICK_WALL, dsl.simple("mcl_pale_oak:resinbrick"))
 
@@ -217,21 +237,6 @@ object MclCoreMapping : MclMappingModule {
         // 11. 16色彩色方块与羊毛 (Colorblocks & Wool)
         // ==========================================
         registerColoredSets()
-        
-        // 蛋糕映射逻辑 
-registry.register(ChunkerVanillaBlockType.CAKE, BlockMapper { id ->
-    val bites = id.getState(VanillaBlockStates.BITES) ?: Bites._0
-    val nodeName = when (bites) {
-        Bites._0 -> "mcl_cake:cake"
-        Bites._1 -> "mcl_cake:cake_6"
-        Bites._2 -> "mcl_cake:cake_5"
-        Bites._3 -> "mcl_cake:cake_4"
-        Bites._4 -> "mcl_cake:cake_3"
-        Bites._5 -> "mcl_cake:cake_2"
-        Bites._6 -> "mcl_cake:cake_1"
-    }
-    MclNode(nodeName)
-})
     }
 
     /**
