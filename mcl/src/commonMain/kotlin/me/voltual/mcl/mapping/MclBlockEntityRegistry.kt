@@ -211,18 +211,13 @@ object MclBlockEntityRegistry {
         val fields = mutableMapOf<String, String>()
         val inventories = mutableMapOf<String, MclInventory>()
 
-        val blockType = banner.type
-        val blockName = if (blockType is ChunkerVanillaBlockType) blockType.name else ""
-
-        val colorsList = listOf(
-            "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
-            "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
-        )
-        val mcColor = colorsList.firstOrNull { blockName.startsWith(it) } ?: "WHITE"
-        val mclColor = when (mcColor) {
-            "GRAY" -> "grey"
-            "LIGHT_GRAY" -> "silver"
-            else -> mcColor.lowercase()
+        // 修正：从 BannerBlockEntity.base 提取底色染料。如果为空则默认为 WHITE。
+        val baseDye = if (banner.base.isPresent) banner.base.get() else ChunkerDyeColor.WHITE
+        
+        val mclColor = when (baseDye) {
+            ChunkerDyeColor.GRAY -> "grey"
+            ChunkerDyeColor.LIGHT_GRAY -> "silver"
+            else -> baseDye.name.lowercase()
         }
 
         val bannerItemName = "mcl_banners:banner_item_$mclColor"
@@ -244,12 +239,8 @@ object MclBlockEntityRegistry {
 
         inventories["banner"] = MclInventory(1, listOf(itemStack))
 
-        val isWallBanner = blockName.contains("WALL")
-        if (!isWallBanner) {
-            fields["rotation_level"] = "0"
-        } else {
-            fields["rotation_level"] = "8"
-        }
+        // 默认将角度设置为 0。旋转角度已在放置节点时（MclBannerMapping）作为 rotation_level 成功写入。
+        fields["rotation_level"] = "0"
 
         return MclBlockEntityData(
             fields = fields,
@@ -259,7 +250,6 @@ object MclBlockEntityRegistry {
 
     /**
      * 将 Chunker 的 Banner 图案列表完美编译为 Minetest 特有的序列化 Lua Table 格式。
-     * 格式示例: { { ["color"] = "unicolor_grey", ["pattern"] = "circle" }, ... }
      */
     private fun serializeLayersToLua(patterns: List<it.unimi.dsi.fastutil.Pair<ChunkerDyeColor, ChunkerBannerPattern>>): String {
         val sb = StringBuilder()
@@ -269,7 +259,6 @@ object MclBlockEntityRegistry {
             val dye = pair.left()
             val pattern = pair.right()
 
-            // 转换颜色名称以对齐 unicolor 格式
             val mclColor = when (dye) {
                 ChunkerDyeColor.GRAY -> "grey"
                 ChunkerDyeColor.LIGHT_GRAY -> "silver"
@@ -277,7 +266,6 @@ object MclBlockEntityRegistry {
             }
             val unicolor = "unicolor_$mclColor"
 
-            // 转换图案 ID
             val mclPattern = mapChunkerPatternToMcl(pattern)
 
             sb.append("{ ")
@@ -292,9 +280,6 @@ object MclBlockEntityRegistry {
         return sb.toString()
     }
 
-    /**
-     * 依据 Mineclonia 的 mcl_banners_patterncraft.lua 完美的 Pattern ID 转换词典
-     */
     private fun mapChunkerPatternToMcl(pattern: ChunkerBannerPattern): String {
         return when (pattern) {
             ChunkerBannerPattern.BASE -> "base"
