@@ -96,7 +96,7 @@ object MclMappingDsl {
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (lit == Bool.TRUE) onName else offName
         val param2 = when (facing) {
-            FacingDirectionHorizontal.SOUTH -> 3 // 墙火把 facedir 映射逻辑不同，需独立维护
+            FacingDirectionHorizontal.SOUTH -> 3
             FacingDirectionHorizontal.NORTH -> 2
             FacingDirectionHorizontal.WEST -> 4
             FacingDirectionHorizontal.EAST -> 5
@@ -423,12 +423,11 @@ object MclMappingDsl {
         
         if (half == Half.TOP) {
             param2 += 20
-            // Mineclonia 特殊修正: Ceiling 状态下 21(East) 和 23(West) 对调
             if (param2 == 21) param2 = 23 else if (param2 == 23) param2 = 21
         }
         MclNode(nodeName, param2 = param2.toByte())
     }
-    
+
     // 29. 灯笼逻辑 (Lanterns)
     fun lantern(mclBase: String) = BlockMapper { id ->
         val hanging = id.getState(VanillaBlockStates.HANGING) == Bool.TRUE

@@ -119,6 +119,7 @@ object MclRedstoneMapping : MclMappingModule {
         
         // 13. 铁活板门 (Iron Trapdoor)
         registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
+        registry.register(ChunkerVanillaBlockType.IRON_DOOR, dsl.door("mcl_doors:iron_door"))
     }
     private fun registerCopperTrapdoors() {
         val registry = MclMappingRegistry
