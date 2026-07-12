@@ -205,7 +205,8 @@ object MclCoreMapping : MclMappingModule {
         // ==========================================
         // 9. 楼梯、台阶与墙体集合注册 (Stairs, Slabs & Walls)
         // ==========================================
-        registerStoneSet("cobble", "cobbles", "cobble", hasWall = true)
+        // 修正：圆石墙的 Chunker 名称是 COBBLESTONE_WALL，因此 chunkerName 应为 "cobblestone"
+        registerStoneSet("cobble", "cobbles", "cobblestone", hasWall = true)
         registerStoneSet("mossycobble", "mossycobble", "mossy_cobblestone", hasWall = true)
         registerStoneSet("stone", "stone", "stone", hasWall = false)
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
@@ -241,7 +242,7 @@ object MclCoreMapping : MclMappingModule {
         registerColoredSets()
         
         // 刷怪笼映射 
-registry.register(ChunkerVanillaBlockType.SPAWNER, dsl.simple("mcl_mobspawners:spawner"))
+        registry.register(ChunkerVanillaBlockType.SPAWNER, dsl.simple("mcl_mobspawners:spawner"))
     }
 
     /**
