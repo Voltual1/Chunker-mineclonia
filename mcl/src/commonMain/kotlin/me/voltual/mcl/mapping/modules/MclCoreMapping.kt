@@ -254,7 +254,7 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("andesite", "andesite", "andesite", hasWall = true)
         registry.register(ChunkerVanillaBlockType.POLISHED_ANDESITE_SLAB, dsl.slab("mcl_stairs:slab_andesite_smooth", "mcl_stairs:slab_andesite_smooth_top", "mcl_stairs:slab_andesite_smooth_double"))
         
-        // 砂岩相关通用逻辑注册(如果有遗漏)
+        // 砂岩相关通用逻辑注册
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
         
         registry.register(ChunkerVanillaBlockType.BRICK_STAIRS, dsl.stair("mcl_stairs:stair_brick_block"))
@@ -293,17 +293,14 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
 
         // ==========================================
-        // 12. 酿造台、附魔台与铃铛 (Fixed)
+        // 12. 酿造台、附魔台与铃铛
         // ==========================================
-        // 酿造台
         registry.register(ChunkerVanillaBlockType.BREWING_STAND, dsl.simple("mcl_brewing:stand_000"))
-
-        // 附魔台
         registry.register(ChunkerVanillaBlockType.ENCHANTING_TABLE, dsl.simple("mcl_enchanting:table"))
 
-        // 铃铛 (修正导入缺失问题)
+        // 铃铛 (修正：使用正确的 BellAttachmentType 枚举)
         registry.register(ChunkerVanillaBlockType.BELL, BlockMapper { id ->
-            val attachment = id.getState(VanillaBlockStates.BELL_ATTACHMENT) ?: BellAttachment.FLOOR
+            val attachment = id.getState(VanillaBlockStates.BELL_ATTACHMENT) ?: BellAttachmentType.FLOOR
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
             
             val baseDir = when (facing) {
@@ -314,9 +311,9 @@ object MclCoreMapping : MclMappingModule {
             }
 
             when (attachment) {
-                BellAttachment.FLOOR -> MclNode("mcl_bells:bell", param2 = baseDir.toByte())
-                BellAttachment.CEILING -> MclNode("mcl_bells:bell_ceiling", param2 = baseDir.toByte())
-                BellAttachment.SINGLE_WALL, BellAttachment.DOUBLE_WALL -> {
+                BellAttachmentType.FLOOR -> MclNode("mcl_bells:bell", param2 = baseDir.toByte())
+                BellAttachmentType.CEILING -> MclNode("mcl_bells:bell_ceiling", param2 = baseDir.toByte())
+                BellAttachmentType.SINGLE_WALL, BellAttachmentType.DOUBLE_WALL -> {
                     val wallParam2 = when (facing) {
                         FacingDirectionHorizontal.NORTH -> 2 // x-
                         FacingDirectionHorizontal.SOUTH -> 3 // x+
@@ -325,34 +322,31 @@ object MclCoreMapping : MclMappingModule {
                     }.toByte()
                     MclNode("mcl_bells:bell_wall", param2 = wallParam2)
                 }
-                else -> MclNode("mcl_bells:bell", param2 = baseDir.toByte()) // 兜底
             }
         })
     }
     
+    // ... [其余辅助注册函数保持不变] ...
+
     /**
      * 精准注册所有带流体炼药锅状态 (1-3级)
      */
     private fun registerCauldronLiquids() {
         val registry = MclMappingRegistry
         
-        // 辅助函数：获取截断水位
         fun getClampedLevel(id: ChunkerBlockIdentifier): Int {
             val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
             return level.coerceIn(1, 3)
         }
 
-        // 水釜
         registry.register(ChunkerVanillaBlockType.WATER_CAULDRON, BlockMapper { id ->
             MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}")
         })
 
-        // 岩浆釜
         registry.register(ChunkerVanillaBlockType.LAVA_CAULDRON, BlockMapper { id ->
             MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}_lava")
         })
 
-        // 细雪釜
         registry.register(ChunkerVanillaBlockType.POWDER_SNOW_CAULDRON, BlockMapper { id ->
             MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}_powder_snow")
         })
