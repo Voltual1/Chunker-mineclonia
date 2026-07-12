@@ -33,7 +33,6 @@ object MclCoreMapping : MclMappingModule {
             "mcl_stairs:slab_stone_top",
             "mcl_stairs:slab_stone_double"
         ))
-        // 修正：使用 STONE_STAIRS 映射到 Mineclonia 的平滑石头楼梯
         registry.register(ChunkerVanillaBlockType.STONE_STAIRS, dsl.stair("mcl_stairs:stair_stone"))
         
         registry.register(ChunkerVanillaBlockType.GRANITE, dsl.simple("mcl_core:granite"))
@@ -49,18 +48,38 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.BRICKS, dsl.simple("mcl_core:brick_block"))
         registry.register(ChunkerVanillaBlockType.TERRACOTTA, dsl.simple("mcl_colorblocks:hardened_clay"))
 
-        // 沙子与沙石系列
+        // ==========================================
+        // 砂岩系列 (Sandstone) - 依据 Action 日志精准修复
+        // ==========================================
         registry.register(ChunkerVanillaBlockType.SAND, dsl.simple("mcl_core:sand"))
         registry.register(ChunkerVanillaBlockType.SANDSTONE, dsl.simple("mcl_core:sandstone"))
-        registry.register(ChunkerVanillaBlockType.CUT_SANDSTONE, dsl.simple("mcl_core:sandstonesmooth"))
         registry.register(ChunkerVanillaBlockType.CHISELED_SANDSTONE, dsl.simple("mcl_core:sandstonecarved"))
+        registry.register(ChunkerVanillaBlockType.CUT_SANDSTONE, dsl.simple("mcl_core:sandstonesmooth"))
         registry.register(ChunkerVanillaBlockType.SMOOTH_SANDSTONE, dsl.simple("mcl_core:sandstonesmooth2"))
 
+        // 砂岩楼梯/台阶
+        registry.register(ChunkerVanillaBlockType.SANDSTONE_STAIRS, dsl.stair("mcl_stairs:stair_sandstone"))
+        registry.register(ChunkerVanillaBlockType.SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_sandstone", "mcl_stairs:slab_sandstone_top", "mcl_stairs:slab_sandstone_double"))
+        registry.register(ChunkerVanillaBlockType.CUT_SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_sandstonesmooth", "mcl_stairs:slab_sandstonesmooth_top", "mcl_stairs:slab_sandstonesmooth_double"))
+        registry.register(ChunkerVanillaBlockType.SMOOTH_SANDSTONE_STAIRS, dsl.stair("mcl_stairs:stair_sandstonesmooth2"))
+        registry.register(ChunkerVanillaBlockType.SMOOTH_SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_sandstonesmooth2", "mcl_stairs:slab_sandstonesmooth2_top", "mcl_stairs:slab_sandstonesmooth2_double"))
+        registry.register(ChunkerVanillaBlockType.SANDSTONE_WALL, dsl.simple("mcl_walls:sandstone"))
+
+        // ==========================================
+        // 红砂岩系列 (Red Sandstone)
+        // ==========================================
         registry.register(ChunkerVanillaBlockType.RED_SAND, dsl.simple("mcl_core:redsand"))
         registry.register(ChunkerVanillaBlockType.RED_SANDSTONE, dsl.simple("mcl_core:redsandstone"))
-        registry.register(ChunkerVanillaBlockType.CUT_RED_SANDSTONE, dsl.simple("mcl_core:redsandstonesmooth"))
         registry.register(ChunkerVanillaBlockType.CHISELED_RED_SANDSTONE, dsl.simple("mcl_core:redsandstonecarved"))
+        registry.register(ChunkerVanillaBlockType.CUT_RED_SANDSTONE, dsl.simple("mcl_core:redsandstonesmooth"))
         registry.register(ChunkerVanillaBlockType.SMOOTH_RED_SANDSTONE, dsl.simple("mcl_core:redsandstonesmooth2"))
+
+        registry.register(ChunkerVanillaBlockType.RED_SANDSTONE_STAIRS, dsl.stair("mcl_stairs:stair_redsandstone"))
+        registry.register(ChunkerVanillaBlockType.RED_SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_redsandstone", "mcl_stairs:slab_redsandstone_top", "mcl_stairs:slab_redsandstone_double"))
+        registry.register(ChunkerVanillaBlockType.CUT_RED_SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_redsandstonesmooth", "mcl_stairs:slab_redsandstonesmooth_top", "mcl_stairs:slab_redsandstonesmooth_double"))
+        registry.register(ChunkerVanillaBlockType.SMOOTH_RED_SANDSTONE_STAIRS, dsl.stair("mcl_stairs:stair_redsandstonesmooth2"))
+        registry.register(ChunkerVanillaBlockType.SMOOTH_RED_SANDSTONE_SLAB, dsl.slab("mcl_stairs:slab_redsandstonesmooth2", "mcl_stairs:slab_redsandstonesmooth2_top", "mcl_stairs:slab_redsandstonesmooth2_double"))
+        registry.register(ChunkerVanillaBlockType.RED_SANDSTONE_WALL, dsl.simple("mcl_walls:redsandstone"))
 
         // 土壤与生态
         registry.register(ChunkerVanillaBlockType.DIRT, dsl.simple("mcl_core:dirt"))
@@ -213,8 +232,6 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("cobble", "cobble", "cobblestone", hasWall = true)
         registerStoneSet("mossycobble", "mossycobble", "mossy_cobblestone", hasWall = true)
         
-        // 已经通过手动注册处理了 Smooth Stone 相关的变体，这里保留 registerStoneSet 自动处理通用部分
-        // 注意：Minecraft 的 STONE_SLAB 通常也指 Smooth Stone Slab
         registry.register(ChunkerVanillaBlockType.STONE_SLAB, dsl.slab(
             "mcl_stairs:slab_stone",
             "mcl_stairs:slab_stone_top",
@@ -229,8 +246,9 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("diorite_smooth", "diorite_smooth", "polished_diorite", hasWall = false)
         registerStoneSet("andesite", "andesite", "andesite", hasWall = true)
         registerStoneSet("andesite_smooth", "andesite_smooth", "polished_andesite", hasWall = false)
-        registerStoneSet("sandstone", "sandstone", "sandstone", hasWall = true)
-        registerStoneSet("redsandstone", "redsandstone", "red_sandstone", hasWall = true)
+        
+        // 砂岩相关通用逻辑注册(如果有遗漏)
+        registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
         
         registry.register(ChunkerVanillaBlockType.BRICK_STAIRS, dsl.stair("mcl_stairs:stair_brick_block"))
         registry.register(ChunkerVanillaBlockType.BRICK_SLAB, dsl.slab(
