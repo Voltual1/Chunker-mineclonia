@@ -217,6 +217,21 @@ object MclCoreMapping : MclMappingModule {
         // 11. 16色彩色方块与羊毛 (Colorblocks & Wool)
         // ==========================================
         registerColoredSets()
+        
+        // 蛋糕映射逻辑 
+registry.register(ChunkerVanillaBlockType.CAKE, BlockMapper { id ->
+    val bites = id.getState(VanillaBlockStates.BITES) ?: Bites._0
+    val nodeName = when (bites) {
+        Bites._0 -> "mcl_cake:cake"
+        Bites._1 -> "mcl_cake:cake_6"
+        Bites._2 -> "mcl_cake:cake_5"
+        Bites._3 -> "mcl_cake:cake_4"
+        Bites._4 -> "mcl_cake:cake_3"
+        Bites._5 -> "mcl_cake:cake_2"
+        Bites._6 -> "mcl_cake:cake_1"
+    }
+    MclNode(nodeName)
+})
     }
 
     /**
