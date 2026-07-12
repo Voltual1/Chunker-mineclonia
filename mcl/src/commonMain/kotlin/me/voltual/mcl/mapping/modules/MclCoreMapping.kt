@@ -50,7 +50,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.TERRACOTTA, dsl.simple("mcl_colorblocks:hardened_clay"))
 
         // ==========================================
-        // 砂岩系列 (Sandstone) - 依据 Action 日志精准修复
+        // 砂岩系列 (Sandstone)
         // ==========================================
         registry.register(ChunkerVanillaBlockType.SAND, dsl.simple("mcl_core:sand"))
         registry.register(ChunkerVanillaBlockType.SANDSTONE, dsl.simple("mcl_core:sandstone"))
@@ -291,11 +291,47 @@ object MclCoreMapping : MclMappingModule {
         
         //梯子
         registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
+
+        // ==========================================
+        // 12. 酿造台、附魔台与铃铛 (New)
+        // ==========================================
+        // 酿造台 (Brewing Stand) - 默认映射到 000 级基本空台，让 Minetest 游戏逻辑自主刷新
+        registry.register(ChunkerVanillaBlockType.BREWING_STAND, dsl.simple("mcl_brewing:stand_000"))
+
+        // 附魔台 (Enchanting Table)
+        registry.register(ChunkerVanillaBlockType.ENCHANTING_TABLE, dsl.simple("mcl_enchanting:table"))
+
+        // 铃铛 (Bell) - 核心基于 attachment 状态转换
+        registry.register(ChunkerVanillaBlockType.BELL, BlockMapper { id ->
+            val attachment = id.getState(VanillaBlockStates.BELL_ATTACHMENT) ?: BellAttachment.FLOOR
+            val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+            
+            val baseDir = when (facing) {
+                FacingDirectionHorizontal.SOUTH -> 0
+                FacingDirectionHorizontal.WEST -> 1
+                FacingDirectionHorizontal.NORTH -> 2
+                FacingDirectionHorizontal.EAST -> 3
+            }
+
+            when (attachment) {
+                BellAttachment.FLOOR -> MclNode("mcl_bells:bell", param2 = baseDir.toByte())
+                BellAttachment.CEILING -> MclNode("mcl_bells:bell_ceiling", param2 = baseDir.toByte())
+                // 挂墙上 (Wallmounted)
+                BellAttachment.SINGLE_WALL, BellAttachment.DOUBLE_WALL -> {
+                    val wallParam2 = when (facing) {
+                        FacingDirectionHorizontal.NORTH -> 2 // x-
+                        FacingDirectionHorizontal.SOUTH -> 3 // x+
+                        FacingDirectionHorizontal.WEST -> 4  // z+
+                        FacingDirectionHorizontal.EAST -> 5  // z-
+                    }.toByte()
+                    MclNode("mcl_bells:bell_wall", param2 = wallParam2)
+                }
+            }
+        })
     }
     
     /**
      * 精准注册所有带流体炼药锅状态 (1-3级)
-     * 修正：强制将水位截断在 1-3 范围内，防止出现类似 cauldron_5 的未定义节点。
      */
     private fun registerCauldronLiquids() {
         val registry = MclMappingRegistry
