@@ -8,7 +8,9 @@ object MclMappingInitializer {
             MclCoreMapping,
             MclWoodMapping,
             MclDimensionMapping,
-            MclRedstoneMapping // 添加红石模块
+            MclRedstoneMapping,
+            MclVegetationMapping,
+            MclOceanMapping // 注册海洋映射模块
         )
         
         println("正在加载 Mineclonia 映射模块...")

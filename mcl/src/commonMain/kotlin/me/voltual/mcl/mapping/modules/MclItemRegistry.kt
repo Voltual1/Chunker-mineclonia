@@ -191,6 +191,32 @@ object MclItemRegistry {
 
         // 染料
         registerDyes()
+
+// ==========================================
+// 海洋系统物品 (mcl_ocean)
+// ==========================================
+put(ChunkerVanillaItemType.PRISMARINE_SHARD, "mcl_ocean:prismarine_shard")
+put(ChunkerVanillaItemType.PRISMARINE_CRYSTALS, "mcl_ocean:prismarine_crystals")
+put(ChunkerVanillaItemType.SEA_PICKLE, "mcl_ocean:sea_pickle_1_dead_brain_coral_block")
+put(ChunkerVanillaItemType.DRIED_KELP, "mcl_ocean:dried_kelp")
+
+// 珊瑚植物作为物品 (Mineclonia 中通常映射到第一个基质变体)
+put(ChunkerVanillaItemType.TUBE_CORAL, "mcl_ocean:tube_coral")
+put(ChunkerVanillaItemType.BRAIN_CORAL, "mcl_ocean:brain_coral")
+put(ChunkerVanillaItemType.BUBBLE_CORAL, "mcl_ocean:bubble_coral")
+put(ChunkerVanillaItemType.FIRE_CORAL, "mcl_ocean:fire_coral")
+put(ChunkerVanillaItemType.HORN_CORAL, "mcl_ocean:horn_coral")
+
+put(ChunkerVanillaItemType.TUBE_CORAL_FAN, "mcl_ocean:tube_coral_fan")
+put(ChunkerVanillaItemType.BRAIN_CORAL_FAN, "mcl_ocean:brain_coral_fan")
+put(ChunkerVanillaItemType.BUBBLE_CORAL_FAN, "mcl_ocean:bubble_coral_fan")
+put(ChunkerVanillaItemType.FIRE_CORAL_FAN, "mcl_ocean:fire_coral_fan")
+put(ChunkerVanillaItemType.HORN_CORAL_FAN, "mcl_ocean:horn_coral_fan")
+
+// 海带与海草
+put(ChunkerVanillaItemType.KELP, "mcl_ocean:kelp")
+// 注意：Chunker 可能没有单独的 SEAGRASS 物品枚举，通常随方块转换
+
     }
 
     private fun MutableMap<ChunkerVanillaItemType, String>.registerToolSet(prefix: String, mcl: String) {
