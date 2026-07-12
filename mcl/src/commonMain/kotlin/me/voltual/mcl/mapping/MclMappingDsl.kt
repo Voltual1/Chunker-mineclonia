@@ -555,4 +555,35 @@ object MclMappingDsl {
         
         MclNode("mcl_grindstone:grindstone", param2 = param2)
     }
+    
+    // 37. 指向滴水石逻辑 (Pointed Dripstone)
+    fun pointedDripstone() = BlockMapper { id ->
+        val direction = id.getState(VanillaBlockStates.VERTICAL_DIRECTION) ?: VerticalDirection.UP
+        val thickness = id.getState(VanillaBlockStates.DRIPSTONE_THICKNESS) ?: DripstoneThickness.TIP
+        // vertical_direction: UP 为石笋 (Mineclonia 对应 bottom), DOWN 为钟乳石 (Mineclonia 对应 top)
+        val dirStr = if (direction == VerticalDirection.UP) "bottom" else "top"
+        val thickStr = when (thickness) {
+            DripstoneThickness.TIP_MERGE -> "tip_merge"
+            DripstoneThickness.TIP -> "tip"
+            DripstoneThickness.FRUSTUM -> "frustum"
+            DripstoneThickness.MIDDLE -> "middle"
+            DripstoneThickness.BASE -> "base"
+        }
+        MclNode("mcl_dripstone:dripstone_${dirStr}_$thickStr")
+    }
+
+    // 38. 潜声脉络逻辑 (Sculk Vein)
+    // 选取第一个存在的面进行 wallmounted 映射
+    fun sculkVein() = BlockMapper { id ->
+        val param2: Byte = when {
+            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1
+            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0
+            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 2
+            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 3
+            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 4
+            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 5
+            else -> 1
+        }.toByte()
+        MclNode("mcl_sculk:vein", param2 = param2)
+    }
 }

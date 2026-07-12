@@ -357,6 +357,23 @@ object MclCoreMapping : MclMappingModule {
 
         // 锻造台 (无方向)
         registry.register(ChunkerVanillaBlockType.SMITHING_TABLE, dsl.simple("mcl_smithing_table:table"))
+        
+        
+        registry.register(ChunkerVanillaBlockType.COBWEB, dsl.simple("mcl_core:cobweb"))
+        registry.register(ChunkerVanillaBlockType.BONE_BLOCK, dsl.log("mcl_core:bone_block"))
+
+        // 潜声 (Sculk)
+        registry.register(ChunkerVanillaBlockType.SCULK, dsl.simple("mcl_sculk:sculk"))
+        registry.register(ChunkerVanillaBlockType.SCULK_VEIN, dsl.sculkVein())
+        registry.register(ChunkerVanillaBlockType.SCULK_CATALYST, dsl.simple("mcl_sculk:catalyst"))
+
+        // 滴水石 (Dripstone)
+        registry.register(ChunkerVanillaBlockType.DRIPSTONE_BLOCK, dsl.simple("mcl_dripstone:dripstone_block"))
+        registry.register(ChunkerVanillaBlockType.POINTED_DRIPSTONE, dsl.pointedDripstone())
+
+        // 火把 (Torches)
+        registry.register(ChunkerVanillaBlockType.TORCH, dsl.simple("mcl_torches:torch"))
+        registry.register(ChunkerVanillaBlockType.WALL_TORCH, dsl.wallTorch("mcl_torches:torch_wall", "mcl_torches:torch_wall"))
 
         
     }

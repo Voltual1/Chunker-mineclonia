@@ -98,6 +98,11 @@ object MclDimensionMapping : MclMappingModule {
             MclNode(nodeName)
         })
         
+        registry.register(ChunkerVanillaBlockType.CRIMSON_NYLIUM, dsl.simple("mcl_crimson:crimson_nylium"))
+        registry.register(ChunkerVanillaBlockType.WARPED_NYLIUM, dsl.simple("mcl_crimson:warped_nylium"))
+        registry.register(ChunkerVanillaBlockType.WARPED_WART_BLOCK, dsl.simple("mcl_crimson:warped_wart_block"))
+
+        
         registry.register(ChunkerVanillaBlockType.WARPED_WART_BLOCK, dsl.simple("mcl_crimson:warped_wart_block"))
 
         // 下界岩浆
