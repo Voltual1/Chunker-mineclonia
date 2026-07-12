@@ -95,6 +95,11 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.ENCHANTED_GOLDEN_APPLE, "mcl_core:apple_gold_enchanted")
         put(ChunkerVanillaItemType.BREAD, "mcl_farming:bread")
         put(ChunkerVanillaItemType.COOKIE, "mcl_farming:cookie")
+        
+        put(ChunkerVanillaItemType.WATER_BUCKET, "mcl_buckets:bucket_water")
+        put(ChunkerVanillaItemType.LAVA_BUCKET, "mcl_buckets:bucket_lava")
+        // 细雪桶
+        put(ChunkerVanillaItemType.POWDER_SNOW_BUCKET, "mcl_powder_snow:bucket_powder_snow")
 
         // 农产品
         put(ChunkerVanillaItemType.WHEAT, "mcl_farming:wheat_item")

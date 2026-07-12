@@ -87,6 +87,8 @@ object MclCoreMapping : MclMappingModule {
         // ==========================================
         registry.register(ChunkerVanillaBlockType.WATER, dsl.liquid("mcl_core:water_source", "mcl_core:water_flowing"))
         registry.register(ChunkerVanillaBlockType.LAVA, dsl.liquid("mcl_core:lava_source", "mcl_core:lava_flowing"))
+        // 细雪 (mcl_powder_snow)
+        registry.register(ChunkerVanillaBlockType.POWDER_SNOW, dsl.simple("mcl_powder_snow:powder_snow"))
         
         registry.register(ChunkerVanillaBlockType.ICE, dsl.simple("mcl_core:ice"))
         registry.register(ChunkerVanillaBlockType.PACKED_ICE, dsl.simple("mcl_core:packed_ice"))
