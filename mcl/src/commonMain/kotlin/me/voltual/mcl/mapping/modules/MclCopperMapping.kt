@@ -31,19 +31,19 @@ object MclCopperMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.WAXED_OXIDIZED_COPPER, dsl.simple("mcl_copper:block_oxidized_preserved"))
 
         // ==========================================
-        // 3. 切制铜块、楼梯、台阶 (Cut Copper Series) - 修复后缀顺序
+        // 3. 切制铜块、楼梯、台阶 (Cut Copper Series) - 彻底清除多余的 _copper 后缀
         // ==========================================
         // --- 正常版 ---
-        registerCutCopperSet("", "copper")
-        registerCutCopperSet("EXPOSED_", "copper_exposed")
-        registerCutCopperSet("WEATHERED_", "copper_weathered")
-        registerCutCopperSet("OXIDIZED_", "copper_oxidized")
+        registerCutCopperSet("", "copper", "")
+        registerCutCopperSet("EXPOSED_", "copper_exposed", "_exposed")
+        registerCutCopperSet("WEATHERED_", "copper_weathered", "_weathered")
+        registerCutCopperSet("OXIDIZED_", "copper_oxidized", "_oxidized")
 
         // --- 涂蜡版 ---
-        registerCutCopperSet("WAXED_", "copper", true)
-        registerCutCopperSet("WAXED_EXPOSED_", "copper_exposed", true)
-        registerCutCopperSet("WAXED_WEATHERED_", "copper_weathered", true)
-        registerCutCopperSet("WAXED_OXIDIZED_", "copper_oxidized", true)
+        registerCutCopperSet("WAXED_", "copper", "", true)
+        registerCutCopperSet("WAXED_EXPOSED_", "copper_exposed", "_exposed", true)
+        registerCutCopperSet("WAXED_WEATHERED_", "copper_weathered", "_weathered", true)
+        registerCutCopperSet("WAXED_OXIDIZED_", "copper_oxidized", "_oxidized", true)
 
         // ==========================================
         // 4. 錾刻铜块 (Chiseled Copper Blocks)
@@ -161,32 +161,30 @@ object MclCopperMapping : MclMappingModule {
 
         registry.register(ChunkerVanillaBlockType.COPPER_TORCH, dsl.simple("mcl_torches:copper_torch"))
         registry.register(ChunkerVanillaBlockType.COPPER_WALL_TORCH, dsl.wallTorch("mcl_torches:copper_torch_wall", "mcl_torches:copper_torch_wall"))
-        
-        //磁石
-        registry.register(ChunkerVanillaBlockType.LODESTONE, dsl.simple("mcl_compass:lodestone"))
     }
 
     /**
-     * 辅助函数：注册切制铜及其楼梯、台阶。
-     * 精准修复：针对 Preserved 变体，_preserved 后缀必须在绝对末尾。
+     * 辅助函数：注册切制铜及其楼梯、台阶
+     * @param chunkerPrefix Chunker 常量的前缀，如 "EXPOSED_"
+     * @param stairSlabBase Mineclonia 中楼梯和台阶的基础，如 "copper_exposed"
+     * @param mclBlockBase Mineclonia 中完整块的名字后缀，如 "_exposed"
      */
-    private fun registerCutCopperSet(chunkerPrefix: String, mclBase: String, isWaxed: Boolean = false) {
+    private fun registerCutCopperSet(chunkerPrefix: String, stairSlabBase: String, mclBlockBase: String, isWaxed: Boolean = false) {
         val registry = MclMappingRegistry
         val dsl = MclMappingDsl
         val waxedSuffix = if (isWaxed) "_preserved" else ""
 
-        // 方块
-        registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER"), dsl.simple("mcl_copper:block_${mclBase}_cut$waxedSuffix"))
+        // 方块 (例如: mcl_copper:block_exposed_cut_preserved)
+        registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER"), dsl.simple("mcl_copper:block${mclBlockBase}_cut$waxedSuffix"))
 
-        // 楼梯 (格式: mcl_stairs:stair_copper_xxx_cut[_preserved])
-        registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER_STAIRS"), dsl.stair("mcl_stairs:stair_${mclBase}_cut$waxedSuffix"))
+        // 楼梯 (例如: mcl_stairs:stair_copper_exposed_cut_preserved)
+        registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER_STAIRS"), dsl.stair("mcl_stairs:stair_${stairSlabBase}_cut$waxedSuffix"))
 
-        // 台阶 (格式: mcl_stairs:slab_copper_xxx_cut[_top/double][_preserved])
-        // 关键修复：_preserved 必须放在最后
+        // 台阶 (例如: mcl_stairs:slab_copper_exposed_cut_top_preserved)
         registry.register(enumValueOf("${chunkerPrefix}CUT_COPPER_SLAB"), dsl.slab(
-            "mcl_stairs:slab_${mclBase}_cut$waxedSuffix",
-            "mcl_stairs:slab_${mclBase}_cut_top$waxedSuffix",
-            "mcl_stairs:slab_${mclBase}_cut_double$waxedSuffix"
+            "mcl_stairs:slab_${stairSlabBase}_cut$waxedSuffix",
+            "mcl_stairs:slab_${stairSlabBase}_cut_top$waxedSuffix",
+            "mcl_stairs:slab_${stairSlabBase}_cut_double$waxedSuffix"
         ))
     }
 

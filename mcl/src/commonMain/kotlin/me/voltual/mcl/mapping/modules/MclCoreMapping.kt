@@ -278,8 +278,42 @@ object MclCoreMapping : MclMappingModule {
         
         registry.register(ChunkerVanillaBlockType.SPAWNER, dsl.simple("mcl_mobspawners:spawner"))
         
+        // 信标与炼药锅
+        registry.register(ChunkerVanillaBlockType.BEACON, dsl.simple("mcl_beacons:beacon"))
+        registry.register(ChunkerVanillaBlockType.CAULDRON, dsl.simple("mcl_cauldrons:cauldron"))
+        
+        // 注册多级炼药锅变体
+        registerCauldronLiquids()
+        
         //梯子
         registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
+    }
+    
+    /**
+     * 精准注册所有带流体炼药锅状态 (1-3级)
+     */
+    private fun registerCauldronLiquids() {
+        val registry = MclMappingRegistry
+        val dsl = MclMappingDsl
+        
+        // 水釜
+        registry.register(ChunkerVanillaBlockType.WATER_CAULDRON, BlockMapper { id ->
+            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
+            // Chunker level 范围为 1-3，直接映射至 mcl_cauldrons:cauldron_X
+            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}")
+        })
+
+        // 岩浆釜
+        registry.register(ChunkerVanillaBlockType.LAVA_CAULDRON, BlockMapper { id ->
+            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
+            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}_lava")
+        })
+
+        // 细雪釜
+        registry.register(ChunkerVanillaBlockType.POWDER_SNOW_CAULDRON, BlockMapper { id ->
+            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
+            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}_powder_snow")
+        })
     }
 
     private fun registerStoneSet(
