@@ -331,13 +331,13 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.JUKEBOX, dsl.simple("mcl_jukebox:jukebox"))
         
         // 铁砧三种状态注册
-        registry.register(ChunkerVanillaBlockType.ANVIL, dslMcl.anvil(0))
-        registry.register(ChunkerVanillaBlockType.CHIPPED_ANVIL, dslMcl.anvil(1))
-        registry.register(ChunkerVanillaBlockType.DAMAGED_ANVIL, dslMcl.anvil(2))
+        registry.register(ChunkerVanillaBlockType.ANVIL, dsl.anvil(0))
+        registry.register(ChunkerVanillaBlockType.CHIPPED_ANVIL, dsl.anvil(1))
+        registry.register(ChunkerVanillaBlockType.DAMAGED_ANVIL, dsl.anvil(2))
 
         // 营火与灵魂营火注册
-        registry.register(ChunkerVanillaBlockType.CAMPFIRE, dslMcl.campfire(isSoul = false))
-        registry.register(ChunkerVanillaBlockType.SOUL_CAMPFIRE, dslMcl.campfire(isSoul = true))
+        registry.register(ChunkerVanillaBlockType.CAMPFIRE, dsl.campfire(isSoul = false))
+        registry.register(ChunkerVanillaBlockType.SOUL_CAMPFIRE, dsl.campfire(isSoul = true))
         
     }
 
