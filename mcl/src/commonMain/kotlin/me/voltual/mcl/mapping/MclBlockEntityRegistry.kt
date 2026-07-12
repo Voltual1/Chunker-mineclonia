@@ -12,6 +12,7 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.r
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.banner.ChunkerBannerPattern
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType
@@ -125,7 +126,7 @@ object MclBlockEntityRegistry {
 
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
-        val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
+        val fuelItem = mclItemFromChunkerOrEmpty(furnace.items[1])
         val dstItem = mclItemFromChunkerOrEmpty(furnace.items[2])
 
         return MclBlockEntityData(
@@ -208,36 +209,57 @@ object MclBlockEntityRegistry {
     }
 
     private fun convertBanner(banner: BannerBlockEntity): MclBlockEntityData {
-        val fields = mutableMapOf<String, String>()
-        val inventories = mutableMapOf<String, MclInventory>()
+    val fields = mutableMapOf<String, String>()
+    val inventories = mutableMapOf<String, MclInventory>()
 
-        // 优先尝试从 base 属性读取（对于盾牌或 Bedrock），如果不存在，则默认为 WHITE
-        val baseDye = if (banner.base.isPresent) banner.base.get() else ChunkerDyeColor.WHITE
-        
-        val mclColor = when (baseDye) {
+    // ==========================================
+    // 【精准色彩提取系统 - 直接访问架构注入的 blockType】
+    // ==========================================
+    var mclColor = "white" // 基础默认值
+    val blockType = banner.blockType
+
+    if (blockType is ChunkerVanillaBlockType) {
+        val blockTypeName = blockType.name // 如 "ORANGE_BANNER", "RED_WALL_BANNER"
+        val colorsList = listOf(
+            "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
+            "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
+        )
+        val matchedMcColor = colorsList.firstOrNull { blockTypeName.contains(it) }
+        if (matchedMcColor != null) {
+            mclColor = when (matchedMcColor) {
+                "GRAY" -> "grey"
+                "LIGHT_GRAY" -> "silver"
+                else -> matchedMcColor.lowercase()
+            }
+        }
+    } else if (banner.base.isPresent) {
+        // 回退到 banner.base 底色（盾牌等）
+        val baseDye = banner.base.get()
+        mclColor = when (baseDye) {
             ChunkerDyeColor.GRAY -> "grey"
             ChunkerDyeColor.LIGHT_GRAY -> "silver"
             else -> baseDye.name.lowercase()
         }
-
-        val bannerItemName = "mcl_banners:banner_item_$mclColor"
-        val itemStack = MclItemStack(bannerItemName, 1, 0)
-        
-        val patterns = banner.patterns
-        if (patterns.isNotEmpty()) {
-            val serializedLayers = serializeLayersToLua(patterns)
-            itemStack.metadata = mapOf("layers" to serializedLayers)
-            fields["layers"] = serializedLayers
-        }
-
-        inventories["banner"] = MclInventory(1, listOf(itemStack))
-        fields["rotation_level"] = "0"
-
-        return MclBlockEntityData(
-            fields = fields,
-            inventories = inventories
-        )
     }
+
+    val bannerItemName = "mcl_banners:banner_item_$mclColor"
+    val itemStack = MclItemStack(bannerItemName, 1, 0)
+    
+    val patterns = banner.patterns
+    if (patterns.isNotEmpty()) {
+        val serializedLayers = serializeLayersToLua(patterns)
+        itemStack.metadata = mapOf("layers" to serializedLayers)
+        fields["layers"] = serializedLayers
+    }
+
+    inventories["banner"] = MclInventory(1, listOf(itemStack))
+    fields["rotation_level"] = "0" // 旋转角度已由 MclBannerMapping 的节点放置逻辑处理
+
+    return MclBlockEntityData(
+        fields = fields,
+        inventories = inventories
+    )
+}
 
     private fun serializeLayersToLua(patterns: List<it.unimi.dsi.fastutil.Pair<ChunkerDyeColor, ChunkerBannerPattern>>): String {
         val sb = StringBuilder()
