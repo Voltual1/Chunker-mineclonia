@@ -19,15 +19,11 @@ object MclItemRegistry {
     fun getItemName(identifier: ChunkerItemStackIdentifier): String {
         val type = identifier.itemStackType
         
-        // 1. 如果该物品本质上是一个方块 (BlockItem)
-        // 修正：海泡菜、珊瑚、海带等都属于方块类型，将由 MclMappingRegistry 自动处理
         if (type is ChunkerVanillaBlockType) {
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
-            // 调用之前在 MclOceanMapping 等模块中注册的方块映射逻辑
             return MclMappingRegistry.convert(blockId).name
         }
 
-        // 2. 如果是纯物品 (Item)
         if (type is ChunkerVanillaItemType) {
             return itemMapping[type] ?: run {
                 System.err.println("\u001B[31m[Item Debug] Missing explicit mapping for: $type\u001B[0m")
@@ -56,14 +52,27 @@ object MclItemRegistry {
             mtWear = (mcDamage.toDouble() / maxDurability * 65535).toInt().coerceIn(0, 65535)
         }
 
-        return MclItemStack(name, count, mtWear)
+        val mclStack = MclItemStack(name, count, mtWear)
+
+        // ==========================================
+        // 【核心元数据处理 - 磁石指南针】
+        // ==========================================
+        val meta = mutableMapOf<String, String>()
+        
+        // 处理磁石数据 (Lodestone Data)
+        val lodestoneData = itemStack.get(ChunkerItemProperty.LODESTONE_DATA)
+        if (lodestoneData != null && lodestoneData.position != null) {
+            val pos = lodestoneData.position
+            // Mineclonia 格式: (x,y,z)
+            meta["pointsto"] = "(${pos.x},${pos.y},${pos.z})"
+        }
+        
+        mclStack.metadata = meta
+        return mclStack
     }
 
-    // ==========================================
-    // 物品映射字典 (仅包含纯物品 ChunkerVanillaItemType)
-    // ==========================================
     private val itemMapping = mutableMapOf<ChunkerVanillaItemType, String>().apply {
-        // 核心材料 (mcl_core)
+        // 核心材料
         put(ChunkerVanillaItemType.STICK, "mcl_core:stick")
         put(ChunkerVanillaItemType.PAPER, "mcl_core:paper")
         put(ChunkerVanillaItemType.COAL, "mcl_core:coal_lump")
@@ -89,6 +98,11 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.BRICK, "mcl_core:brick")
         put(ChunkerVanillaItemType.CLAY_BALL, "mcl_core:clay_lump")
 
+        // 指南针系列 (mcl_compass)
+        put(ChunkerVanillaItemType.COMPASS, "mcl_compass:compass")
+        put(ChunkerVanillaItemType.LODESTONE_COMPASS, "mcl_compass:compass_lodestone")
+        put(ChunkerVanillaItemType.RECOVERY_COMPASS, "mcl_compass:compass_recovery")
+
         // 基础食物
         put(ChunkerVanillaItemType.APPLE, "mcl_core:apple")
         put(ChunkerVanillaItemType.GOLDEN_APPLE, "mcl_core:apple_gold")
@@ -98,7 +112,6 @@ object MclItemRegistry {
         
         put(ChunkerVanillaItemType.WATER_BUCKET, "mcl_buckets:bucket_water")
         put(ChunkerVanillaItemType.LAVA_BUCKET, "mcl_buckets:bucket_lava")
-        // 细雪桶
         put(ChunkerVanillaItemType.POWDER_SNOW_BUCKET, "mcl_powder_snow:bucket_powder_snow")
 
         // 农产品
@@ -155,7 +168,7 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.DRAGON_BREATH, "mcl_potions:dragon_breath")
         put(ChunkerVanillaItemType.FERMENTED_SPIDER_EYE, "mcl_potions:fermented_spider_eye")
 
-        // 海洋系统纯物品 (mcl_ocean)
+        // 海洋系统纯物品
         put(ChunkerVanillaItemType.PRISMARINE_SHARD, "mcl_ocean:prismarine_shard")
         put(ChunkerVanillaItemType.PRISMARINE_CRYSTALS, "mcl_ocean:prismarine_crystals")
         put(ChunkerVanillaItemType.DRIED_KELP, "mcl_ocean:dried_kelp")

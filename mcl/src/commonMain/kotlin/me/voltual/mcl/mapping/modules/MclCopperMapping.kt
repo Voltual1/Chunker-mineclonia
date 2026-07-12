@@ -161,6 +161,9 @@ object MclCopperMapping : MclMappingModule {
 
         registry.register(ChunkerVanillaBlockType.COPPER_TORCH, dsl.simple("mcl_torches:copper_torch"))
         registry.register(ChunkerVanillaBlockType.COPPER_WALL_TORCH, dsl.wallTorch("mcl_torches:copper_torch_wall", "mcl_torches:copper_torch_wall"))
+        
+        //磁石
+        registry.register(ChunkerVanillaBlockType.LODESTONE, dsl.simple("mcl_compass:lodestone"))
     }
 
     /**
