@@ -1,6 +1,10 @@
 package me.voltual.mcl.mapping.modules
 
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.VanillaBlockStates
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.states.vanilla.types.Bool
+import me.voltual.mcl.core.MclNode
+import me.voltual.mcl.mapping.BlockMapper
 import me.voltual.mcl.mapping.MclMappingModule
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclMappingDsl
@@ -72,13 +76,12 @@ object MclWoodMapping : MclMappingModule {
 
         safeRegister(registry, "${chunkerPrefix}_FENCE") { dsl.simple("mcl_fences:${mclName}_fence") }
         safeRegister(registry, "${chunkerPrefix}_FENCE_GATE") { dsl.gate("mcl_fences:${mclName}_fence_gate") }
-        val doorName = if (mclName == "oak") "mcl_doors:wooden_door" else "mcl_doors:door_$mclName"
-        safeRegister(registry, "${chunkerPrefix}_DOOR") { dsl.door(doorName) }
-        
-        // 橡木活板门在 Mineclonia 中没有 _oak 后缀，其他有
+        safeRegister(registry, "${chunkerPrefix}_DOOR") { dsl.door("mcl_doors:door_$mclName") }
+
+        // 修正：橡木活板门在 Mineclonia 中没有 _oak 后缀，其他有
         val trapdoorName = if (mclName == "oak") "mcl_doors:trapdoor" else "mcl_doors:trapdoor_$mclName"
         safeRegister(registry, "${chunkerPrefix}_TRAPDOOR") { dsl.trapdoor(trapdoorName) }
-        
+
         safeRegister(registry, "${chunkerPrefix}_BUTTON") { dsl.button(mclName) }
         safeRegister(registry, "${chunkerPrefix}_PRESSURE_PLATE") { dsl.pressurePlate(mclName) }
 
@@ -202,8 +205,10 @@ object MclWoodMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.BAMBOO_WALL_SIGN, dsl.directional("mcl_signs:wall_sign_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_HANGING_SIGN, dsl.simple("mcl_signs:hanging_sign_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_WALL_HANGING_SIGN, dsl.directional("mcl_signs:hanging_sign_wall_bamboo"))
-        
+
+        // ==========================================
         // 【脚手架映射 (Scaffolding)】
+        // ==========================================
         registry.register(ChunkerVanillaBlockType.SCAFFOLDING, BlockMapper { id ->
             val isBottom = id.getState(VanillaBlockStates.BOTTOM) == Bool.TRUE
             val distance = id.getState(VanillaBlockStates.STABILITY_DISTANCE)?.ordinal ?: 0
