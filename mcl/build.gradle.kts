@@ -30,7 +30,7 @@ kotlin {
             dependencies {
                 implementation(kotlin("stdlib")) 
                 implementation(project(":cli"))
-                implementation(libs.kotlinx.serialization.json)    
+                api(libs.gson) 
             }
         }
         

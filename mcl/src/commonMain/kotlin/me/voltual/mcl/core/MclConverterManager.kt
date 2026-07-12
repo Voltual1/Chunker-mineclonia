@@ -13,8 +13,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.Chunke
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclBlockEntityRegistry
 import me.voltual.mc2mt.MC2MTLib 
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
+import com.google.gson.Gson
 import java.io.File
 import java.nio.charset.StandardCharsets
 
@@ -24,6 +23,7 @@ class MclConverterManager(
     val spawnY: Int,
     val spawnZ: Int
 ) : AutoCloseable {
+    private val gson = Gson()
 
     init {
         if (!outputDir.exists()) {
@@ -81,7 +81,6 @@ class MclConverterManager(
             val localNamesList = ArrayList<String>()
             val metadataMap = HashMap<Int, MclBlockEntityData>()
             
-            // 【核心修正】：改为当前方法的线程局部变量，彻底杜绝 JVM 并发冲突
             val pendingDebugSigns = HashMap<Int, String>()
             
             val palette = chunk.palette
@@ -96,10 +95,8 @@ class MclConverterManager(
                         val mcZ = localZ
                         
                         val blockIdx = (localZ shl 8) or (localY shl 4) or localX
-                        
                         val identifier = palette.get(mcX, mcY, mcZ) ?: ChunkerBlockIdentifier.AIR
                         
-                        // 传入局部 Lambda 表达式收集当前线程未映射的方块提示信息
                         val node = MclMappingRegistry.convertAndDebug(identifier, blockIdx) { idx, text ->
                             pendingDebugSigns[idx] = text
                         }
@@ -112,7 +109,6 @@ class MclConverterManager(
                         
                         blockIds[blockIdx] = localId
 
-                        // 光照系统
                         var lightInited = false
                         if (blockLight != null && skyLight != null) {
                             val bl = blockLight[mcX][mcY]?.get(mcZ) ?: 0
@@ -147,33 +143,31 @@ class MclConverterManager(
                 }
             }
 
-            // 处理当前局部 Column 线程累积的调试元数据
             for ((blockIdx, debugText) in pendingDebugSigns) {
-    val shortVisualText = debugText.replace("[MISSING]\n", "")
-        .replace("ChunkerBlockIdentifier", "Missing:")
-        .take(60) // 告示牌最大容纳 4行 * 15字 = 60字
+                val shortVisualText = debugText.replace("[MISSING]\n", "")
+                    .replace("ChunkerBlockIdentifier", "Missing:")
+                    .take(60)
 
-    // 对 Formspec 的多行文本和特殊字符进行转义，防止 Minetest 解析器截断
-    // 将换行符 \n 替换为 Minetest 允许的转义换行
-    val escapedFormspecText = debugText
-        .replace("\\", "\\\\")
-        .replace("[", "\\[")
-        .replace("]", "\\]")
-        .replace(";", "\\;")
-        .replace("\n", ", ") // 将换行换成逗号，在一行内完整展示，防止 Formspec 语法截断
+                val escapedFormspecText = debugText
+                    .replace("\\", "\\\\")
+                    .replace("[", "\\[")
+                    .replace("]", "\\]")
+                    .replace(";", "\\;")
+                    .replace("\n", ", ")
 
-    val debugMetadata = MclBlockEntityData(
-        fields = mapOf(
-            "text" to shortVisualText,               // 用于告示牌表面木纹渲染
-            "infotext" to debugText,                 // 鼠标指向告示牌时悬浮显示的完整信息 (最安全，绝对不会截断)
-            "formspec" to "size[10,5]textarea[0.5,0.5;9.5,4;text;未识别的方块详细ID (请勿编辑提交);${escapedFormspecText}]" // 修复后的编辑框
-        )
-    )
-    metadataMap[blockIdx] = debugMetadata
-}
+                val debugMetadata = MclBlockEntityData(
+                    fields = mapOf(
+                        "text" to shortVisualText,
+                        "infotext" to debugText,
+                        "formspec" to "size[10,5]textarea[0.5,0.5;9.5,4;text;未识别的方块详细ID (请勿编辑提交);${escapedFormspecText}]"
+                    )
+                )
+                metadataMap[blockIdx] = debugMetadata
+            }
 
-            val localNamesJson = Json.encodeToString(localNamesList).toByteArray(StandardCharsets.UTF_8)
-            val metadataJson = Json.encodeToString(metadataMap).toByteArray(StandardCharsets.UTF_8)
+            // 使用 Gson 序列化
+            val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
+            val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
 
             MC2MTLib.writeChunkFast(chunkX, y, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
         }

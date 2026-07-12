@@ -1,10 +1,11 @@
 package me.voltual.mcl.core
 
 import java.io.File
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.encodeToString
+import com.google.gson.Gson
 
 class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : AutoCloseable {
+    
+    private val gson = Gson()
 
     companion object {
         init {
@@ -46,9 +47,6 @@ class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : Au
         }
     }
 
-    /**
-     * 将整个 Chunk 数据推送到 JNI 临界区，实现物理极速落盘
-     */
     fun saveChunkNatively(
         cx: Int, cy: Int, cz: Int,
         blockIds: ShortArray,
@@ -57,9 +55,9 @@ class MclSqliteSaver(dbPath: String, spawnX: Int, spawnY: Int, spawnZ: Int) : Au
         localNames: List<String>,
         metadata: Map<Int, MclBlockEntityData>
     ) {
-        // 使用 kotlinx.serialization 替代 Gson
-        val namesJsonBytes = Json.encodeToString(localNames).toByteArray(Charsets.UTF_8)
-        val metaJsonBytes = Json.encodeToString(metadata).toByteArray(Charsets.UTF_8)
+        // 回退到 Gson 序列化
+        val namesJsonBytes = gson.toJson(localNames).toByteArray(Charsets.UTF_8)
+        val metaJsonBytes = gson.toJson(metadata).toByteArray(Charsets.UTF_8)
 
         val status = writeChunkFast(
             cx, cy, cz,

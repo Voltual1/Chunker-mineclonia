@@ -1,13 +1,10 @@
 package me.voltual.mcl.core
 
-import kotlinx.serialization.Serializable
 import kotlin.math.max
 
 /**
  * 代表 Mineclonia 中的方块节点信息
- * （如果不参与 JSON 传输，可以不加 @Serializable，但加上最稳妥）
  */
-@Serializable
 data class MclNode(
     val name: String,
     var param1: Byte = 0,
@@ -28,7 +25,6 @@ data class MclNode(
 /**
  * Mineclonia 物品栈的内部表示
  */
-@Serializable
 data class MclItemStack(
     val name: String,
     val count: Int,
@@ -38,7 +34,6 @@ data class MclItemStack(
 /**
  * Mineclonia 物品栏的内部表示
  */
-@Serializable
 data class MclInventory(
     val width: Int,
     val items: List<MclItemStack>
@@ -47,7 +42,6 @@ data class MclInventory(
 /**
  * 转换后的 Mineclonia 方块实体数据
  */
-@Serializable
 data class MclBlockEntityData(
     val fields: Map<String, String> = emptyMap(),
     val inventories: Map<String, MclInventory> = emptyMap()

@@ -17,7 +17,6 @@ object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
 
     init {
-        // 利用统一签名的 Lambda 进行注册，彻底解决 Kotlin 泛型逆变冲突报错
         register(ChestBlockEntity::class.java) { be -> convertChest(be) }
         register(TrappedChestBlockEntity::class.java) { be -> convertChest(be) }
         register(ShulkerBoxBlockEntity::class.java) { be -> convertChest(be) }
@@ -37,14 +36,10 @@ object MclBlockEntityRegistry {
         return converter(blockEntity)
     }
 
-    /**
-     * 1. 统一接收 BlockEntity 作为参数，并通过 Smart Cast 提取 `items` 属性
-     */
     private fun convertChest(be: BlockEntity): MclBlockEntityData {
         val size = 27 
         val items = MutableList(size) { MclItemStack("", 0) }
 
-        // 处理 Chest, TrappedChest, ShulkerBox 的共享继承逻辑
         val chestItems = when (be) {
             is ChestBlockEntity -> be.items
             is TrappedChestBlockEntity -> be.items
@@ -68,9 +63,6 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 2. 熔炉转换
-     */
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
         val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
@@ -92,11 +84,9 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 3. 告示牌转换
-     */
     private fun convertSign(sign: SignBlockEntity): MclBlockEntityData {
         val textBuilder = StringBuilder()
+        // 关键修复：确保遍历 Chunker 的 Gson JsonElement 树
         for (lineElement in sign.front.lines) {
             val lineText = extractTextFromJson(lineElement)
             if (lineText.isNotEmpty()) textBuilder.append(lineText).append("\n")
@@ -112,9 +102,6 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 4. 唱片机转换
-     */
     private fun convertJukebox(jukebox: JukeboxBlockEntity): MclBlockEntityData {
         val record = jukebox.record
         val fields = mutableMapOf("infotext" to "Jukebox")
@@ -129,9 +116,6 @@ object MclBlockEntityRegistry {
         return MclBlockEntityData(fields, inventories)
     }
 
-    /**
-     * 5. 刷怪笼转换
-     */
     private fun convertSpawner(spawner: SpawnerBlockEntity): MclBlockEntityData {
         val entityType = spawner.entityType
         val entityName = entityType?.let { "mcl_mobs:${it.toString().lowercase()}" } ?: "mcl_mobs:zombie"
@@ -150,6 +134,7 @@ object MclBlockEntityRegistry {
         if (element.isJsonPrimitive) return element.asString
         if (element.isJsonObject) {
             val obj = element.asJsonObject
+            // Chunker 内部通常将文本放在 "text" 字段
             if (obj.has("text")) return obj.get("text").asString
         }
         return ""
