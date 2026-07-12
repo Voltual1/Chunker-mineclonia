@@ -33,6 +33,7 @@ object MclBedMapping : MclMappingModule {
         val registry = MclMappingRegistry
         
         // 颜色名称映射 (Minecraft 枚举名 -> Mineclonia 节点颜色名)
+        // 采用英式英语拼写以对齐 Mineclonia
         val bedColors = mapOf(
             "WHITE" to "white",
             "ORANGE" to "orange",
@@ -41,7 +42,7 @@ object MclBedMapping : MclMappingModule {
             "YELLOW" to "yellow",
             "LIME" to "lime",
             "PINK" to "pink",
-            "GRAY" to "gray",
+            "GRAY" to "grey",        // 修正：英式拼写 grey
             "LIGHT_GRAY" to "silver", // 修正：淡灰色对应 silver
             "CYAN" to "cyan",
             "PURPLE" to "purple",
@@ -60,20 +61,23 @@ object MclBedMapping : MclMappingModule {
                     val part = id.getState(VanillaBlockStates.BED_PART) ?: BedPart.FOOT
                     val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
                     
-                    // Mineclonia: bottom 是足部，top 是头部
+                    // Mineclonia: bottom 是足部 (FOOT)，top 是头部 (HEAD)
                     val suffix = if (part == BedPart.HEAD) "_top" else "_bottom"
                     
                     /**
                      * 修正方向映射逻辑：
-                     * 根据反馈：Z轴正常 (0=North, 2=South)，但 X轴反了。
-                     * 原始逻辑：EAST=1, WEST=3
-                     * 修正逻辑：EAST=3, WEST=1
+                     * Minecraft: NORTH 是 -Z, SOUTH 是 +Z, WEST 是 -X, EAST 是 +X
+                     * Minetest facedir: 
+                     * 0 = +Z (South)
+                     * 1 = +X (East)
+                     * 2 = -Z (North)
+                     * 3 = -X (West)
                      */
                     val param2 = when (facing) {
-                        FacingDirectionHorizontal.NORTH -> 0
-                        FacingDirectionHorizontal.SOUTH -> 2
-                        FacingDirectionHorizontal.EAST -> 3 // 对调修正
-                        FacingDirectionHorizontal.WEST -> 1 // 对调修正
+                        FacingDirectionHorizontal.SOUTH -> 0
+                        FacingDirectionHorizontal.EAST -> 1
+                        FacingDirectionHorizontal.NORTH -> 2
+                        FacingDirectionHorizontal.WEST -> 3
                     }.toByte()
 
                     MclNode("mcl_beds:bed_${mclColor}${suffix}", param2 = param2)
