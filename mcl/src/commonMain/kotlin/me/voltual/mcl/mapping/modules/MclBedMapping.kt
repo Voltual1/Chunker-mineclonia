@@ -23,7 +23,6 @@ object MclBedMapping : MclMappingModule {
             val nodeName = if (charges == RespawnAnchorCharges._0) {
                 "mcl_beds:respawn_anchor"
             } else {
-                // charges.ordinal 对应 0-4，这里恰好对应 _charged_1 到 _charged_4
                 "mcl_beds:respawn_anchor_charged_${charges.ordinal}"
             }
             MclNode(nodeName)
@@ -43,7 +42,7 @@ object MclBedMapping : MclMappingModule {
             "LIME" to "lime",
             "PINK" to "pink",
             "GRAY" to "gray",
-            "LIGHT_GRAY" to "light_gray",
+            "LIGHT_GRAY" to "silver", // 修正：淡灰色对应 silver
             "CYAN" to "cyan",
             "PURPLE" to "purple",
             "BLUE" to "blue",
@@ -64,12 +63,17 @@ object MclBedMapping : MclMappingModule {
                     // Mineclonia: bottom 是足部，top 是头部
                     val suffix = if (part == BedPart.HEAD) "_top" else "_bottom"
                     
-                    // facedir: 0=N, 1=E, 2=S, 3=W
+                    /**
+                     * 修正方向映射逻辑：
+                     * 根据反馈：Z轴正常 (0=North, 2=South)，但 X轴反了。
+                     * 原始逻辑：EAST=1, WEST=3
+                     * 修正逻辑：EAST=3, WEST=1
+                     */
                     val param2 = when (facing) {
                         FacingDirectionHorizontal.NORTH -> 0
-                        FacingDirectionHorizontal.EAST -> 1
                         FacingDirectionHorizontal.SOUTH -> 2
-                        FacingDirectionHorizontal.WEST -> 3
+                        FacingDirectionHorizontal.EAST -> 3 // 对调修正
+                        FacingDirectionHorizontal.WEST -> 1 // 对调修正
                     }.toByte()
 
                     MclNode("mcl_beds:bed_${mclColor}${suffix}", param2 = param2)
