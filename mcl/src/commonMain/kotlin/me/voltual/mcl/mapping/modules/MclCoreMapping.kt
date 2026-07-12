@@ -248,11 +248,11 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
         registerStoneSet("stonebrickmossy", "stonebrickmossy", "mossy_stone_brick", hasWall = true)
         registerStoneSet("granite", "granite", "granite", hasWall = true)
-        registerStoneSet("granite_smooth", "granite_smooth", "polished_granite", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.POLISHED_GRANITE_SLAB, dsl.slab("mcl_stairs:slab_granite_smooth", "mcl_stairs:slab_granite_smooth_top", "mcl_stairs:slab_granite_smooth_double"))
         registerStoneSet("diorite", "diorite", "diorite", hasWall = true)
-        registerStoneSet("diorite_smooth", "diorite_smooth", "polished_diorite", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.POLISHED_DIORITE_SLAB, dsl.slab("mcl_stairs:slab_diorite_smooth", "mcl_stairs:slab_diorite_smooth_top", "mcl_stairs:slab_diorite_smooth_double"))
         registerStoneSet("andesite", "andesite", "andesite", hasWall = true)
-        registerStoneSet("andesite_smooth", "andesite_smooth", "polished_andesite", hasWall = false)
+        registry.register(ChunkerVanillaBlockType.POLISHED_ANDESITE_SLAB, dsl.slab("mcl_stairs:slab_andesite_smooth", "mcl_stairs:slab_andesite_smooth_top", "mcl_stairs:slab_andesite_smooth_double"))
         
         // 砂岩相关通用逻辑注册(如果有遗漏)
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
@@ -293,15 +293,15 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
 
         // ==========================================
-        // 12. 酿造台、附魔台与铃铛 (New)
+        // 12. 酿造台、附魔台与铃铛 (Fixed)
         // ==========================================
-        // 酿造台 (Brewing Stand) - 默认映射到 000 级基本空台，让 Minetest 游戏逻辑自主刷新
+        // 酿造台
         registry.register(ChunkerVanillaBlockType.BREWING_STAND, dsl.simple("mcl_brewing:stand_000"))
 
-        // 附魔台 (Enchanting Table)
+        // 附魔台
         registry.register(ChunkerVanillaBlockType.ENCHANTING_TABLE, dsl.simple("mcl_enchanting:table"))
 
-        // 铃铛 (Bell) - 核心基于 attachment 状态转换
+        // 铃铛 (修正导入缺失问题)
         registry.register(ChunkerVanillaBlockType.BELL, BlockMapper { id ->
             val attachment = id.getState(VanillaBlockStates.BELL_ATTACHMENT) ?: BellAttachment.FLOOR
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
@@ -316,7 +316,6 @@ object MclCoreMapping : MclMappingModule {
             when (attachment) {
                 BellAttachment.FLOOR -> MclNode("mcl_bells:bell", param2 = baseDir.toByte())
                 BellAttachment.CEILING -> MclNode("mcl_bells:bell_ceiling", param2 = baseDir.toByte())
-                // 挂墙上 (Wallmounted)
                 BellAttachment.SINGLE_WALL, BellAttachment.DOUBLE_WALL -> {
                     val wallParam2 = when (facing) {
                         FacingDirectionHorizontal.NORTH -> 2 // x-
@@ -326,6 +325,7 @@ object MclCoreMapping : MclMappingModule {
                     }.toByte()
                     MclNode("mcl_bells:bell_wall", param2 = wallParam2)
                 }
+                else -> MclNode("mcl_bells:bell", param2 = baseDir.toByte()) // 兜底
             }
         })
     }
