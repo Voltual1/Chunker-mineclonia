@@ -8,6 +8,7 @@ import me.voltual.mcl.mapping.MclMappingModule
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclMappingDsl
 import me.voltual.mcl.core.MclNode
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier
 
 object MclCoreMapping : MclMappingModule {
     override fun register() {
@@ -285,34 +286,39 @@ object MclCoreMapping : MclMappingModule {
         // 注册多级炼药锅变体
         registerCauldronLiquids()
         
+        //磁石
+        registry.register(ChunkerVanillaBlockType.LODESTONE, dsl.simple("mcl_compass:lodestone"))
+        
         //梯子
         registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
     }
     
     /**
      * 精准注册所有带流体炼药锅状态 (1-3级)
+     * 修正：强制将水位截断在 1-3 范围内，防止出现类似 cauldron_5 的未定义节点。
      */
     private fun registerCauldronLiquids() {
         val registry = MclMappingRegistry
-        val dsl = MclMappingDsl
         
+        // 辅助函数：获取截断水位
+        fun getClampedLevel(id: ChunkerBlockIdentifier): Int {
+            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
+            return level.coerceIn(1, 3)
+        }
+
         // 水釜
         registry.register(ChunkerVanillaBlockType.WATER_CAULDRON, BlockMapper { id ->
-            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
-            // Chunker level 范围为 1-3，直接映射至 mcl_cauldrons:cauldron_X
-            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}")
+            MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}")
         })
 
         // 岩浆釜
         registry.register(ChunkerVanillaBlockType.LAVA_CAULDRON, BlockMapper { id ->
-            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
-            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}_lava")
+            MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}_lava")
         })
 
         // 细雪釜
         registry.register(ChunkerVanillaBlockType.POWDER_SNOW_CAULDRON, BlockMapper { id ->
-            val level = id.getState(VanillaBlockStates.CAULDRON_LEVEL)?.ordinal ?: 1
-            MclNode("mcl_cauldrons:cauldron_${level.coerceAtLeast(1)}_powder_snow")
+            MclNode("mcl_cauldrons:cauldron_${getClampedLevel(id)}_powder_snow")
         })
     }
 
