@@ -177,7 +177,11 @@ object MclWoodMapping : MclMappingModule {
         val registry = MclMappingRegistry
         val dsl = MclMappingDsl
         
-        registry.register(ChunkerVanillaBlockType.BAMBOO_PLANKS, dsl.simple("mcl_bamboo:bamboo_plank"))
+        // 核心竹块变体
+        registry.register(ChunkerVanillaBlockType.BAMBOO_BLOCK, dsl.log("mcl_trees:tree_bamboo"))
+        registry.register(ChunkerVanillaBlockType.STRIPPED_BAMBOO_BLOCK, dsl.log("mcl_trees:stripped_bamboo"))
+
+        registry.register(ChunkerVanillaBlockType.BAMBOO_PLANKS, dsl.simple("mcl_trees:wood_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_MOSAIC, dsl.simple("mcl_bamboo:bamboo_mosaic"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_STAIRS, dsl.stair("mcl_stairs:stair_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_MOSAIC_STAIRS, dsl.stair("mcl_stairs:stair_bamboo_mosaic"))
