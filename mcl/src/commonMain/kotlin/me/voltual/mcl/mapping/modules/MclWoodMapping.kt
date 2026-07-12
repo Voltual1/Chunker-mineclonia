@@ -202,6 +202,20 @@ object MclWoodMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.BAMBOO_WALL_SIGN, dsl.directional("mcl_signs:wall_sign_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_HANGING_SIGN, dsl.simple("mcl_signs:hanging_sign_bamboo"))
         registry.register(ChunkerVanillaBlockType.BAMBOO_WALL_HANGING_SIGN, dsl.directional("mcl_signs:hanging_sign_wall_bamboo"))
+        
+        // 【脚手架映射 (Scaffolding)】
+        registry.register(ChunkerVanillaBlockType.SCAFFOLDING, BlockMapper { id ->
+            val isBottom = id.getState(VanillaBlockStates.BOTTOM) == Bool.TRUE
+            val distance = id.getState(VanillaBlockStates.STABILITY_DISTANCE)?.ordinal ?: 0
+            
+            // Mineclonia 最大支持距离为 6，进行截断
+            val mclDistance = distance.coerceAtMost(6).toByte()
+            
+            // 节点选择：有支撑用基础节点，无支撑悬挂用 horizontal 节点
+            val nodeName = if (isBottom) "mcl_bamboo:scaffolding" else "mcl_bamboo:scaffolding_horizontal"
+            
+            MclNode(nodeName, param2 = mclDistance)
+        })
     }
 
     private fun registerNetherWood(chunkerPrefix: String, mclName: String) {
