@@ -17,7 +17,7 @@ import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVani
 object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
 
-    // Minecraft 实体类型到 Mineclonia 实体字符串的映射字典 (依据 mobs_mc)
+    // Minecraft 实体类型到 Mineclonia 实体字符串的映射字典
     private val entityTypeToMcl = mapOf(
         ChunkerVanillaEntityType.ZOMBIE to "mobs_mc:zombie",
         ChunkerVanillaEntityType.PIGLIN to "mobs_mc:piglin",
@@ -82,6 +82,7 @@ object MclBlockEntityRegistry {
         register(SignBlockEntity::class.java) { be -> convertSign(be as SignBlockEntity) }
         register(JukeboxBlockEntity::class.java) { be -> convertJukebox(be as JukeboxBlockEntity) }
         register(SpawnerBlockEntity::class.java) { be -> convertSpawner(be as SpawnerBlockEntity) }
+        register(LecternBlockEntity::class.java) { be -> convertLectern(be as LecternBlockEntity) }
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -176,10 +177,6 @@ object MclBlockEntityRegistry {
         val entityType = spawner.entityType
         val mclMobName = entityTypeToMcl[entityType] ?: "mobs_mc:pig"
 
-        // 依据 mcl_mobspawners:spawner 设计的 metadata
-        // 必须写入 meta 中的 Mob、MaxMobsInArea、PlayerDistance
-        // 且由于 Mineclonia 的 spawner 逻辑依赖 NodeTimer，底层 Writer 在处理此 BlockEntityData 时
-        // 会连同设置在该位置启动定时器，这里我们携带 "has_timer" = "true" 并设置 "timer_delay" = "2"
         return MclBlockEntityData(
             fields = mapOf(
                 "Mob" to mclMobName,
@@ -190,6 +187,27 @@ object MclBlockEntityRegistry {
                 "timer_delay" to "2"
             )
         )
+    }
+
+    private fun convertLectern(lectern: LecternBlockEntity): MclBlockEntityData {
+        val fields = mutableMapOf<String, String>()
+        val book = lectern.book
+        
+        if (book != null && !book.identifier.isAir) {
+            val mclBook = MclItemRegistry.fromChunker(book)
+            // Minetest 的 book_item 通常存 ItemStack 的串行化字符串
+            fields["book_item"] = "${mclBook.name} ${mclBook.count} ${mclBook.wear}"
+            
+            // Chunker 的页码是 0 索引且假设两面一页，Mineclonia 主要是字符串记录
+            fields["page"] = (lectern.page + 1).toString()
+            fields["pages"] = "15" // 默认占位符，Lua 逻辑中也是写死的
+            
+            // TODO: 如果需要更精确的文本显示，需要解析 book 内部的 NBT (title/author)
+            // 目前保持基础书本数据的传递
+            fields["infotext"] = "Lectern with book"
+        }
+
+        return MclBlockEntityData(fields = fields)
     }
 
     private fun extractTextFromJson(element: JsonElement?): String {

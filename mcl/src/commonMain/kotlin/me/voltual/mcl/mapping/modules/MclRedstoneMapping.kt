@@ -91,5 +91,29 @@ object MclRedstoneMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DROPPER, dsl.dispenserLike("mcl_dispensers:dropper"))
         registry.register(ChunkerVanillaBlockType.HOPPER, dsl.hopper())
         registry.register(ChunkerVanillaBlockType.NOTE_BLOCK, dsl.simple("mcl_noteblock:noteblock"))
+
+        // 12. 讲台 (Lectern)
+        registry.register(ChunkerVanillaBlockType.LECTERN, BlockMapper { id ->
+            val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+            val hasBook = id.getState(VanillaBlockStates.HAS_BOOK) == Bool.TRUE
+            val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+
+            val nodeName = if (hasBook) "mcl_lectern:lectern_with_book" else "mcl_lectern:lectern"
+            
+            // Minetest facedir
+            var param2 = when (facing) {
+                FacingDirectionHorizontal.NORTH -> 0
+                FacingDirectionHorizontal.EAST -> 1
+                FacingDirectionHorizontal.SOUTH -> 2
+                FacingDirectionHorizontal.WEST -> 3
+            }
+
+            // 根据 mcl_lectern_init.lua，若处于激活（翻页）状态，则加上 128
+            if (powered) {
+                param2 += 128
+            }
+
+            MclNode(nodeName, param2 = param2.toByte())
+        })
     }
 }
