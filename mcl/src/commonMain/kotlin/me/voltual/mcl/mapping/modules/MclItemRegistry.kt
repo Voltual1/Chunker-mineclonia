@@ -5,6 +5,7 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.b
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack
+import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerLodestoneData
 import me.voltual.mcl.core.MclItemStack
 import me.voltual.mcl.mapping.MclMappingRegistry
 
@@ -19,11 +20,13 @@ object MclItemRegistry {
     fun getItemName(identifier: ChunkerItemStackIdentifier): String {
         val type = identifier.itemStackType
         
+        // 1. 如果该物品本质上是一个方块 (BlockItem)
         if (type is ChunkerVanillaBlockType) {
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
             return MclMappingRegistry.convert(blockId).name
         }
 
+        // 2. 如果是纯物品 (Item)
         if (type is ChunkerVanillaItemType) {
             return itemMapping[type] ?: run {
                 System.err.println("\u001B[31m[Item Debug] Missing explicit mapping for: $type\u001B[0m")
@@ -55,24 +58,34 @@ object MclItemRegistry {
         val mclStack = MclItemStack(name, count, mtWear)
 
         // ==========================================
-        // 【核心元数据处理 - 磁石指南针】
+        // 【核心元数据处理】
         // ==========================================
         val meta = mutableMapOf<String, String>()
         
-        // 处理磁石数据 (Lodestone Data)
+        // 1. 处理磁石指南针坐标 (Lodestone Compass)
         val lodestoneData = itemStack.get(ChunkerItemProperty.LODESTONE_DATA)
-        if (lodestoneData != null && lodestoneData.position != null) {
-            val pos = lodestoneData.position
-            // Mineclonia 格式: (x,y,z)
-            meta["pointsto"] = "(${pos.x},${pos.y},${pos.z})"
+        if (lodestoneData != null) {
+            // Mineclonia 期待格式: (x,y,z)
+            val posStr = "(${lodestoneData.x()},${lodestoneData.y()},${lodestoneData.z()})"
+            meta["pointsto"] = posStr
         }
+
+        // 2. 处理书本元数据 (如果有)
+        val author = itemStack.get(ChunkerItemProperty.BOOK_AUTHOR)
+        if (author != null) meta["author"] = author
         
+        val title = itemStack.get(ChunkerItemProperty.BOOK_TITLE)
+        if (title != null) meta["title"] = title
+
         mclStack.metadata = meta
         return mclStack
     }
 
+    // ==========================================
+    // 物品映射字典 (仅包含纯物品 ChunkerVanillaItemType)
+    // ==========================================
     private val itemMapping = mutableMapOf<ChunkerVanillaItemType, String>().apply {
-        // 核心材料
+        // 核心材料 (mcl_core)
         put(ChunkerVanillaItemType.STICK, "mcl_core:stick")
         put(ChunkerVanillaItemType.PAPER, "mcl_core:paper")
         put(ChunkerVanillaItemType.COAL, "mcl_core:coal_lump")
@@ -98,7 +111,7 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.BRICK, "mcl_core:brick")
         put(ChunkerVanillaItemType.CLAY_BALL, "mcl_core:clay_lump")
 
-        // 指南针系列 (mcl_compass)
+        // 指南针系列
         put(ChunkerVanillaItemType.COMPASS, "mcl_compass:compass")
         put(ChunkerVanillaItemType.LODESTONE_COMPASS, "mcl_compass:compass_lodestone")
         put(ChunkerVanillaItemType.RECOVERY_COMPASS, "mcl_compass:compass_recovery")
