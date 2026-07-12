@@ -63,7 +63,6 @@ public class BedrockColumnReader implements ColumnReader {
 
         return Task.join(processing)
                 .then("Post-processing column", TaskWeight.HIGH, this::postProcess, column)
-                // NOW we unwrap the returned task! This waits for the writer to actually finish writing to disk!
                 .thenUnwrap("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
     }
 
@@ -173,6 +172,10 @@ public class BedrockColumnReader implements ColumnReader {
         List<BlockEntity> blockEntities = column.getBlockEntities();
         for (int i = 0; i < blockEntities.size(); i++) {
             BlockEntity blockEntity = blockEntities.get(i);
+            
+            // 重要注入：将世界坐标处的方块类型注入到 BlockEntity 中
+            blockEntity.setBlockType(column.getBlock(blockEntity.getX(), blockEntity.getY(), blockEntity.getZ()).getType());
+
             BlockEntity replacement = resolvers.blockEntityResolver().updateBeforeProcess(column, blockEntity.getX(), blockEntity.getY(), blockEntity.getZ(), blockEntity);
             if (replacement != blockEntity) blockEntities.set(i, replacement);
         }

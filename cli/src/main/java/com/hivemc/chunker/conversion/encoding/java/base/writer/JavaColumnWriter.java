@@ -335,6 +335,9 @@ public class JavaColumnWriter implements ColumnWriter {
         List<BlockEntity> blockEntities = column.getBlockEntities();
         for (int i = 0; i < blockEntities.size(); i++) {
             BlockEntity blockEntity = blockEntities.get(i);
+            
+            blockEntity.setBlockType(column.getBlock(blockEntity.getX(), blockEntity.getY(), blockEntity.getZ()).getType());
+            
             BlockEntity replacement = resolvers.blockEntityResolver().updateBeforeWrite(
                     column,
                     blockEntity.getX(),
