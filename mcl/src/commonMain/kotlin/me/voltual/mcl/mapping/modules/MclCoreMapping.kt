@@ -33,8 +33,8 @@ object MclCoreMapping : MclMappingModule {
             "mcl_stairs:slab_stone_top",
             "mcl_stairs:slab_stone_double"
         ))
-        // 依据 mclx_stairs_init.lua，smooth stone 的楼梯也是有的
-        registry.register(ChunkerVanillaBlockType.SMOOTH_STONE_STAIRS, dsl.stair("mcl_stairs:stair_stone"))
+        // 修正：使用 STONE_STAIRS 映射到 Mineclonia 的平滑石头楼梯
+        registry.register(ChunkerVanillaBlockType.STONE_STAIRS, dsl.stair("mcl_stairs:stair_stone"))
         
         registry.register(ChunkerVanillaBlockType.GRANITE, dsl.simple("mcl_core:granite"))
         registry.register(ChunkerVanillaBlockType.POLISHED_GRANITE, dsl.simple("mcl_core:granite_smooth"))
@@ -213,8 +213,13 @@ object MclCoreMapping : MclMappingModule {
         registerStoneSet("cobble", "cobble", "cobblestone", hasWall = true)
         registerStoneSet("mossycobble", "mossycobble", "mossy_cobblestone", hasWall = true)
         
-        // 注意：Minecraft 的 STONE_SLAB/STAIRS 通常指平滑石头变体
-        registerStoneSet("stone", "stone", "stone", hasWall = false)
+        // 已经通过手动注册处理了 Smooth Stone 相关的变体，这里保留 registerStoneSet 自动处理通用部分
+        // 注意：Minecraft 的 STONE_SLAB 通常也指 Smooth Stone Slab
+        registry.register(ChunkerVanillaBlockType.STONE_SLAB, dsl.slab(
+            "mcl_stairs:slab_stone",
+            "mcl_stairs:slab_stone_top",
+            "mcl_stairs:slab_stone_double"
+        ))
         
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
         registerStoneSet("stonebrickmossy", "stonebrickmossy", "mossy_stone_brick", hasWall = true)
