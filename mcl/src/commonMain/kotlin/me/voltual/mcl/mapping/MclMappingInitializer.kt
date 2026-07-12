@@ -13,7 +13,8 @@ object MclMappingInitializer {
             MclOceanMapping,
             MclCandleMapping,
             MclBedMapping,
-            MclAmethystMapping // 添加紫水晶模块
+            MclAmethystMapping,
+            MclBannerMapping // 注册旗帜模块
         )
         
         println("正在加载 Mineclonia 映射模块...")

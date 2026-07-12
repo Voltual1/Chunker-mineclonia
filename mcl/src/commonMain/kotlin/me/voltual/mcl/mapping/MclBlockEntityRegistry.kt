@@ -12,12 +12,13 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.r
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.banner.ChunkerBannerPattern
+import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType
 
 object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
 
-    // Minecraft 实体类型到 Mineclonia 实体字符串的映射字典
     private val entityTypeToMcl = mapOf(
         ChunkerVanillaEntityType.ZOMBIE to "mobs_mc:zombie",
         ChunkerVanillaEntityType.PIGLIN to "mobs_mc:piglin",
@@ -83,6 +84,7 @@ object MclBlockEntityRegistry {
         register(JukeboxBlockEntity::class.java) { be -> convertJukebox(be as JukeboxBlockEntity) }
         register(SpawnerBlockEntity::class.java) { be -> convertSpawner(be as SpawnerBlockEntity) }
         register(LecternBlockEntity::class.java) { be -> convertLectern(be as LecternBlockEntity) }
+        register(BannerBlockEntity::class.java) { be -> convertBanner(be as BannerBlockEntity) }
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -123,7 +125,7 @@ object MclBlockEntityRegistry {
 
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
-        val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
+        val fuelItem = mclItemFromChunkerOrEmpty(furnace.items[1])
         val dstItem = mclItemFromChunkerOrEmpty(furnace.items[2])
 
         return MclBlockEntityData(
@@ -195,19 +197,150 @@ object MclBlockEntityRegistry {
         
         if (book != null && !book.identifier.isAir) {
             val mclBook = MclItemRegistry.fromChunker(book)
-            // Minetest 的 book_item 通常存 ItemStack 的串行化字符串
             fields["book_item"] = "${mclBook.name} ${mclBook.count} ${mclBook.wear}"
             
-            // Chunker 的页码是 0 索引且假设两面一页，Mineclonia 主要是字符串记录
             fields["page"] = (lectern.page + 1).toString()
-            fields["pages"] = "15" // 默认占位符，Lua 逻辑中也是写死的
-            
-            // TODO: 如果需要更精确的文本显示，需要解析 book 内部的 NBT (title/author)
-            // 目前保持基础书本数据的传递
+            fields["pages"] = "15" 
             fields["infotext"] = "Lectern with book"
         }
 
         return MclBlockEntityData(fields = fields)
+    }
+
+    private fun convertBanner(banner: BannerBlockEntity): MclBlockEntityData {
+        val fields = mutableMapOf<String, String>()
+        val inventories = mutableMapOf<String, MclInventory>()
+
+        val blockType = banner.type
+        val blockName = if (blockType is ChunkerVanillaBlockType) blockType.name else ""
+
+        val colorsList = listOf(
+            "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
+            "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
+        )
+        val mcColor = colorsList.firstOrNull { blockName.startsWith(it) } ?: "WHITE"
+        val mclColor = when (mcColor) {
+            "GRAY" -> "grey"
+            "LIGHT_GRAY" -> "silver"
+            else -> mcColor.lowercase()
+        }
+
+        val bannerItemName = "mcl_banners:banner_item_$mclColor"
+        val itemStack = MclItemStack(bannerItemName, 1, 0)
+        
+        // ==========================================
+        // 【核心花纹图案转换系统】
+        // ==========================================
+        val patterns = banner.patterns
+        if (patterns.isNotEmpty()) {
+            val serializedLayers = serializeLayersToLua(patterns)
+            
+            // 将序列化后的 layers 字符串安全写入旗帜 ItemStack 的 metadata
+            itemStack.metadata = mapOf("layers" to serializedLayers)
+            
+            // 写入 block meta 的 layers 字段以供 ABM / Entities 渲染
+            fields["layers"] = serializedLayers
+        }
+
+        inventories["banner"] = MclInventory(1, listOf(itemStack))
+
+        val isWallBanner = blockName.contains("WALL")
+        if (!isWallBanner) {
+            fields["rotation_level"] = "0"
+        } else {
+            fields["rotation_level"] = "8"
+        }
+
+        return MclBlockEntityData(
+            fields = fields,
+            inventories = inventories
+        )
+    }
+
+    /**
+     * 将 Chunker 的 Banner 图案列表完美编译为 Minetest 特有的序列化 Lua Table 格式。
+     * 格式示例: { { ["color"] = "unicolor_grey", ["pattern"] = "circle" }, ... }
+     */
+    private fun serializeLayersToLua(patterns: List<it.unimi.dsi.fastutil.Pair<ChunkerDyeColor, ChunkerBannerPattern>>): String {
+        val sb = StringBuilder()
+        sb.append("{ ")
+        for (i in patterns.indices) {
+            val pair = patterns[i]
+            val dye = pair.left()
+            val pattern = pair.right()
+
+            // 转换颜色名称以对齐 unicolor 格式
+            val mclColor = when (dye) {
+                ChunkerDyeColor.GRAY -> "grey"
+                ChunkerDyeColor.LIGHT_GRAY -> "silver"
+                else -> dye.name.lowercase()
+            }
+            val unicolor = "unicolor_$mclColor"
+
+            // 转换图案 ID
+            val mclPattern = mapChunkerPatternToMcl(pattern)
+
+            sb.append("{ ")
+            sb.append("[\"color\"] = \"$unicolor\", ")
+            sb.append("[\"pattern\"] = \"$mclPattern\"")
+            sb.append(" }")
+            if (i < patterns.size - 1) {
+                sb.append(", ")
+            }
+        }
+        sb.append(" }")
+        return sb.toString()
+    }
+
+    /**
+     * 依据 Mineclonia 的 mcl_banners_patterncraft.lua 完美的 Pattern ID 转换词典
+     */
+    private fun mapChunkerPatternToMcl(pattern: ChunkerBannerPattern): String {
+        return when (pattern) {
+            ChunkerBannerPattern.BASE -> "base"
+            ChunkerBannerPattern.SQUARE_BOTTOM_LEFT -> "square_bottom_left"
+            ChunkerBannerPattern.SQUARE_BOTTOM_RIGHT -> "square_bottom_right"
+            ChunkerBannerPattern.SQUARE_TOP_LEFT -> "square_top_left"
+            ChunkerBannerPattern.SQUARE_TOP_RIGHT -> "square_top_right"
+            ChunkerBannerPattern.STRIPE_BOTTOM -> "stripe_bottom"
+            ChunkerBannerPattern.STRIPE_TOP -> "stripe_top"
+            ChunkerBannerPattern.STRIPE_LEFT -> "stripe_left"
+            ChunkerBannerPattern.STRIPE_RIGHT -> "stripe_right"
+            ChunkerBannerPattern.STRIPE_CENTER -> "stripe_center"
+            ChunkerBannerPattern.STRIPE_MIDDLE -> "stripe_middle"
+            ChunkerBannerPattern.STRIPE_DOWNRIGHT -> "stripe_downright"
+            ChunkerBannerPattern.STRIPE_DOWNLEFT -> "stripe_downleft"
+            ChunkerBannerPattern.STRIPE_SMALL -> "small_stripes"
+            ChunkerBannerPattern.CROSS -> "cross"
+            ChunkerBannerPattern.STRAIGHT_CROSS -> "straight_cross"
+            ChunkerBannerPattern.TRIANGLE_BOTTOM -> "triangle_bottom"
+            ChunkerBannerPattern.TRIANGLE_TOP -> "triangle_top"
+            ChunkerBannerPattern.TRIANGLES_BOTTOM -> "triangles_bottom"
+            ChunkerBannerPattern.TRIANGLES_TOP -> "triangles_top"
+            ChunkerBannerPattern.DIAGONAL_LEFT -> "diagonal_left"
+            ChunkerBannerPattern.DIAGONAL_RIGHT -> "diagonal_right"
+            ChunkerBannerPattern.DIAGONAL_LEFT_MIRROR -> "diagonal_up_left"
+            ChunkerBannerPattern.DIAGONAL_RIGHT_MIRROR -> "diagonal_up_right"
+            ChunkerBannerPattern.CIRCLE_MIDDLE -> "circle"
+            ChunkerBannerPattern.RHOMBUS_MIDDLE -> "rhombus"
+            ChunkerBannerPattern.HALF_VERTICAL -> "half_vertical"
+            ChunkerBannerPattern.HALF_HORIZONTAL -> "half_horizontal"
+            ChunkerBannerPattern.HALF_VERTICAL_MIRROR -> "half_vertical_right"
+            ChunkerBannerPattern.HALF_HORIZONTAL_MIRROR -> "half_horizontal_bottom"
+            ChunkerBannerPattern.BORDER -> "border"
+            ChunkerBannerPattern.CURLY_BORDER -> "curly_border"
+            ChunkerBannerPattern.GRADIENT -> "gradient"
+            ChunkerBannerPattern.GRADIENT_UP -> "gradient_up"
+            ChunkerBannerPattern.BRICKS -> "bricks"
+            ChunkerBannerPattern.GLOBE -> "globe"
+            ChunkerBannerPattern.CREEPER -> "creeper"
+            ChunkerBannerPattern.SKULL -> "skull"
+            ChunkerBannerPattern.FLOWER -> "flower"
+            ChunkerBannerPattern.MOJANG -> "thing"
+            ChunkerBannerPattern.PIGLIN -> "piglin"
+            ChunkerBannerPattern.FLOW -> "flow"
+            ChunkerBannerPattern.GUSTER -> "guster"
+        }
     }
 
     private fun extractTextFromJson(element: JsonElement?): String {
