@@ -28,7 +28,8 @@ data class MclNode(
 data class MclItemStack(
     val name: String,
     val count: Int,
-    val wear: Int = 0
+    val wear: Int = 0,
+    var metadata: Map<String, String> = emptyMap() // 添加元数据字段支持
 )
 
 /**

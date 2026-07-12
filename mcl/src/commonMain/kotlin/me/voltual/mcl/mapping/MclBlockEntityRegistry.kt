@@ -125,7 +125,7 @@ object MclBlockEntityRegistry {
 
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
-        val fuelItem = mclItemFromChunkerOrEmpty(furnace.items[1])
+        val fuelItem = MclItemRegistry.fromChunker(furnace.items[1])
         val dstItem = mclItemFromChunkerOrEmpty(furnace.items[2])
 
         return MclBlockEntityData(
@@ -211,7 +211,7 @@ object MclBlockEntityRegistry {
         val fields = mutableMapOf<String, String>()
         val inventories = mutableMapOf<String, MclInventory>()
 
-        // 修正：从 BannerBlockEntity.base 提取底色染料。如果为空则默认为 WHITE。
+        // 优先尝试从 base 属性读取（对于盾牌或 Bedrock），如果不存在，则默认为 WHITE
         val baseDye = if (banner.base.isPresent) banner.base.get() else ChunkerDyeColor.WHITE
         
         val mclColor = when (baseDye) {
@@ -223,23 +223,14 @@ object MclBlockEntityRegistry {
         val bannerItemName = "mcl_banners:banner_item_$mclColor"
         val itemStack = MclItemStack(bannerItemName, 1, 0)
         
-        // ==========================================
-        // 【核心花纹图案转换系统】
-        // ==========================================
         val patterns = banner.patterns
         if (patterns.isNotEmpty()) {
             val serializedLayers = serializeLayersToLua(patterns)
-            
-            // 将序列化后的 layers 字符串安全写入旗帜 ItemStack 的 metadata
             itemStack.metadata = mapOf("layers" to serializedLayers)
-            
-            // 写入 block meta 的 layers 字段以供 ABM / Entities 渲染
             fields["layers"] = serializedLayers
         }
 
         inventories["banner"] = MclInventory(1, listOf(itemStack))
-
-        // 默认将角度设置为 0。旋转角度已在放置节点时（MclBannerMapping）作为 rotation_level 成功写入。
         fields["rotation_level"] = "0"
 
         return MclBlockEntityData(
@@ -248,9 +239,6 @@ object MclBlockEntityRegistry {
         )
     }
 
-    /**
-     * 将 Chunker 的 Banner 图案列表完美编译为 Minetest 特有的序列化 Lua Table 格式。
-     */
     private fun serializeLayersToLua(patterns: List<it.unimi.dsi.fastutil.Pair<ChunkerDyeColor, ChunkerBannerPattern>>): String {
         val sb = StringBuilder()
         sb.append("{ ")
@@ -259,13 +247,12 @@ object MclBlockEntityRegistry {
             val dye = pair.left()
             val pattern = pair.right()
 
-            val mclColor = when (dye) {
+            val dyeMclColor = when (dye) {
                 ChunkerDyeColor.GRAY -> "grey"
                 ChunkerDyeColor.LIGHT_GRAY -> "silver"
                 else -> dye.name.lowercase()
             }
-            val unicolor = "unicolor_$mclColor"
-
+            val unicolor = "unicolor_$dyeMclColor"
             val mclPattern = mapChunkerPatternToMcl(pattern)
 
             sb.append("{ ")
