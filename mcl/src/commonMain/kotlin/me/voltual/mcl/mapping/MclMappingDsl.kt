@@ -469,4 +469,65 @@ object MclMappingDsl {
         }
         MclNode(nodeName)
     }
+    
+    // 33. 营火逻辑 (Campfires)
+    fun campfire(isSoul: Boolean) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        
+        // 确定基础节点名
+        val baseName = if (isSoul) "mcl_campfires:soul_campfire" else "mcl_campfires:campfire"
+        val nodeName = if (lit) "${baseName}_lit" else baseName
+        
+        // 朝向转换
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }.toByte()
+        
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 34. 铁砧逻辑 (Anvils)
+    fun anvil(damageLevel: Int) = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        
+        // Mineclonia: 0=undamaged, 1=slightly damaged, 2=very damaged
+        val nodeName = when (damageLevel) {
+            0 -> "mcl_anvils:anvil"
+            1 -> "mcl_anvils:anvil_damage_1"
+            else -> "mcl_anvils:anvil_damage_2"
+        }
+        
+        // 朝向转换
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.SOUTH -> 0
+            FacingDirectionHorizontal.EAST -> 1
+            FacingDirectionHorizontal.NORTH -> 2
+            FacingDirectionHorizontal.WEST -> 3
+        }.toByte()
+        
+        MclNode(nodeName, param2 = param2)
+    }
+
+    // 35. 蘑菇柄逻辑 (Mushroom Stem)
+    // 根据上下左右前后的表皮暴露状态转换到 Mineclonia 对应的 Stem 节点。
+    // 如果六面都是表皮 (UP, DOWN, NORTH, SOUTH, EAST, WEST 都为 TRUE)，
+    // 我们映射到 stem_full (在红、褐两类中，由于 Chunker 的 MUSHROOM_STEM 没有颜色，默认回退到 brown)
+    fun mushroomStem() = BlockMapper { id ->
+        val up = id.getState(VanillaBlockStates.UP) == Bool.TRUE
+        val down = id.getState(VanillaBlockStates.DOWN) == Bool.TRUE
+        val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
+        val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
+        val east = id.getState(VanillaBlockStates.EAST) == Bool.TRUE
+        val west = id.getState(VanillaBlockStates.WEST) == Bool.TRUE
+
+        if (up && down && north && south && east && west) {
+            MclNode("mcl_mushrooms:brown_mushroom_block_stem_full")
+        } else {
+            MclNode("mcl_mushrooms:brown_mushroom_block_stem")
+        }
+    }
 }
