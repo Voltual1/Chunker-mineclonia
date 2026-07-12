@@ -339,6 +339,26 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.CAMPFIRE, dsl.campfire(isSoul = false))
         registry.register(ChunkerVanillaBlockType.SOUL_CAMPFIRE, dsl.campfire(isSoul = true))
         
+        // 实用工具方块与职业方块
+        
+        // 熔炉系列 (区分 lit 状态)
+        registry.register(ChunkerVanillaBlockType.FURNACE, dsl.furnaceLike("mcl_furnaces:furnace", "mcl_furnaces:furnace_active"))
+        registry.register(ChunkerVanillaBlockType.SMOKER, dsl.furnaceLike("mcl_smoker:smoker", "mcl_smoker:smoker_active"))
+        registry.register(ChunkerVanillaBlockType.BLAST_FURNACE, dsl.furnaceLike("mcl_blast_furnace:blast_furnace", "mcl_blast_furnace:blast_furnace_active"))
+
+        // 砂轮
+        registry.register(ChunkerVanillaBlockType.GRINDSTONE, dsl.grindstone())
+
+        // 织布机、切石机、制图台、制箭台
+        registry.register(ChunkerVanillaBlockType.LOOM, dsl.directional("mcl_loom:loom"))
+        registry.register(ChunkerVanillaBlockType.STONECUTTER, dsl.directional("mcl_stonecutter:stonecutter"))
+        registry.register(ChunkerVanillaBlockType.CARTOGRAPHY_TABLE, dsl.directional("mcl_cartography_table:cartography_table"))
+        registry.register(ChunkerVanillaBlockType.FLETCHING_TABLE, dsl.directional("mcl_fletching_table:fletching_table"))
+
+        // 锻造台 (无方向)
+        registry.register(ChunkerVanillaBlockType.SMITHING_TABLE, dsl.simple("mcl_smithing_table:table"))
+
+        
     }
 
 

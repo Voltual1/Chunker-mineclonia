@@ -530,4 +530,29 @@ object MclMappingDsl {
             MclNode("mcl_mushrooms:brown_mushroom_block_stem")
         }
     }
+    
+    // 36. 砂轮逻辑 (Grindstone)
+    // 根据 face (floor, wall, ceiling) 和 facing (n,s,e,w) 计算 Mineclonia 的特殊 param2
+    fun grindstone() = BlockMapper { id ->
+        val face = id.getState(VanillaBlockStates.GRINDSTONE_ATTACHMENT_TYPE) ?: GrindstoneAttachmentType.FLOOR
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        
+        val param2: Byte = when (face) {
+            GrindstoneAttachmentType.WALL -> when (facing) {
+                FacingDirectionHorizontal.NORTH -> 2
+                FacingDirectionHorizontal.SOUTH -> 3
+                FacingDirectionHorizontal.WEST -> 4
+                FacingDirectionHorizontal.EAST -> 5
+            }
+            GrindstoneAttachmentType.FLOOR -> {
+                if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 0 else 1
+            }
+            GrindstoneAttachmentType.CEILING -> {
+                if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 20 else 21
+            }
+            else -> 0
+        }.toByte()
+        
+        MclNode("mcl_grindstone:grindstone", param2 = param2)
+    }
 }
