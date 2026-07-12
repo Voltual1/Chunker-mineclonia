@@ -147,6 +147,12 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.GLASS, dsl.simple("mcl_core:glass"))
         registry.register(ChunkerVanillaBlockType.GLASS_PANE, dsl.simple("mcl_panes:pane_natural"))
         registry.register(ChunkerVanillaBlockType.IRON_BARS, dsl.simple("mcl_panes:bar"))
+        
+        registry.register(ChunkerVanillaBlockType.IRON_CHAIN, dsl.log("mcl_lanterns:chain"))
+        
+        // 灯笼 (Lanterns)
+        registry.register(ChunkerVanillaBlockType.LANTERN, dsl.lantern("mcl_lanterns:lantern"))
+        registry.register(ChunkerVanillaBlockType.SOUL_LANTERN, dsl.lantern("mcl_lanterns:soul_lantern"))
 
         // ==========================================
         // 5. 泥块、泥砖与红树根系列

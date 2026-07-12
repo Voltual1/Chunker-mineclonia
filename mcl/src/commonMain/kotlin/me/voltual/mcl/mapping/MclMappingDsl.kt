@@ -428,4 +428,21 @@ object MclMappingDsl {
         }
         MclNode(nodeName, param2 = param2.toByte())
     }
+    
+    // 29. 灯笼逻辑 (Lanterns)
+    fun lantern(mclBase: String) = BlockMapper { id ->
+        val hanging = id.getState(VanillaBlockStates.HANGING) == Bool.TRUE
+        val suffix = if (hanging) "_ceiling" else "_floor"
+        val param2: Byte = if (hanging) 0 else 1
+        MclNode("$mclBase$suffix", param2 = param2)
+    }
+
+    // 30. 铜灯泡逻辑 (Copper Bulbs)
+    fun copperBulb(mclBase: String) = BlockMapper { id ->
+        val lit = id.getState(VanillaBlockStates.LIT) == Bool.TRUE
+        val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+        val state = if (lit) "_on" else "_off"
+        val pSuffix = if (powered) "_powered" else ""
+        MclNode("$mclBase$state$pSuffix")
+    }
 }

@@ -14,7 +14,8 @@ object MclMappingInitializer {
             MclCandleMapping,
             MclBedMapping,
             MclAmethystMapping,
-            MclBannerMapping // 注册旗帜模块
+            MclBannerMapping,
+            MclCopperMapping
         )
         
         println("正在加载 Mineclonia 映射模块...")
