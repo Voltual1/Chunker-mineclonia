@@ -12,9 +12,66 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.r
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType
 
 object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
+
+    // Minecraft 实体类型到 Mineclonia 实体字符串的映射字典 (依据 mobs_mc)
+    private val entityTypeToMcl = mapOf(
+        ChunkerVanillaEntityType.ZOMBIE to "mobs_mc:zombie",
+        ChunkerVanillaEntityType.PIGLIN to "mobs_mc:piglin",
+        ChunkerVanillaEntityType.PIGLIN_BRUTE to "mobs_mc:piglin_brute",
+        ChunkerVanillaEntityType.ZOMBIFIED_PIGLIN to "mobs_mc:zombified_piglin",
+        ChunkerVanillaEntityType.WOLF to "mobs_mc:wolf",
+        ChunkerVanillaEntityType.SKELETON to "mobs_mc:skeleton",
+        ChunkerVanillaEntityType.WITHER_SKELETON to "mobs_mc:witherskeleton",
+        ChunkerVanillaEntityType.STRAY to "mobs_mc:stray",
+        ChunkerVanillaEntityType.SPIDER to "mobs_mc:spider",
+        ChunkerVanillaEntityType.CAVE_SPIDER to "mobs_mc:cave_spider",
+        ChunkerVanillaEntityType.CREEPER to "mobs_mc:creeper",
+        ChunkerVanillaEntityType.WITCH to "mobs_mc:witch",
+        ChunkerVanillaEntityType.BLAZE to "mobs_mc:blaze",
+        ChunkerVanillaEntityType.GHAST to "mobs_mc:ghast",
+        ChunkerVanillaEntityType.ENDERMAN to "mobs_mc:enderman",
+        ChunkerVanillaEntityType.ENDERMITE to "mobs_mc:endermite",
+        ChunkerVanillaEntityType.SHULKER to "mobs_mc:shulker",
+        ChunkerVanillaEntityType.SILVERFISH to "mobs_mc:silverfish",
+        ChunkerVanillaEntityType.VEX to "mobs_mc:vex",
+        ChunkerVanillaEntityType.EVOKER to "mobs_mc:evoker",
+        ChunkerVanillaEntityType.ILLUSIONER to "mobs_mc:illusioner",
+        ChunkerVanillaEntityType.VINDICATOR to "mobs_mc:vindicator",
+        ChunkerVanillaEntityType.RAVAGER to "mobs_mc:ravager",
+        ChunkerVanillaEntityType.COW to "mobs_mc:cow",
+        ChunkerVanillaEntityType.PIG to "mobs_mc:pig",
+        ChunkerVanillaEntityType.SHEEP to "mobs_mc:sheep",
+        ChunkerVanillaEntityType.CHICKEN to "mobs_mc:chicken",
+        ChunkerVanillaEntityType.RABBIT to "mobs_mc:rabbit",
+        ChunkerVanillaEntityType.POLAR_BEAR to "mobs_mc:polar_bear",
+        ChunkerVanillaEntityType.LLAMA to "mobs_mc:llama",
+        ChunkerVanillaEntityType.TRADER_LLAMA to "mobs_mc:trader_llama",
+        ChunkerVanillaEntityType.DONKEY to "mobs_mc:donkey",
+        ChunkerVanillaEntityType.MULE to "mobs_mc:mule",
+        ChunkerVanillaEntityType.HORSE to "mobs_mc:horse",
+        ChunkerVanillaEntityType.SKELETON_HORSE to "mobs_mc:skeleton_horse",
+        ChunkerVanillaEntityType.ZOMBIE_HORSE to "mobs_mc:zombie_horse",
+        ChunkerVanillaEntityType.BAT to "mobs_mc:bat",
+        ChunkerVanillaEntityType.PARROT to "mobs_mc:parrot",
+        ChunkerVanillaEntityType.OCELOT to "mobs_mc:ocelot",
+        ChunkerVanillaEntityType.CAT to "mobs_mc:cat",
+        ChunkerVanillaEntityType.SQUID to "mobs_mc:squid",
+        ChunkerVanillaEntityType.GLOW_SQUID to "mobs_mc:glow_squid",
+        ChunkerVanillaEntityType.COD to "mobs_mc:cod",
+        ChunkerVanillaEntityType.SALMON to "mobs_mc:salmon",
+        ChunkerVanillaEntityType.PUFFERFISH to "mobs_mc:pufferfish",
+        ChunkerVanillaEntityType.TROPICAL_FISH to "mobs_mc:tropical_fish",
+        ChunkerVanillaEntityType.AXOLOTL to "mobs_mc:axolotl",
+        ChunkerVanillaEntityType.WANDERING_TRADER to "mobs_mc:wandering_trader",
+        ChunkerVanillaEntityType.VILLAGER to "mobs_mc:villager",
+        ChunkerVanillaEntityType.ZOMBIE_VILLAGER to "mobs_mc:villager_zombie",
+        ChunkerVanillaEntityType.WITHER to "mobs_mc:wither",
+        ChunkerVanillaEntityType.ENDER_DRAGON to "mobs_mc:ender_dragon"
+    )
 
     init {
         register(ChestBlockEntity::class.java) { be -> convertChest(be) }
@@ -86,7 +143,6 @@ object MclBlockEntityRegistry {
 
     private fun convertSign(sign: SignBlockEntity): MclBlockEntityData {
         val textBuilder = StringBuilder()
-        // 关键修复：确保遍历 Chunker 的 Gson JsonElement 树
         for (lineElement in sign.front.lines) {
             val lineText = extractTextFromJson(lineElement)
             if (lineText.isNotEmpty()) textBuilder.append(lineText).append("\n")
@@ -118,13 +174,20 @@ object MclBlockEntityRegistry {
 
     private fun convertSpawner(spawner: SpawnerBlockEntity): MclBlockEntityData {
         val entityType = spawner.entityType
-        val entityName = entityType?.let { "mcl_mobs:${it.toString().lowercase()}" } ?: "mcl_mobs:zombie"
+        val mclMobName = entityTypeToMcl[entityType] ?: "mobs_mc:pig"
 
+        // 依据 mcl_mobspawners:spawner 设计的 metadata
+        // 必须写入 meta 中的 Mob、MaxMobsInArea、PlayerDistance
+        // 且由于 Mineclonia 的 spawner 逻辑依赖 NodeTimer，底层 Writer 在处理此 BlockEntityData 时
+        // 会连同设置在该位置启动定时器，这里我们携带 "has_timer" = "true" 并设置 "timer_delay" = "2"
         return MclBlockEntityData(
             fields = mapOf(
-                "entity_name" to entityName,
-                "delay" to spawner.delay.toString(),
-                "infotext" to "Monster Spawner ($entityName)"
+                "Mob" to mclMobName,
+                "MaxMobsInArea" to "4",
+                "PlayerDistance" to "15",
+                "infotext" to "Monster Spawner ($mclMobName)",
+                "has_timer" to "true",
+                "timer_delay" to "2"
             )
         )
     }
@@ -134,7 +197,6 @@ object MclBlockEntityRegistry {
         if (element.isJsonPrimitive) return element.asString
         if (element.isJsonObject) {
             val obj = element.asJsonObject
-            // Chunker 内部通常将文本放在 "text" 字段
             if (obj.has("text")) return obj.get("text").asString
         }
         return ""

@@ -237,6 +237,9 @@ object MclCoreMapping : MclMappingModule {
         // 11. 16色彩色方块与羊毛 (Colorblocks & Wool)
         // ==========================================
         registerColoredSets()
+        
+        // 刷怪笼映射 
+registry.register(ChunkerVanillaBlockType.SPAWNER, dsl.simple("mcl_mobspawners:spawner"))
     }
 
     /**
