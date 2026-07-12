@@ -277,6 +277,9 @@ object MclCoreMapping : MclMappingModule {
         registerColoredSets()
         
         registry.register(ChunkerVanillaBlockType.SPAWNER, dsl.simple("mcl_mobspawners:spawner"))
+        
+        //梯子
+        registry.register(ChunkerVanillaBlockType.LADDER, dsl.wallTorch("mcl_core:ladder", "mcl_core:ladder"))
     }
 
     private fun registerStoneSet(
