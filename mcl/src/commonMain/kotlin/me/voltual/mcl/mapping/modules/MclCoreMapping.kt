@@ -369,7 +369,6 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.SCULK, dsl.simple("mcl_sculk:sculk"))
         registry.register(ChunkerVanillaBlockType.SCULK_VEIN, dsl.sculkVein())
         registry.register(ChunkerVanillaBlockType.SCULK_CATALYST, dsl.simple("mcl_sculk:catalyst"))
-        registry.register(ChunkerVanillaBlockType.SCULK_SHRIEKER, dsl.sculkShrieker())
 
         // 滴水石 (Dripstone)
         registry.register(ChunkerVanillaBlockType.DRIPSTONE_BLOCK, dsl.simple("mcl_dripstone:dripstone_block"))
@@ -378,7 +377,7 @@ object MclCoreMapping : MclMappingModule {
         // 火把 (Torches)
         registry.register(ChunkerVanillaBlockType.TORCH, dsl.simple("mcl_torches:torch"))
         registry.register(ChunkerVanillaBlockType.WALL_TORCH, dsl.wallTorch("mcl_torches:torch_wall", "mcl_torches:torch_wall"))
-        registry.register(ChunkerVanillaBlockType.SOUL_WALL_TORCH, dsl.wallTorch("mcl_torches:soul_torch_wall", "mcl_torches:soul_torch_wall"))
+        registry.register(ChunkerVanillaBlockType.SOUL_WALL_TORCH, dsl.wallTorch("mcl_blackstone:soul_torch_wall", "mcl_blackstone:soul_torch_wall"))
 
         
     }
