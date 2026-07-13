@@ -25,7 +25,8 @@ pub fn encode_pos(pos: MTPos) -> i64 {
     let z = pos.z as i64;
     let y = pos.y as i64;
     let x = pos.x as i64;
-    z * -0x1000000 + y * 0x1000 + x * -1
+    // 纯粹的官方正规 Minetest SQLite Hash 函数，绝不掺杂扭曲区块结构的负号！
+    z * 0x1000000 + y * 0x1000 + x
 }
 
 pub struct MTMap {
@@ -55,14 +56,11 @@ impl MTMap {
     }
 
     /// 完整世界目录初始化通道：供 Rust 顶层 convertMap（MC2MTLib）调用
-    /// 包含 world.mt、单节点世界生成器和 init.lua 出生点保护脚本的完整建立
     pub fn new<P: AsRef<Path>>(path: P, spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
         let path = path.as_ref();
         
-        // 1. 确保世界输出根目录存在
         std::fs::create_dir_all(path).map_err(|e| format!("Failed to create output dir: {}", e))?;
 
-        // 2. 写入 world.mt 配置文件 (包含后端定义和静态出生点)
         let world_mt_path = path.join("world.mt");
         let world_mt_content = format!(
             "backend = sqlite3\n\
@@ -75,7 +73,6 @@ impl MTMap {
         );
         std::fs::write(&world_mt_path, world_mt_content).map_err(|e| e.to_string())?;
 
-        // 3. 写入强制单节点生成器和出生点劫持 Lua 脚本 (放置在世界专属 mods 目录)
         let mod_dir = path.join("worldmods").join("__mc2mt");
         std::fs::create_dir_all(&mod_dir).map_err(|e| e.to_string())?;
         
@@ -84,7 +81,6 @@ impl MTMap {
             "minetest.set_mapgen_params({{chunksize = 1}})\n\
              minetest.set_mapgen_params({{mgname = 'singlenode'}})\n\
              \n\
-             -- 强制出生点保护，防止初次加载掉落虚空\n\
              local spawn_pos = {{x={}, y={}, z={}}}\n\
              minetest.register_on_newplayer(function(player)\n\
                  player:set_pos(spawn_pos)\n\
@@ -97,12 +93,10 @@ impl MTMap {
         );
         std::fs::write(&init_lua_path, init_lua_content).map_err(|e| e.to_string())?;
 
-        // 4. 调用底层的数据库连接建立流程
         let db_path = path.join("map.sqlite");
         Self::new_from_db_path(&db_path, spawn_pos)
     }
 
-    /// JNI 直接单条快速高并发无阻塞安全缓冲
     pub fn save_block_direct(&mut self, pos: MTPos, data: &[u8]) -> Result<(), String> {
         let key = encode_pos(pos);
         self.conn.execute(
@@ -112,7 +106,6 @@ impl MTMap {
         Ok(())
     }
 
-    /// JNI 的冲刷与事务重置
     pub fn flush_transaction(&mut self) -> Result<(), String> {
         self.conn.execute_batch(
             "COMMIT;
@@ -151,7 +144,6 @@ struct JniBlockEntity {
     inventories: HashMap<String, JniInventory>,
 }
 
-/// 直接使用来自 Java 物理内存边界的安全序列化打包函数
 pub fn serialize_raw_chunk(
     cx: i32,
     cy: i32,
@@ -171,15 +163,14 @@ pub fn serialize_raw_chunk(
     let mut data = Vec::with_capacity(8192);
     data.write_u8(SER_FMT_VER_HIGHEST_WRITE).unwrap();
 
-    let mut flags = 0x02u8; // day_night_differs
+    let mut flags = 0x02u8;
     if mt_pos.y < 0 {
-        flags |= 0x01; // is_underground
+        flags |= 0x01;
     }
     data.write_u8(flags).unwrap();
-    data.write_u8(2).unwrap(); // content_width
-    data.write_u8(2).unwrap(); // params_width
+    data.write_u8(2).unwrap();
+    data.write_u8(2).unwrap();
 
-    // 2. 压缩节点流 (此时由于 Kotlin 已经按照 ZYX 排序了，直接写入
     let mut node_buffer = Vec::with_capacity(NODES_PER_BLOCK * 4);
     for &id in block_ids {
         node_buffer.write_u16::<BigEndian>(id as u16).unwrap();
@@ -191,21 +182,17 @@ pub fn serialize_raw_chunk(
     encoder.write_all(&node_buffer).unwrap();
     data.write_all(&encoder.finish().unwrap()).unwrap();
 
-    // 3. 反序列化 JVM 写入的 BlockEntity 缓存并编码为 Minetest 原生二进制 Metadata
     let metadata: HashMap<i32, JniBlockEntity> = serde_json::from_slice(metadata_json_bytes)
         .unwrap_or_else(|_| HashMap::new());
 
     let mut meta_buffer = Vec::new();
     if metadata.is_empty() {
-        meta_buffer.write_u8(0).unwrap(); // 空元数据版本标志
+        meta_buffer.write_u8(0).unwrap();
     } else {
-        meta_buffer.write_u8(1).unwrap(); // Version = 1
+        meta_buffer.write_u8(1).unwrap();
         meta_buffer.write_u16::<BigEndian>(metadata.len() as u16).unwrap();
         for (idx, m_val) in metadata {
-            // 因为 Kotlin 传过来的 idx 已经是 Minetest [Z][Y][X] 索引
-            // 直接把它强转回 u16 供存储引擎使用，无需重新推算错位
             let mt_idx = idx as u16;
-
             meta_buffer.write_u16::<BigEndian>(mt_idx).unwrap();
             meta_buffer.write_i32::<BigEndian>(m_val.fields.len() as i32).unwrap();
             for (k, v) in m_val.fields {
@@ -219,14 +206,10 @@ pub fn serialize_raw_chunk(
     meta_encoder.write_all(&meta_buffer).unwrap();
     data.write_all(&meta_encoder.finish().unwrap()).unwrap();
 
-    // 4. 写入静态实体
     data.write_u8(0).unwrap();
     data.write_u16::<BigEndian>(0).unwrap();
-
-    // 5. 写入时间戳
     data.write_u32::<BigEndian>(0xFFFFFFFF).unwrap();
 
-    // 6. 写入 Name-ID 字典
     data.write_u8(0).unwrap();
     data.write_u16::<BigEndian>(local_names.len() as u16).unwrap();
     for (i, name) in local_names.iter().enumerate() {
@@ -235,7 +218,6 @@ pub fn serialize_raw_chunk(
         data.write_all(name.as_bytes()).unwrap();
     }
 
-    // 7. 写入定时器
     data.write_u8(10).unwrap();
     data.write_u16::<BigEndian>(0).unwrap();
 
