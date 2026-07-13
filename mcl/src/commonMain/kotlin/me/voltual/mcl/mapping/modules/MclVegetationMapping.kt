@@ -97,7 +97,7 @@ object MclVegetationMapping : MclMappingModule {
 
         registry.register(ChunkerVanillaBlockType.SHORT_GRASS, dsl.simple("mcl_flowers:tallgrass"))
         registry.register(ChunkerVanillaBlockType.FERN, dsl.simple("mcl_flowers:fern"))
-        registry.register(ChunkerVanillaBlockType.DEAD_BUSH, dsl.simple("mcl_flowers:dry_shrub"))
+        registry.register(ChunkerVanillaBlockType.DEAD_BUSH, dsl.simple("mcl_core:deadbush"))
         registry.register(ChunkerVanillaBlockType.LILY_PAD, dsl.simple("mcl_flowers:waterlily"))
         
         registry.register(ChunkerVanillaBlockType.PINK_PETALS, BlockMapper { id ->
