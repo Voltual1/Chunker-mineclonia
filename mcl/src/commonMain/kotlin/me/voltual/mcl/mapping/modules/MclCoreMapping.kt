@@ -250,12 +250,16 @@ object MclCoreMapping : MclMappingModule {
         
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
         registerStoneSet("stonebrickmossy", "stonebrickmossy", "mossy_stone_brick", hasWall = true)
+        
+        // 修复：重新引入并恢复磨制花岗岩、闪长岩、安山岩系列的完整注册 (楼梯与台阶)
         registerStoneSet("granite", "granite", "granite", hasWall = true)
-        registry.register(ChunkerVanillaBlockType.POLISHED_GRANITE_SLAB, dsl.slab("mcl_stairs:slab_granite_smooth", "mcl_stairs:slab_granite_smooth_top", "mcl_stairs:slab_granite_smooth_double"))
+        registerStoneSet("granite_smooth", "granite_smooth", "polished_granite", hasWall = false)
+        
         registerStoneSet("diorite", "diorite", "diorite", hasWall = true)
-        registry.register(ChunkerVanillaBlockType.POLISHED_DIORITE_SLAB, dsl.slab("mcl_stairs:slab_diorite_smooth", "mcl_stairs:slab_diorite_smooth_top", "mcl_stairs:slab_diorite_smooth_double"))
+        registerStoneSet("diorite_smooth", "diorite_smooth", "polished_diorite", hasWall = false)
+        
         registerStoneSet("andesite", "andesite", "andesite", hasWall = true)
-        registry.register(ChunkerVanillaBlockType.POLISHED_ANDESITE_SLAB, dsl.slab("mcl_stairs:slab_andesite_smooth", "mcl_stairs:slab_andesite_smooth_top", "mcl_stairs:slab_andesite_smooth_double"))
+        registerStoneSet("andesite_smooth", "andesite_smooth", "polished_andesite", hasWall = false)
         
         // 砂岩相关通用逻辑注册
         registerStoneSet("stonebrick", "stonebrick", "stone_brick", hasWall = true)
@@ -301,7 +305,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.BREWING_STAND, dsl.simple("mcl_brewing:stand_000"))
         registry.register(ChunkerVanillaBlockType.ENCHANTING_TABLE, dsl.simple("mcl_enchanting:table"))
 
-        // 铃铛 (修正：使用正确的 BellAttachmentType 枚举)
+        // 铃铛
         registry.register(ChunkerVanillaBlockType.BELL, BlockMapper { id ->
             val attachment = id.getState(VanillaBlockStates.BELL_ATTACHMENT) ?: BellAttachmentType.FLOOR
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
@@ -420,33 +424,31 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DRAGON_WALL_HEAD, dsl.wallHead("dragon"))
         
         // ==========================================
-//  轨道系统 (Rails)
-// ==========================================
-// 普通轨道 (Standard Rail)
-registry.register(ChunkerVanillaBlockType.RAIL, dsl.simple("mcl_minecarts:rail"))
+        //  轨道系统 (Rails)
+        // ==========================================
+        // 普通轨道 (Standard Rail)
+        registry.register(ChunkerVanillaBlockType.RAIL, dsl.simple("mcl_minecarts:rail"))
 
-// 充能轨道 (Powered Rail) -> MineClonia 称为 golden_rail
-registry.register(ChunkerVanillaBlockType.POWERED_RAIL, BlockMapper { id ->
-    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
-    MclNode(if (powered) "mcl_minecarts:golden_rail_on" else "mcl_minecarts:golden_rail")
-})
+        // 充能轨道 (Powered Rail) -> MineClonia 称为 golden_rail
+        registry.register(ChunkerVanillaBlockType.POWERED_RAIL, BlockMapper { id ->
+            val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+            MclNode(if (powered) "mcl_minecarts:golden_rail_on" else "mcl_minecarts:golden_rail")
+        })
 
-// 检测轨道 (Detector Rail)
-registry.register(ChunkerVanillaBlockType.DETECTOR_RAIL, BlockMapper { id ->
-    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
-    MclNode(if (powered) "mcl_minecarts:detector_rail_on" else "mcl_minecarts:detector_rail")
-})
+        // 检测轨道 (Detector Rail)
+        registry.register(ChunkerVanillaBlockType.DETECTOR_RAIL, BlockMapper { id ->
+            val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+            MclNode(if (powered) "mcl_minecarts:detector_rail_on" else "mcl_minecarts:detector_rail")
+        })
 
-// 激活轨道 (Activator Rail)
-registry.register(ChunkerVanillaBlockType.ACTIVATOR_RAIL, BlockMapper { id ->
-    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
-    MclNode(if (powered) "mcl_minecarts:activator_rail_on" else "mcl_minecarts:activator_rail")
-})
+        // 激活轨道 (Activator Rail)
+        registry.register(ChunkerVanillaBlockType.ACTIVATOR_RAIL, BlockMapper { id ->
+            val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+            MclNode(if (powered) "mcl_minecarts:activator_rail_on" else "mcl_minecarts:activator_rail")
+        })
 
-registry.register(ChunkerVanillaBlockType.BOOKSHELF, dsl.simple("mcl_books:bookshelf"))
-registry.register(ChunkerVanillaBlockType.CHISELED_BOOKSHELF, dsl.chiseledBookshelf())
-
-        
+        registry.register(ChunkerVanillaBlockType.BOOKSHELF, dsl.simple("mcl_books:bookshelf"))
+        registry.register(ChunkerVanillaBlockType.CHISELED_BOOKSHELF, dsl.chiseledBookshelf())
     }
 
 

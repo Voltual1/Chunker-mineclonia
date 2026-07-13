@@ -115,12 +115,15 @@ object MclRedstoneMapping : MclMappingModule {
 
             MclNode(nodeName, param2 = param2.toByte())
         })
-        registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
         
-        // 13. 铁活板门 (Iron Trapdoor)
+        // 13. 铁门与铁活板门 (修复了旧版的重复注册)
         registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
         registry.register(ChunkerVanillaBlockType.IRON_DOOR, dsl.door("mcl_doors:iron_door"))
+
+        // 14. 修复：调用新添加的铜活板门映射函数
+        registerCopperTrapdoors()
     }
+
     private fun registerCopperTrapdoors() {
         val registry = MclMappingRegistry
         val dsl = MclMappingDsl
