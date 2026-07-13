@@ -208,7 +208,7 @@ registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds
         })
 
         // 2. 地表普通小蘑菇
-        registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM, dsl.simple("mcl_flowers:brown_mushroom"))
-        registry.register(ChunkerVanillaBlockType.RED_MUSHROOM, dsl.simple("mcl_flowers:red_mushroom"))
+        registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM, dsl.simple("mcl_mushrooms:mushroom_brown"))
+        registry.register(ChunkerVanillaBlockType.RED_MUSHROOM, dsl.simple("mcl_mushrooms:mushroom_red"))
     }
 }
