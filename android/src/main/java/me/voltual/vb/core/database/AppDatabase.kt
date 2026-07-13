@@ -34,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
                 context = context.applicationContext,
                 name = "app_database",
               )
+              .fallbackToDestructiveMigration(dropAllTables = true)
               .build()
           INSTANCE = instance
           instance
