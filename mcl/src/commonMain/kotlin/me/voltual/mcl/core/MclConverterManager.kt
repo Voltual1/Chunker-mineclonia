@@ -67,10 +67,10 @@ class MclConverterManager(
         }
     }
 
-    fun convertColumn(column: ChunkerColumn) {
+    // 接收上层传递过来的 Dimension 维度参数
+    fun convertColumn(column: ChunkerColumn, dimension: Dimension) {
         val chunkX = column.position.chunkX
         val chunkZ = column.position.chunkZ
-        val dimension = column.position.dimension
 
         // 计算维度的 Y 轴 Chunk 偏移量，将下界与末地压入 Mineclonia 的极渊高度
         // Mineclonia 主世界: Y偏移 0
@@ -179,11 +179,9 @@ class MclConverterManager(
                 metadataMap[blockIdx] = debugMetadata
             }
 
-            // 使用 Gson 序列化
             val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
             val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
 
-            // 将计算好层级偏移的巨大 cy 交给 Rust 写入
             MC2MTLib.writeChunkFast(chunkX, cy, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
         }
     }
