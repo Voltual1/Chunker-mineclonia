@@ -42,7 +42,7 @@ class HomeViewModel : ViewModel() {
     val availableFormats: List<String> by lazy {
     val formats = mutableListOf<String>()
     // 显式加入 Mineclonia 
-    formats.add("MINECLONIA(https://mineclonia.codeberg.page/wiki/)")
+    formats.add("MINECLONIA_1_0_0")
     
     try {
         val writeableTypes = EncodingType.getWriteableTypes()
