@@ -16,6 +16,8 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.b
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.banner.ChunkerBannerPattern
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerItemStackIdentifier
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.item.ChunkerVanillaItemType
 
 object MclBlockEntityRegistry {
     private val converters = mutableMapOf<Class<out BlockEntity>, (BlockEntity) -> MclBlockEntityData>()
