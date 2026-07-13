@@ -586,4 +586,23 @@ object MclMappingDsl {
         }.toByte()
         MclNode("mcl_sculk:vein", param2 = param2)
     }
+    
+    // 39. 耕地水分逻辑 (Farmland)
+    // moisture 如果为 _0 则是干耕地 (soil)；如果大于 _0 则为湿耕地 (soil_wet)
+    fun farmland() = BlockMapper { id ->
+        val moisture = id.getState(VanillaBlockStates.MOISTURE) ?: Moisture._0
+        if (moisture == Moisture._0) {
+            MclNode("mcl_farming:soil")
+        } else {
+            MclNode("mcl_farming:soil_wet")
+        }
+    }
+
+    // 40. 幽匿尖啸体状态映射 (Sculk Shrieker)
+    // can_summon 和 shrieking 作为状态传递，param2 代表是否激活
+    fun sculkShrieker() = BlockMapper { id ->
+        val shrieking = id.getState(VanillaBlockStates.SHRIEKING) == Bool.TRUE
+        val param2: Byte = if (shrieking) 1 else 0
+        MclNode("mcl_sculk:shrieker", param2 = param2)
+    }
 }

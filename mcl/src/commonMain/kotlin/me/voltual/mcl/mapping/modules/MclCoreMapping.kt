@@ -89,6 +89,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.MYCELIUM, dsl.simple("mcl_core:mycelium"))
         registry.register(ChunkerVanillaBlockType.DIRT_PATH, dsl.simple("mcl_core:grass_path"))
         registry.register(ChunkerVanillaBlockType.GRASS_BLOCK, dsl.simple("mcl_core:dirt_with_grass"))
+        registry.register(ChunkerVanillaBlockType.FARMLAND, dsl.farmland())
 
         // 煤炭块与黑曜石
         registry.register(ChunkerVanillaBlockType.COAL_BLOCK, dsl.simple("mcl_core:coalblock"))
@@ -141,6 +142,8 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.DIAMOND_BLOCK, dsl.simple("mcl_core:diamondblock"))
         registry.register(ChunkerVanillaBlockType.LAPIS_BLOCK, dsl.simple("mcl_core:lapisblock"))
         registry.register(ChunkerVanillaBlockType.EMERALD_BLOCK, dsl.simple("mcl_core:emeraldblock"))
+        registry.register(ChunkerVanillaBlockType.RAW_GOLD_BLOCK, dsl.simple("mcl_raw_ores:raw_gold_block"))
+        registry.register(ChunkerVanillaBlockType.RAW_IRON_BLOCK, dsl.simple("mcl_raw_ores:raw_iron_block"))
 
         // ==========================================
         // 4. 玻璃与玻璃板
@@ -366,6 +369,7 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.SCULK, dsl.simple("mcl_sculk:sculk"))
         registry.register(ChunkerVanillaBlockType.SCULK_VEIN, dsl.sculkVein())
         registry.register(ChunkerVanillaBlockType.SCULK_CATALYST, dsl.simple("mcl_sculk:catalyst"))
+        registry.register(ChunkerVanillaBlockType.SCULK_SHRIEKER, dsl.sculkShrieker())
 
         // 滴水石 (Dripstone)
         registry.register(ChunkerVanillaBlockType.DRIPSTONE_BLOCK, dsl.simple("mcl_dripstone:dripstone_block"))
@@ -374,6 +378,7 @@ object MclCoreMapping : MclMappingModule {
         // 火把 (Torches)
         registry.register(ChunkerVanillaBlockType.TORCH, dsl.simple("mcl_torches:torch"))
         registry.register(ChunkerVanillaBlockType.WALL_TORCH, dsl.wallTorch("mcl_torches:torch_wall", "mcl_torches:torch_wall"))
+        registry.register(ChunkerVanillaBlockType.SOUL_WALL_TORCH, dsl.wallTorch("mcl_torches:soul_torch_wall", "mcl_torches:soul_torch_wall"))
 
         
     }
