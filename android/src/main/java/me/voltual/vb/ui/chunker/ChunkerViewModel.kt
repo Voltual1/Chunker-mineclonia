@@ -25,11 +25,12 @@ import java.io.RandomAccessFile
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import me.voltual.vb.core.database.repository.LogRepository
+import me.voltual.vb.core.database.repository.ConversionTaskRepository
+import me.voltual.vb.data.model.ConversionManifest
 import me.voltual.vb.ui.Navigator
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 import me.voltual.vb.data.ChunkerSettingsDataStore
-import me.voltual.vb.data.ConversionProgressDataStore
 import java.util.UUID
 
 class ChunkerViewModel(
@@ -38,6 +39,7 @@ class ChunkerViewModel(
 ) : ViewModel(), KoinComponent {
 
     private val logRepository: LogRepository by inject()
+    private val conversionTaskRepository: ConversionTaskRepository by inject()
 
     private val _session = MutableStateFlow<TerminalSession?>(null)
     val session = _session.asStateFlow()
@@ -86,7 +88,6 @@ class ChunkerViewModel(
                 override fun logStackTrace(tag: String, e: Exception) {}
             }
 
-            //  Pass null as shellPath to start in pure log rendering mode
             val newSession = TerminalSession(
                 null,
                 context.filesDir.absolutePath,
@@ -111,7 +112,7 @@ class ChunkerViewModel(
                 workManager.cancelUniqueWork("world_conversion_work")
             } catch (ignored: Exception) {}
 
-            ConversionProgressDataStore.clearActiveConversion(context)
+            conversionTaskRepository.clearActiveManifests()
 
             withContext(Dispatchers.Main) {
                 isRunning = false
@@ -124,11 +125,11 @@ class ChunkerViewModel(
     fun killApplicationProcess() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val workManager = androidx.work.multiprocess.RemoteWorkManager.getInstance(context)
+                val workManager = RemoteWorkManager.getInstance(context)
                 workManager.cancelUniqueWork("world_conversion_work")
             } catch (ignored: Exception) {}
 
-            ConversionProgressDataStore.clearActiveConversion(context)
+            conversionTaskRepository.clearActiveManifests()
 
             withContext(Dispatchers.Main) {
                 isRunning = false
@@ -192,7 +193,18 @@ class ChunkerViewModel(
         var attempt = 0
         val maxAttempts = 15
 
-        ConversionProgressDataStore.saveActiveConversion(context, args.inputPath, args.outputPath, args.format)
+        // Save active state using Room
+        val worldId = calculateWorldIdentity(File(args.inputPath))
+        val existingManifest = conversionTaskRepository.getManifest(worldId)
+        if (existingManifest != null) {
+            conversionTaskRepository.saveManifest(existingManifest.copy(
+                isActive = true, inputPath = args.inputPath, outputPath = args.outputPath, format = args.format
+            ))
+        } else {
+            conversionTaskRepository.saveManifest(ConversionManifest(
+                worldId = worldId, inputPath = args.inputPath, outputPath = args.outputPath, format = args.format, progressIndex = 0, isActive = true
+            ))
+        }
 
         while (attempt < maxAttempts && !isSuccess) {
             attempt++
@@ -281,12 +293,13 @@ class ChunkerViewModel(
             }
 
             if (isSuccess) {
-                ConversionProgressDataStore.clearActiveConversion(context)
+                // If totally successful, wipe the manifest to allow future conversions
+                conversionTaskRepository.deleteManifest(worldId)
                 withContext(Dispatchers.Main) {
                     navigator.navigate(Export)
                 }
             } else {
-                ConversionProgressDataStore.clearActiveConversion(context)
+                conversionTaskRepository.clearActiveManifests()
             }
         }
     }
@@ -321,7 +334,6 @@ class ChunkerViewModel(
         return digest.joinToString("") { "%02x".format(it) }
     }
 
-    // CAN Change: Simplified printing logic. Directly delegate appending and normalization to the session.
     private inner class TerminalPrintStream(val session: TerminalSession, val file: File) :
         PrintStream(ByteArrayOutputStream(), true) {
 

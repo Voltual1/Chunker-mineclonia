@@ -6,7 +6,9 @@ import androidx.work.multiprocess.RemoteCoroutineWorker
 import com.hivemc.chunker.conversion.WorldConverter
 import com.hivemc.chunker.conversion.encoding.EncodingType
 import com.hivemc.chunker.conversion.encoding.base.Version
-import me.voltual.vb.data.ConversionProgressDataStore
+import me.voltual.vb.core.database.AppDatabase
+import me.voltual.vb.core.database.repository.ConversionTaskRepository
+import me.voltual.vb.data.model.ConversionManifest
 import org.iq80.leveldb.Options
 import org.iq80.leveldb.impl.Iq80DBFactory
 import java.io.File
@@ -41,7 +43,13 @@ class ConversionWorker(
     @Volatile
     private var isSelfKilling = false
 
+    private lateinit var conversionTaskRepository: ConversionTaskRepository
+
     override suspend fun doRemoteWork(): Result {
+        // Initialize Room DB directly to avoid cross-process DI issues
+        val db = AppDatabase.getDatabase(context)
+        conversionTaskRepository = ConversionTaskRepository(db.conversionTaskDao())
+
         val inputPath = inputData.getString("inputPath") ?: return Result.failure()
         val outputPath = inputData.getString("outputPath") ?: return Result.failure()
         val format = inputData.getString("format") ?: return Result.failure()
@@ -107,7 +115,12 @@ class ConversionWorker(
         val outputVersion = Version.fromString(targetVersionString)
 
         val worldId = calculateWorldIdentity(inputPathFile)
-        val lastSavedProgressIndex = ConversionProgressDataStore.getProgress(context, worldId)
+        
+        // Load Manifest
+        var manifest = conversionTaskRepository.getManifest(worldId) ?: ConversionManifest(
+            worldId = worldId, inputPath = inputPath, outputPath = outputPath, format = format, progressIndex = 0
+        )
+        val lastSavedProgressIndex = manifest.progressIndex
 
         val tempDetectConverter = WorldConverter(UUID.randomUUID())
         val readerOptional = EncodingType.findReader(inputPathFile, tempDetectConverter)
@@ -146,13 +159,12 @@ class ConversionWorker(
                     outputPathFile = outputPathFile,
                     sliceInputDir = sliceInputDir,
                     sliceOutputDir = sliceOutputDir,
-                    lastSavedProgressIndex = lastSavedProgressIndex,
+                    manifest = manifest,
                     threadCount = threadCount,
                     processMaps = processMaps,
                     encodingType = encodingType,
                     outputVersion = outputVersion,
-                    targetTypeName = targetTypeName,
-                    worldId = worldId
+                    targetTypeName = targetTypeName
                 )
             } else if (srcFormat.contains("BEDROCK", ignoreCase = true)) {
                 processBedrockWorld(
@@ -160,19 +172,17 @@ class ConversionWorker(
                     outputPathFile = outputPathFile,
                     sliceInputDir = sliceInputDir,
                     sliceOutputDir = sliceOutputDir,
-                    lastSavedProgressIndex = lastSavedProgressIndex,
+                    manifest = manifest,
                     threadCount = threadCount,
                     processMaps = processMaps,
                     encodingType = encodingType,
                     outputVersion = outputVersion,
-                    targetTypeName = targetTypeName,
-                    worldId = worldId
+                    targetTypeName = targetTypeName
                 )
             }
 
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
-            ConversionProgressDataStore.clearProgress(context, worldId)
             
             memoryMonitorThread.interrupt()
             return Result.success()
@@ -199,19 +209,24 @@ class ConversionWorker(
 
     private suspend fun processJavaWorld(
         inputPathFile: File, outputPathFile: File, sliceInputDir: File, sliceOutputDir: File,
-        lastSavedProgressIndex: Int, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
-        outputVersion: Version, targetTypeName: String, worldId: String
+        manifest: ConversionManifest, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
+        outputVersion: Version, targetTypeName: String
     ) {
+        var currentManifest = manifest
         val regionDir = File(inputPathFile, "region")
         val mcaFiles = regionDir.listFiles { _, name -> name.endsWith(".mca") } ?: emptyArray()
 
         for ((index, mcaFile) in mcaFiles.withIndex()) {
             if (isStopped) break
-            if (index < lastSavedProgressIndex) continue
+            if (index < currentManifest.progressIndex) continue
 
             val runtime = Runtime.getRuntime()
             val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            ConversionProgressDataStore.saveProgress(context, worldId, index)
+            
+            // Save state
+            currentManifest = currentManifest.copy(progressIndex = index)
+            conversionTaskRepository.saveManifest(currentManifest)
+            
             System.out.println("\n[Slicing] Processing Region file ${index + 1}/${mcaFiles.size}: ${mcaFile.name} | Heap: ${usedMem}MB")
 
             deleteDirectory(sliceInputDir)
@@ -241,9 +256,7 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
             
-            //如果是 MINECLONIA，直接挂载 MclLevelWriter 桥接到 Rust
             val sliceWriter = if (targetTypeName.equals("MINECLONIA", ignoreCase = true)) {
-                // 对于 Mineclonia，直接写到最终目录，不需要分片合并！
                 me.voltual.mcl.writer.MclLevelWriter(outputPathFile)
             } else {
                 val sliceWriterOpt = encodingType?.createWriter(sliceOutputDir, outputVersion, sliceConverter)
@@ -264,7 +277,9 @@ class ConversionWorker(
             delay(50)
 
             mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
-            ConversionProgressDataStore.saveProgress(context, worldId, index + 1)
+            
+            currentManifest = currentManifest.copy(progressIndex = index + 1)
+            conversionTaskRepository.saveManifest(currentManifest)
 
             System.gc()
             System.runFinalization()
@@ -273,42 +288,23 @@ class ConversionWorker(
 
     private suspend fun processBedrockWorld(
         inputPathFile: File, outputPathFile: File, sliceInputDir: File, sliceOutputDir: File,
-        lastSavedProgressIndex: Int, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
-        outputVersion: Version, targetTypeName: String, worldId: String
+        manifest: ConversionManifest, threadCount: Int, processMaps: Boolean, encodingType: EncodingType?,
+        outputVersion: Version, targetTypeName: String
     ) {
+        var currentManifest = manifest
         val srcDbDir = File(inputPathFile, "db")
         File(srcDbDir, "LOCK").delete()
 
         val dbOptions = Options().createIfMissing(false).writeBufferSize(4 * 1024 * 1024).blockSize(4 * 1024)
         srcDb = factory.open(srcDbDir, dbOptions)
 
-        var currentSliceIndex = 0
-        var lastProcessedKey: ByteArray? = null
+        var currentSliceIndex = currentManifest.progressIndex
+        var lastProcessedKey: ByteArray? = currentManifest.getLastBedrockKey()
         var hasMoreData = true
         val CHUNK_LIMIT_PER_SLICE = 256
 
         while (hasMoreData) {
             if (isStopped || isSelfKilling) break
-
-            if (currentSliceIndex < lastSavedProgressIndex) {
-                srcDb!!.iterator().use { skipIterator ->
-                    if (lastProcessedKey != null) {
-                        skipIterator.seek(lastProcessedKey)
-                        if (skipIterator.hasNext()) skipIterator.next()
-                    } else {
-                        skipIterator.seekToFirst()
-                    }
-                    var skipCount = 0
-                    while (skipIterator.hasNext() && skipCount < CHUNK_LIMIT_PER_SLICE) {
-                        val entry = skipIterator.next()
-                        if (isBedrockChunkKey(entry.key)) skipCount++
-                        lastProcessedKey = entry.key
-                    }
-                    if (!skipIterator.hasNext()) hasMoreData = false
-                }
-                currentSliceIndex++
-                continue
-            }
 
             val runtime = Runtime.getRuntime()
             val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
@@ -335,7 +331,13 @@ class ConversionWorker(
             srcDb!!.iterator().use { readIterator ->
                 if (lastProcessedKey != null) {
                     readIterator.seek(lastProcessedKey)
-                    if (readIterator.hasNext()) readIterator.next()
+                    // If we found the exact same key, advance by one to prevent duplication
+                    if (readIterator.hasNext()) {
+                        val peekEntry = readIterator.peekNext()
+                        if (java.util.Arrays.equals(peekEntry.key, lastProcessedKey)) {
+                            readIterator.next()
+                        }
+                    }
                 } else {
                     readIterator.seekToFirst()
                 }
@@ -354,7 +356,8 @@ class ConversionWorker(
             if (loadedChunkCount == 0) break
 
             lastProcessedKey = nextBoundaryKey
-            ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
+            currentManifest = currentManifest.copy(progressIndex = currentSliceIndex).withLastBedrockKey(lastProcessedKey)
+            conversionTaskRepository.saveManifest(currentManifest)
 
             val sliceConverter = WorldConverter(UUID.randomUUID())
             currentConverter = sliceConverter
@@ -371,9 +374,7 @@ class ConversionWorker(
             if (!sliceReaderOpt.isPresent) throw IllegalStateException("Reader not found for slice.")
             val sliceReader = sliceReaderOpt.get()
 
-            // 【核心修复】：如果是 MINECLONIA，直接挂载我们写好的 MclLevelWriter 桥接到 Rust！
             val sliceWriter = if (targetTypeName.equals("MINECLONIA", ignoreCase = true)) {
-                // 对于 Mineclonia，直接写到最终目录，不需要分片合并！
                 me.voltual.mcl.writer.MclLevelWriter(outputPathFile)
             } else {
                 val sliceWriterOpt = encodingType?.createWriter(sliceOutputDir, outputVersion, sliceConverter)
@@ -396,7 +397,8 @@ class ConversionWorker(
             mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
             
             currentSliceIndex++
-            ConversionProgressDataStore.saveProgress(context, worldId, currentSliceIndex)
+            currentManifest = currentManifest.copy(progressIndex = currentSliceIndex)
+            conversionTaskRepository.saveManifest(currentManifest)
 
             System.gc()
             System.runFinalization()

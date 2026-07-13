@@ -7,9 +7,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import me.voltual.vb.data.ChunkerSettingsDataStore
+import me.voltual.vb.core.database.repository.ConversionTaskRepository
 
 class ChunkerSettingsViewModel(
-    private val dataStore: ChunkerSettingsDataStore
+    private val dataStore: ChunkerSettingsDataStore,
+    private val conversionTaskRepository: ConversionTaskRepository
 ) : ViewModel() {
 
     val threadCount: StateFlow<Int> = dataStore.threadCount
@@ -38,6 +40,12 @@ class ChunkerSettingsViewModel(
     fun updateEnergySavingMode(enabled: Boolean) {
         viewModelScope.launch {
             dataStore.setEnergySavingMode(enabled)
+        }
+    }
+
+    fun clearAllProgress() {
+        viewModelScope.launch {
+            conversionTaskRepository.clearAll()
         }
     }
 }

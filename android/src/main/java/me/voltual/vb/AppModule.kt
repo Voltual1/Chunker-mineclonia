@@ -39,7 +39,7 @@ val appModule = module {
     viewModel { LogViewModel(androidContext(), get()) }
     viewModel { CacheSettingsViewModel(androidContext()) }
     viewModel { ExportViewModel(androidContext()) }
-    viewModel { ChunkerSettingsViewModel(get()) }
+    viewModel { ChunkerSettingsViewModel(get(), get()) }
     viewModel { PackConverterViewModel(androidContext()) }
     viewModel { DecoderViewModel(androidContext()) }
     viewModel { NbtEditorViewModel() }
@@ -48,7 +48,9 @@ val appModule = module {
    
     single { BBQApplication.instance.database }
     single { get<AppDatabase>().logDao() }
+    single { get<AppDatabase>().conversionTaskDao() }
     single { LogRepository(get()) }
+    single { ConversionTaskRepository(get()) }
       
     single { UserAgreementDataStore(get(USER_AGREEMENT_STORE_QUALIFIER)) }
     single { UpdateSettingsDataStore(get(UPDATE_SETTINGS_STORE_QUALIFIER)) }

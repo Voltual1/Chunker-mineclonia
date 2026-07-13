@@ -21,7 +21,6 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQCard
-import me.voltual.vb.data.ConversionProgressDataStore
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -249,8 +248,7 @@ fun ChunkerSettingsScreen(
                     onClick = {
                         showClearDialog = false
                         scope.launch {
-                            ConversionProgressDataStore.clearAllProgress(context)
-                            ConversionProgressDataStore.clearActiveConversion(context)
+                            viewModel.clearAllProgress()
                             snackbarHostState.showSnackbar("PURGE_OK // 断点记录清除成功")
                         }
                     },

@@ -18,9 +18,10 @@ import me.voltual.vb.core.database.dao.*
 import me.voltual.vb.core.database.entity.*
 import me.voltual.vb.core.database.repository.*
 
-@Database(entities = [LogEntry::class], version = 1, exportSchema = false)
+@Database(entities = [LogEntry::class, ConversionTaskEntity::class], version = 2, exportSchema = false)
 abstract class AppDatabase : RoomDatabase() {
   abstract fun logDao(): LogDao
+  abstract fun conversionTaskDao(): ConversionTaskDao
 
   companion object {
     @Volatile private var INSTANCE: AppDatabase? = null
@@ -33,6 +34,7 @@ abstract class AppDatabase : RoomDatabase() {
                 context = context.applicationContext,
                 name = "app_database",
               )
+              .fallbackToDestructiveMigration(dropAllTables = true)
               .build()
           INSTANCE = instance
           instance
