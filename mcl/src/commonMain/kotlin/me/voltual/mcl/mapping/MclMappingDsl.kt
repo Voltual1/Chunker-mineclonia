@@ -673,4 +673,26 @@ fun vine() = BlockMapper { id ->
     }
     MclNode("mcl_core:vine", param2 = param2)
 }
+    
+    // 43. 立地头颅 (Floor Head)
+    fun floorHead(mclName: String) = BlockMapper { id ->
+        val rotation = id.getState(VanillaBlockStates.ROTATION) ?: Rotation._0
+        // Chunker 的 rotation 是 0..15，Minetest degrotate 对应的 param2 = 角度 / 1.5
+        // (rotation * 22.5) / 1.5 = rotation * 15
+        val param2 = (rotation.ordinal * 15).toByte()
+        MclNode("mcl_heads:$mclName", param2 = param2)
+    }
+
+    // 44. 挂墙头颅 (Wall Head)
+    fun wallHead(mclName: String) = BlockMapper { id ->
+        val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+        // 参照 wall_on_rotate 和挂墙映射，转换为 Minetest wallmounted 对应方向
+        val param2 = when (facing) {
+            FacingDirectionHorizontal.NORTH -> 4
+            FacingDirectionHorizontal.SOUTH -> 3
+            FacingDirectionHorizontal.WEST -> 2
+            FacingDirectionHorizontal.EAST -> 5
+        }.toByte()
+        MclNode("mcl_heads:${mclName}_wall", param2 = param2)
+    }
 }

@@ -389,6 +389,35 @@ object MclCoreMapping : MclMappingModule {
         
         // 可疑的砾石映射 
         registry.register(ChunkerVanillaBlockType.SUSPICIOUS_GRAVEL, dsl.simple("mcl_sus_nodes:gravel"))
+        
+        
+        // 凋灵骷髅头颅 (Wither Skeleton)
+        registry.register(ChunkerVanillaBlockType.WITHER_SKELETON_SKULL, dsl.floorHead("wither_skeleton"))
+        registry.register(ChunkerVanillaBlockType.WITHER_SKELETON_WALL_SKULL, dsl.wallHead("wither_skeleton"))
+
+        // 骷髅头颅 (Skeleton)
+        registry.register(ChunkerVanillaBlockType.SKELETON_SKULL, dsl.floorHead("skeleton"))
+        registry.register(ChunkerVanillaBlockType.SKELETON_WALL_SKULL, dsl.wallHead("skeleton"))
+
+        // 僵尸头部 (Zombie)
+        registry.register(ChunkerVanillaBlockType.ZOMBIE_HEAD, dsl.floorHead("zombie"))
+        registry.register(ChunkerVanillaBlockType.ZOMBIE_WALL_HEAD, dsl.wallHead("zombie"))
+
+        // 苦力怕头部 (Creeper)
+        registry.register(ChunkerVanillaBlockType.CREEPER_HEAD, dsl.floorHead("creeper"))
+        registry.register(ChunkerVanillaBlockType.CREEPER_WALL_HEAD, dsl.wallHead("creeper"))
+
+        // 玩家/人类头部 (Player/Human)
+        registry.register(ChunkerVanillaBlockType.PLAYER_HEAD, dsl.floorHead("steve"))
+        registry.register(ChunkerVanillaBlockType.PLAYER_WALL_HEAD, dsl.wallHead("steve"))
+
+        // 猪灵头部 (Piglin)
+        registry.register(ChunkerVanillaBlockType.PIGLIN_HEAD, dsl.floorHead("piglin"))
+        registry.register(ChunkerVanillaBlockType.PIGLIN_WALL_HEAD, dsl.wallHead("piglin"))
+
+        // 末影龙头部 (Dragon)
+        registry.register(ChunkerVanillaBlockType.DRAGON_HEAD, dsl.floorHead("dragon"))
+        registry.register(ChunkerVanillaBlockType.DRAGON_WALL_HEAD, dsl.wallHead("dragon"))
 
         
     }
