@@ -376,8 +376,11 @@ object MclCoreMapping : MclMappingModule {
 
         // 火把 (Torches)
         registry.register(ChunkerVanillaBlockType.TORCH, dsl.simple("mcl_torches:torch"))
+        registry.register(ChunkerVanillaBlockType.SOUL_TORCH, dsl.simple("mcl_blackstone:soul_torch"))
         registry.register(ChunkerVanillaBlockType.WALL_TORCH, dsl.wallTorch("mcl_torches:torch_wall", "mcl_torches:torch_wall"))
         registry.register(ChunkerVanillaBlockType.SOUL_WALL_TORCH, dsl.wallTorch("mcl_blackstone:soul_torch_wall", "mcl_blackstone:soul_torch_wall"))
+        
+        registry.register(ChunkerVanillaBlockType.DECORATED_POT, dsl.directional("mcl_pottery_sherds:pot"))
 
         
     }

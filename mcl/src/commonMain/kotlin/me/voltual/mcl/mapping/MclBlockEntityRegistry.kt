@@ -86,6 +86,8 @@ object MclBlockEntityRegistry {
         register(SpawnerBlockEntity::class.java) { be -> convertSpawner(be as SpawnerBlockEntity) }
         register(LecternBlockEntity::class.java) { be -> convertLectern(be as LecternBlockEntity) }
         register(BannerBlockEntity::class.java) { be -> convertBanner(be as BannerBlockEntity) }
+        // 注册饰纹陶罐 BlockEntity 转换
+        register(DecoratedPotBlockEntity::class.java) { be -> convertDecoratedPot(be as DecoratedPotBlockEntity) }
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -121,6 +123,56 @@ object MclBlockEntityRegistry {
                 "formspec" to "size[11.75,10.425]list[context;main;0.375,0.75;9,3;]list[current_player;main;0.375,5.1;9,3;9]list[current_player;main;0.375,9.05;9,1;]"
             ),
             inventories = mapOf("main" to MclInventory(9, items))
+        )
+    }
+    
+    private fun convertDecoratedPot(be: DecoratedPotBlockEntity): MclBlockEntityData {
+        // Minecraft 陶罐有 4 个面，依次代表：Back, Left, Front, Right
+        // MineClonia 期待的序列化格式为 Lua Table: { [1]="sherd1", [2]="sherd2", ... }
+        // 且对应关系通过 Lua：1->Back, 2->Right, 3->Front, 4->Left (结合 param2 旋转计算)
+        val sherdList = be.sherds
+        val faces = ArrayList<String?>()
+
+        for (sherd in sherdList) {
+            if (sherd == null || sherd.isAir) {
+                faces.add(null)
+            } else {
+                val itemType = sherd.itemStackType
+                if (itemType is ChunkerVanillaItemType) {
+                    val rawName = itemType.name // 例如 "ANGLER_POTTERY_SHERD"
+                    val cleanName = rawName.lowercase()
+                        .replace("_pottery_sherd", "")
+                        .replace("arms_up", "arms_up") // 保持特定 sherd 的特殊符号下划线
+                    faces.add(cleanName)
+                } else {
+                    faces.add(null)
+                }
+            }
+        }
+
+        // 确保数组大小始终为 4 对应 4 个面
+        while (faces.size < 4) {
+            faces.add(null)
+        }
+
+        // 拼接成 Lua 序列化序列：{ "miner", "blade", "arms_up", "heart" }，若对应面是红砖则为 nil
+        val sb = StringBuilder()
+        sb.append("{")
+        for (i in 0..3) {
+            val face = faces[i]
+            if (face != null) {
+                sb.append("\"$face\"")
+            } else {
+                sb.append("nil")
+            }
+            if (i < 3) sb.append(", ")
+        }
+        sb.append("}")
+
+        return MclBlockEntityData(
+            fields = mapOf(
+                "pot_faces" to sb.toString()
+            )
         )
     }
 
