@@ -15,7 +15,7 @@ object MclVegetationMapping : MclMappingModule {
         val dsl = MclMappingDsl
 
         // ==========================================
-        // 1. 基础农业作物 (mcl_farming)
+        // 1. 基础农业作物与果实 (mcl_farming)
         // ==========================================
         // 小麦
         registry.register(ChunkerVanillaBlockType.WHEAT, BlockMapper { id ->
@@ -38,7 +38,7 @@ object MclVegetationMapping : MclMappingModule {
             MclNode(nodeName)
         })
 
-        // 甜菜根 (修正: Chunker 源码中名为 BEETROOTS)
+        // 甜菜根
         registry.register(ChunkerVanillaBlockType.BEETROOTS, BlockMapper { id ->
             val age = id.getState(VanillaBlockStates.AGE_3) ?: Age_3._0
             val nodeName = if (age == Age_3._3) "mcl_farming:beetroot" else "mcl_farming:beetroot_${age.ordinal}"
@@ -63,6 +63,21 @@ object MclVegetationMapping : MclMappingModule {
             }.toByte()
             MclNode("mcl_cocoas:cocoa_${age.ordinal + 1}", param2 = param2)
         })
+
+        // ==========================================
+        // 南瓜与西瓜系列 (修复 PUMPKIN & JACK_O_LANTERN 缺失)
+        // ==========================================
+        // 普通南瓜 (Mineclonia 中为 mcl_farming:pumpkin)
+        registry.register(ChunkerVanillaBlockType.PUMPKIN, dsl.simple("mcl_farming:pumpkin"))
+        
+        // 雕刻南瓜
+        registry.register(ChunkerVanillaBlockType.CARVED_PUMPKIN, dsl.directional("mcl_farming:pumpkin_face"))
+        
+        // 南瓜灯 (Jack o' Lantern)
+        registry.register(ChunkerVanillaBlockType.JACK_O_LANTERN, dsl.directional("mcl_farming:pumpkin_face_light"))
+
+        // 西瓜块
+        registry.register(ChunkerVanillaBlockType.MELON, dsl.simple("mcl_farming:melon"))
 
         // 瓜藤系列
         registry.register(ChunkerVanillaBlockType.PUMPKIN_STEM, dsl.simple("mcl_farming:pumpkintige_unconnect"))
@@ -118,7 +133,6 @@ object MclVegetationMapping : MclMappingModule {
 
         registry.register(ChunkerVanillaBlockType.SPORE_BLOSSOM, dsl.simple("mcl_lush_caves:spore_blossom"))
         
-        // 修正: 映射具体的 Body 和 Head 到 Mineclonia 的 cave_vines
         registry.register(ChunkerVanillaBlockType.CAVE_VINES_BODY, BlockMapper { id ->
             val berries = id.getState(VanillaBlockStates.BERRIES) == Bool.TRUE
             MclNode(if (berries) "mcl_lush_caves:cave_vines_lit" else "mcl_lush_caves:cave_vines")
@@ -144,7 +158,6 @@ object MclVegetationMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.TWISTING_VINES, dsl.simple("mcl_crimson:twisting_vines"))
         registry.register(ChunkerVanillaBlockType.TWISTING_VINES_PLANT, dsl.simple("mcl_crimson:twisting_vines"))
                 
-        // 巨型蘑菇块与蘑菇柄
         registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM_BLOCK, dsl.mushroomBlock("brown"))
         registry.register(ChunkerVanillaBlockType.RED_MUSHROOM_BLOCK, dsl.mushroomBlock("red"))
         registry.register(ChunkerVanillaBlockType.MUSHROOM_STEM, dsl.mushroomStem())
@@ -154,35 +167,24 @@ object MclVegetationMapping : MclMappingModule {
         
         registry.register(ChunkerVanillaBlockType.BAMBOO_SAPLING, dsl.simple("mcl_bamboo:bamboo_shoot"))
 
-// 竹子主干 (Bamboo) -> 根据 leaves 状态动态映射
-registry.register(ChunkerVanillaBlockType.BAMBOO, BlockMapper { id ->
-    val leaves = id.getState(VanillaBlockStates.BAMBOO_LEAVES) ?: BambooLeafSize.NONE
-    val age = id.getState(VanillaBlockStates.AGE_1) ?: Age_1._0
+        registry.register(ChunkerVanillaBlockType.BAMBOO, BlockMapper { id ->
+            val leaves = id.getState(VanillaBlockStates.BAMBOO_LEAVES) ?: BambooLeafSize.NONE
+            val age = id.getState(VanillaBlockStates.AGE_1) ?: Age_1._0
+            val size = if (age == Age_1._1) "big" else "small"
+            val nodeName = when (leaves) {
+                BambooLeafSize.NONE -> "mcl_bamboo:bamboo_$size"
+                BambooLeafSize.SMALL -> "mcl_bamboo:bamboo_${size}_leafsmall"
+                BambooLeafSize.LARGE -> "mcl_bamboo:bamboo_${size}_leafbig"
+            }
+            MclNode(nodeName, param2 = 0)
+        })
 
-    // 根据 Minecraft 的 age 区分粗细 (Mineclonia: big 或 small)
-    val size = if (age == Age_1._1) "big" else "small"
+        registry.register(ChunkerVanillaBlockType.CACTUS, dsl.simple("mcl_core:cactus"))
+        registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds"))
 
-    val nodeName = when (leaves) {
-        BambooLeafSize.NONE -> "mcl_bamboo:bamboo_$size"
-        BambooLeafSize.SMALL -> "mcl_bamboo:bamboo_${size}_leafsmall"
-        BambooLeafSize.LARGE -> "mcl_bamboo:bamboo_${size}_leafbig"
-    }
-
-    // Mineclonia 的竹子需要 param2（1到4的随机朝向以打破单一视觉，默认为 0 保证稳定）
-    MclNode(nodeName, param2 = 0)
-})
-
-// 仙人掌 -> 映射到 mcl_core:cactus
-registry.register(ChunkerVanillaBlockType.CACTUS, dsl.simple("mcl_core:cactus"))
-
-// 甘蔗 -> 映射到 mcl_core:reeds
-registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds"))
-
-        // 1. 蜂箱与蜂巢动态映射 (Beehive & Bee Nest)
         registry.register(ChunkerVanillaBlockType.BEEHIVE, BlockMapper { id ->
             val honeyLevel = id.getState(VanillaBlockStates.HONEY_LEVEL) ?: HoneyLevel._0
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-            
             val nodeName = if (honeyLevel == HoneyLevel._0) "mcl_beehives:beehive" else "mcl_beehives:beehive_${honeyLevel.ordinal}"
             val param2 = when (facing) {
                 FacingDirectionHorizontal.SOUTH -> 0
@@ -196,7 +198,6 @@ registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds
         registry.register(ChunkerVanillaBlockType.BEE_NEST, BlockMapper { id ->
             val honeyLevel = id.getState(VanillaBlockStates.HONEY_LEVEL) ?: HoneyLevel._0
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
-            
             val nodeName = if (honeyLevel == HoneyLevel._0) "mcl_beehives:bee_nest" else "mcl_beehives:bee_nest_${honeyLevel.ordinal}"
             val param2 = when (facing) {
                 FacingDirectionHorizontal.SOUTH -> 0
@@ -207,7 +208,6 @@ registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds
             MclNode(nodeName, param2 = param2)
         })
 
-        // 2. 地表普通小蘑菇
         registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM, dsl.simple("mcl_mushrooms:mushroom_brown"))
         registry.register(ChunkerVanillaBlockType.RED_MUSHROOM, dsl.simple("mcl_mushrooms:mushroom_red"))
     }

@@ -229,6 +229,10 @@ object MclItemRegistry {
 
         // 染料
         registerDyes()
+        
+        //南瓜
+        put(ChunkerVanillaItemType.PUMPKIN_SEEDS, "mcl_farming:pumpkin_seeds")
+        put(ChunkerVanillaItemType.PUMPKIN_PIE, "mcl_farming:pumpkin_pie") 
     }
 
     private fun MutableMap<ChunkerVanillaItemType, String>.registerToolSet(prefix: String, mcl: String) {
