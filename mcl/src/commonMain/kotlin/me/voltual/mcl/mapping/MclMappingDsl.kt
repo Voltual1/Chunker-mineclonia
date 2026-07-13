@@ -606,65 +606,71 @@ object MclMappingDsl {
         MclNode("mcl_sculk:shrieker", param2 = param2)
     }
     
-    // 41.发光地衣映射
-    fun glowLichen() = BlockMapper { id ->
-        val north = id.getState(VanillaBlockStates.WALL_NORTH) == Bool.TRUE
-        val south = id.getState(VanillaBlockStates.WALL_SOUTH) == Bool.TRUE
-        val east = id.getState(VanillaBlockStates.WALL_EAST) == Bool.TRUE
-        val west = id.getState(VanillaBlockStates.WALL_WEST) == Bool.TRUE
-        val up = id.getState(VanillaBlockStates.UP) == Bool.TRUE
-        val down = id.getState(VanillaBlockStates.DOWN) == Bool.TRUE
+    // ==========================================
+// 41. 发光地衣映射 (Glow Lichen)
+// ==========================================
+fun glowLichen() = BlockMapper { id ->
+    // 使用正确的布尔型状态字段
+    val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
+    val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
+    val east = id.getState(VanillaBlockStates.EAST) == Bool.TRUE
+    val west = id.getState(VanillaBlockStates.WEST) == Bool.TRUE
+    val up = id.getState(VanillaBlockStates.UP) == Bool.TRUE
+    val down = id.getState(VanillaBlockStates.DOWN) == Bool.TRUE
 
-        var cnt = 0
-        if (north) cnt++
-        if (south) cnt++
-        if (east) cnt++
-        if (west) cnt++
-        if (up) cnt++
-        if (down) cnt++
+    var cnt = 0
+    if (north) cnt++
+    if (south) cnt++
+    if (east) cnt++
+    if (west) cnt++
+    if (up) cnt++
+    if (down) cnt++
 
-        if (cnt <= 1) {
-            // 单面附着，使用 wallmounted 的 param2 表示
-            val param2 = when {
-                down -> 1  // 附着在地面 (下表面向上看) -> Minetest wallmounted 1 (挂在底面)
-                up -> 0    // 附着在顶面 -> Minetest wallmounted 0
-                east -> 2  // 附着在西面 -> 墙挂朝东 Minetest wallmounted 2
-                west -> 3  // 附着在东面 -> 墙挂朝西 Minetest wallmounted 3
-                north -> 4 // 附着在南面 -> 墙挂朝北 Minetest wallmounted 4
-                south -> 5 // 附着在北面 -> 墙挂朝南 Minetest wallmounted 5
-                else -> 1  // 默认挂在底面
-            }.toByte()
-            MclNode("mcl_core:glow_lichen", param2 = param2)
-        } else {
-            // 多面附着，使用多字母组合后缀拼接 (如 mcl_core:glow_lichen_nwed)
-            val sb = java.lang.StringBuilder("mcl_core:glow_lichen_")
-            if (north) sb.append("n")
-            if (west) sb.append("w")
-            if (south) sb.append("s")
-            if (east) sb.append("e")
-            if (up) sb.append("u")
-            if (down) sb.append("d")
-            MclNode(sb.toString(), param2 = 0)
-        }
-    }
-    
-    //藤蔓
-    fun vine() = BlockMapper { id ->
-        val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
-        val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
-        val east = id.getState(VanillaBlockStates.EAST) == Bool.TRUE
-        val west = id.getState(VanillaBlockStates.WEST) == Bool.TRUE
-        val up = id.getState(VanillaBlockStates.UP) == Bool.TRUE
-
-        // 默认转换为对应挂载墙面的 wallmounted param2
+    if (cnt <= 1) {
+        // 单面附着，映射到基础节点并使用 wallmounted param2
         val param2 = when {
-            up -> 1 // 顶面
-            east -> 2
-            west -> 3
-            north -> 4
-            south -> 5
-            else -> 1
-        }.toByte()
-        MclNode("mcl_core:vine", param2 = param2)
+            down -> 1.toByte()  // 附着在地面 (MineClonia param2=1)
+            up -> 0.toByte()    // 附着在顶面 (MineClonia param2=0)
+            east -> 2.toByte()  // 墙挂朝东
+            west -> 3.toByte()  // 墙挂朝西
+            north -> 4.toByte() // 墙挂朝北
+            south -> 5.toByte() // 墙挂朝南
+            else -> 1.toByte()
+        }
+        MclNode("mcl_core:glow_lichen", param2 = param2)
+    } else {
+        // 多面附着，映射到组合节点名 (如 mcl_core:glow_lichen_nwed)
+        // 顺序依据 lua: n, w, s, e, u, d
+        val sb = java.lang.StringBuilder("mcl_core:glow_lichen_")
+        if (north) sb.append("n")
+        if (west) sb.append("w")
+        if (south) sb.append("s")
+        if (east) sb.append("e")
+        if (up) sb.append("u")
+        if (down) sb.append("d")
+        MclNode(sb.toString(), param2 = 0)
     }
+}
+
+// ==========================================
+// 42. 藤蔓映射 (Vine)
+// ==========================================
+fun vine() = BlockMapper { id ->
+    val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
+    val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
+    val east = id.getState(VanillaBlockStates.EAST) == Bool.TRUE
+    val west = id.getState(VanillaBlockStates.WEST) == Bool.TRUE
+    val up = id.getState(VanillaBlockStates.UP) == Bool.TRUE
+
+    // 选取第一个有效面转换为 wallmounted
+    val param2 = when {
+        up -> 1.toByte()
+        east -> 2.toByte()
+        west -> 3.toByte()
+        north -> 4.toByte()
+        south -> 5.toByte()
+        else -> 1.toByte()
+    }
+    MclNode("mcl_core:vine", param2 = param2)
+}
 }
