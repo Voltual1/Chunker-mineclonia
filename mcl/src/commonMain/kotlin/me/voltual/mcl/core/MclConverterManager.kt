@@ -10,6 +10,7 @@ package me.voltual.mcl.core
 
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier
+import com.hivemc.chunker.conversion.intermediate.world.Dimension
 import me.voltual.mcl.mapping.MclMappingRegistry
 import me.voltual.mcl.mapping.MclBlockEntityRegistry
 import me.voltual.mc2mt.MC2MTLib 
@@ -69,9 +70,21 @@ class MclConverterManager(
     fun convertColumn(column: ChunkerColumn) {
         val chunkX = column.position.chunkX
         val chunkZ = column.position.chunkZ
+        val dimension = column.position.dimension
+
+        // 计算维度的 Y 轴 Chunk 偏移量，将下界与末地压入 Mineclonia 的极渊高度
+        // Mineclonia 主世界: Y偏移 0
+        // Mineclonia 下界底部 Y = -29072 -> Chunk Y = -1817 (减去 Rust Engine Offset 4 -> -1813)
+        // Mineclonia 末地底部 Y = -26880 -> Chunk Y = -1680 (减去 Rust Engine Offset 4 -> -1676)
+        val yOffset = when (dimension) {
+            Dimension.NETHER -> -1813
+            Dimension.THE_END -> -1676
+            else -> 0
+        }
 
         for ((yByte, chunk) in column.chunks) {
-            val y = yByte.toInt()
+            val originalY = yByte.toInt()
+            val cy = originalY + yOffset
             
             val blockIds = ShortArray(4096)
             val param1 = ByteArray(4096)
@@ -124,7 +137,7 @@ class MclConverterManager(
                         
                         if (!lightInited) {
                             val isAirLike = node.name == "air" || node.name.contains("water")
-                            if (y < -3 && !isAirLike) {
+                            if (originalY < -3 && !isAirLike) {
                                 param1[blockIdx] = 0x00.toByte()
                             } else {
                                 param1[blockIdx] = 0x0F.toByte()
@@ -133,8 +146,9 @@ class MclConverterManager(
                         
                         param2[blockIdx] = node.param2
 
-                        val worldY = (y shl 4) + mcY
-                        column.getBlockEntity(mcX, worldY, mcZ)?.let { be ->
+                        // 注意：获取 BlockEntity 时必须用原始的无偏移 Y 坐标进行查询
+                        val originalWorldY = (originalY shl 4) + mcY
+                        column.getBlockEntity(mcX, originalWorldY, mcZ)?.let { be ->
                             MclBlockEntityRegistry.convert(be)?.let { data ->
                                 metadataMap[blockIdx] = data
                             }
@@ -169,7 +183,8 @@ class MclConverterManager(
             val localNamesJson = gson.toJson(localNamesList).toByteArray(StandardCharsets.UTF_8)
             val metadataJson = gson.toJson(metadataMap).toByteArray(StandardCharsets.UTF_8)
 
-            MC2MTLib.writeChunkFast(chunkX, y, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
+            // 将计算好层级偏移的巨大 cy 交给 Rust 写入
+            MC2MTLib.writeChunkFast(chunkX, cy, chunkZ, blockIds, param1, param2, localNamesJson, metadataJson)
         }
     }
 
