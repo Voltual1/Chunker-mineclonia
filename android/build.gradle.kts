@@ -26,8 +26,8 @@ android {
         applicationId = "me.voltual.vb"
         minSdk = 26
         targetSdk = 37
-        versionCode = 15
-        versionName = "7.5"
+        versionCode = 16
+        versionName = "8.0"
         multiDexEnabled = true
         buildConfigField("String", "LICENSE", "\"AGPLv3\"")
     }
@@ -49,7 +49,7 @@ android {
         abi {
             isEnable = true
             reset()
-            include(/*"armeabi-v7a", */"arm64-v8a")
+            include("armeabi-v7a","arm64-v8a")
             isUniversalApk = false
         }
     }
