@@ -151,6 +151,26 @@ object MclVegetationMapping : MclMappingModule {
         
         registry.register(ChunkerVanillaBlockType.AZALEA_LEAVES, dsl.simple("mcl_trees:leaves_azalea"))
         registry.register(ChunkerVanillaBlockType.FLOWERING_AZALEA_LEAVES, dsl.simple("mcl_trees:leaves_azalea_flowering"))
+        
+        registry.register(ChunkerVanillaBlockType.BAMBOO_SAPLING, dsl.simple("mcl_bamboo:bamboo_shoot"))
+
+// 竹子主干 (Bamboo) -> 根据 leaves 状态动态映射
+registry.register(ChunkerVanillaBlockType.BAMBOO, BlockMapper { id ->
+    val leaves = id.getState(VanillaBlockStates.BAMBOO_LEAVES) ?: BambooLeafSize.NONE
+    val age = id.getState(VanillaBlockStates.AGE_1) ?: Age_1._0
+
+    // 根据 Minecraft 的 age 区分粗细 (Mineclonia: big 或 small)
+    val size = if (age == Age_1._1) "big" else "small"
+
+    val nodeName = when (leaves) {
+        BambooLeafSize.NONE -> "mcl_bamboo:bamboo_$size"
+        BambooLeafSize.SMALL -> "mcl_bamboo:bamboo_${size}_leafsmall"
+        BambooLeafSize.LARGE -> "mcl_bamboo:bamboo_${size}_leafbig"
+    }
+
+    // Mineclonia 的竹子需要 param2（1到4的随机朝向以打破单一视觉，默认为 0 保证稳定）
+    MclNode(nodeName, param2 = 0)
+})
 
     }
 }
