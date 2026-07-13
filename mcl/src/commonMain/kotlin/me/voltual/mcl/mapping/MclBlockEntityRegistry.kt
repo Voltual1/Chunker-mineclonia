@@ -127,54 +127,61 @@ object MclBlockEntityRegistry {
     }
     
     private fun convertDecoratedPot(be: DecoratedPotBlockEntity): MclBlockEntityData {
-        // Minecraft 陶罐有 4 个面，依次代表：Back, Left, Front, Right
-        // MineClonia 期待的序列化格式为 Lua Table: { [1]="sherd1", [2]="sherd2", ... }
-        // 且对应关系通过 Lua：1->Back, 2->Right, 3->Front, 4->Left (结合 param2 旋转计算)
-        val sherdList = be.sherds
-        val faces = ArrayList<String?>()
+    // 直接调用 Java 源码中暴露的 getter 获取四个面的标识符
+    val backId = be.back
+    val leftId = be.left
+    val rightId = be.right
+    val frontId = be.front
 
-        for (sherd in sherdList) {
-            if (sherd == null || sherd.isAir) {
-                faces.add(null)
-            } else {
-                val itemType = sherd.itemStackType
-                if (itemType is ChunkerVanillaItemType) {
-                    val rawName = itemType.name // 例如 "ANGLER_POTTERY_SHERD"
-                    val cleanName = rawName.lowercase()
-                        .replace("_pottery_sherd", "")
-                        .replace("arms_up", "arms_up") // 保持特定 sherd 的特殊符号下划线
-                    faces.add(cleanName)
-                } else {
-                    faces.add(null)
-                }
-            }
+    // 辅助转换函数：将 ChunkerItemStackIdentifier 映射到 Mineclonia 的陶片名称
+    fun getSherdName(id: ChunkerItemStackIdentifier?): String? {
+        if (id == null || id.isAir) return null
+        
+        val itemType = id.itemStackType
+        // 如果不是纯物品或者是普通红砖，则返回 null（Mineclonia 中对应 nil，渲染默认红砖面）
+        if (itemType == ChunkerVanillaItemType.BRICK) return null
+        
+        if (itemType is ChunkerVanillaItemType) {
+            val rawName = itemType.name // 例如 "ANGLER_POTTERY_SHERD"
+            return rawName.lowercase()
+                .replace("_pottery_sherd", "")
+                .replace("arms_up", "arms_up") // 保留下划线特殊陶片
         }
-
-        // 确保数组大小始终为 4 对应 4 个面
-        while (faces.size < 4) {
-            faces.add(null)
-        }
-
-        // 拼接成 Lua 序列化序列：{ "miner", "blade", "arms_up", "heart" }，若对应面是红砖则为 nil
-        val sb = StringBuilder()
-        sb.append("{")
-        for (i in 0..3) {
-            val face = faces[i]
-            if (face != null) {
-                sb.append("\"$face\"")
-            } else {
-                sb.append("nil")
-            }
-            if (i < 3) sb.append(", ")
-        }
-        sb.append("}")
-
-        return MclBlockEntityData(
-            fields = mapOf(
-                "pot_faces" to sb.toString()
-            )
-        )
+        return null
     }
+
+    // Mineclonia 中根据 mcl_pottery_sherds_init.lua 期待的序列化顺序依次是：
+    // 索引 1: 后面 (Back)  -> 对应 getBack()
+    // 索引 2: 右面 (Right) -> 对应 getRight()
+    // 索引 3: 前面 (Front) -> 对应 getFront()
+    // 索引 4: 左面 (Left)  -> 对应 getLeft()
+    val faces = arrayOf(
+        getSherdName(backId),
+        getSherdName(rightId),
+        getSherdName(frontId),
+        getSherdName(leftId)
+    )
+
+    // 拼接成 Lua 序列化序列：{ "miner", "blade", "arms_up", "heart" }
+    val sb = StringBuilder()
+    sb.append("{")
+    for (i in 0..3) {
+        val face = faces[i]
+        if (face != null) {
+            sb.append("\"$face\"")
+        } else {
+            sb.append("nil")
+        }
+        if (i < 3) sb.append(", ")
+    }
+    sb.append("}")
+
+    return MclBlockEntityData(
+        fields = mapOf(
+            "pot_faces" to sb.toString()
+        )
+    )
+}
 
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
