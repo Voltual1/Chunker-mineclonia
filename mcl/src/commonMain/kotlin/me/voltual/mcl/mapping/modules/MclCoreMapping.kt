@@ -418,6 +418,30 @@ object MclCoreMapping : MclMappingModule {
         // 末影龙头部 (Dragon)
         registry.register(ChunkerVanillaBlockType.DRAGON_HEAD, dsl.floorHead("dragon"))
         registry.register(ChunkerVanillaBlockType.DRAGON_WALL_HEAD, dsl.wallHead("dragon"))
+        
+        // ==========================================
+//  轨道系统 (Rails)
+// ==========================================
+// 普通轨道 (Standard Rail)
+registry.register(ChunkerVanillaBlockType.RAIL, dsl.simple("mcl_minecarts:rail"))
+
+// 充能轨道 (Powered Rail) -> MineClonia 称为 golden_rail
+registry.register(ChunkerVanillaBlockType.POWERED_RAIL, BlockMapper { id ->
+    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+    MclNode(if (powered) "mcl_minecarts:golden_rail_on" else "mcl_minecarts:golden_rail")
+})
+
+// 检测轨道 (Detector Rail)
+registry.register(ChunkerVanillaBlockType.DETECTOR_RAIL, BlockMapper { id ->
+    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+    MclNode(if (powered) "mcl_minecarts:detector_rail_on" else "mcl_minecarts:detector_rail")
+})
+
+// 激活轨道 (Activator Rail)
+registry.register(ChunkerVanillaBlockType.ACTIVATOR_RAIL, BlockMapper { id ->
+    val powered = id.getState(VanillaBlockStates.POWERED) == Bool.TRUE
+    MclNode(if (powered) "mcl_minecarts:activator_rail_on" else "mcl_minecarts:activator_rail")
+})
 
         
     }
