@@ -11,6 +11,7 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.F
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChiseledBookshelfBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.banner.ChunkerBannerPattern
@@ -88,8 +89,8 @@ object MclBlockEntityRegistry {
         register(SpawnerBlockEntity::class.java) { be -> convertSpawner(be as SpawnerBlockEntity) }
         register(LecternBlockEntity::class.java) { be -> convertLectern(be as LecternBlockEntity) }
         register(BannerBlockEntity::class.java) { be -> convertBanner(be as BannerBlockEntity) }
-        // 注册饰纹陶罐 BlockEntity 转换
         register(DecoratedPotBlockEntity::class.java) { be -> convertDecoratedPot(be as DecoratedPotBlockEntity) }
+        register(ChiseledBookshelfBlockEntity::class.java) { be -> convertChiseledBookshelf(be as ChiseledBookshelfBlockEntity) }
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -100,6 +101,24 @@ object MclBlockEntityRegistry {
         val converter = converters[blockEntity::class.java] ?: return null
         return converter(blockEntity)
     }
+    
+    private fun convertChiseledBookshelf(be: ChiseledBookshelfBlockEntity): MclBlockEntityData {
+    val size = 6
+    val items = MutableList(size) { MclItemStack("", 0) }
+
+    // 将 Chunker 槽位内容转移到 MineClonia 节点库存
+    for ((slotByte, chunkerItem) in be.items) {
+        val slot = slotByte.toInt()
+        if (slot in 0 until size) {
+            items[slot] = MclItemRegistry.fromChunker(chunkerItem)
+        }
+    }
+
+    return MclBlockEntityData(
+        fields = mapOf("last_slot_used" to "0"), // 初始化最后使用的槽位
+        inventories = mapOf("main" to MclInventory(3, items))
+    )
+}
 
     private fun convertChest(be: BlockEntity): MclBlockEntityData {
         val size = 27 

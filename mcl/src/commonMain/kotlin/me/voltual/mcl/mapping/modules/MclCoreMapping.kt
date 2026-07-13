@@ -443,6 +443,9 @@ registry.register(ChunkerVanillaBlockType.ACTIVATOR_RAIL, BlockMapper { id ->
     MclNode(if (powered) "mcl_minecarts:activator_rail_on" else "mcl_minecarts:activator_rail")
 })
 
+registry.register(ChunkerVanillaBlockType.BOOKSHELF, dsl.simple("mcl_books:bookshelf"))
+registry.register(ChunkerVanillaBlockType.CHISELED_BOOKSHELF, dsl.chiseledBookshelf())
+
         
     }
 

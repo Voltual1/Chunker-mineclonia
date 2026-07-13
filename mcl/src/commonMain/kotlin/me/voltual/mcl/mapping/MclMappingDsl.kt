@@ -695,4 +695,34 @@ fun vine() = BlockMapper { id ->
         }.toByte()
         MclNode("mcl_heads:${mclName}_wall", param2 = param2)
     }
+    
+// 45. 饰纹书架
+fun chiseledBookshelf() = BlockMapper { id ->
+    var bits = 0
+    // Chunker 状态 slot_0..5 对应位 0..5
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_0_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 0)
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_1_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 1)
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_2_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 2)
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_3_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 3)
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_4_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 4)
+    if (id.getState(VanillaBlockStates.CHISELED_BOOKSHELF_SLOT_5_OCCUPIED) == Bool.TRUE) bits = bits or (1 shl 5)
+
+    // 生成节点名：bits 为 0 时是基础名，否则带 2 位 16 进制后缀
+    val nodeName = if (bits == 0) {
+        "mcl_books:chiseled_bookshelf"
+    } else {
+        "mcl_books:chiseled_bookshelf_" + bits.toString(16).padStart(2, '0')
+    }
+
+    // 朝向转换：MineClonia 的饰纹书架使用 facedir (4dir)
+    val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+    val param2 = when (facing) {
+        FacingDirectionHorizontal.SOUTH -> 0
+        FacingDirectionHorizontal.WEST -> 1
+        FacingDirectionHorizontal.NORTH -> 2
+        FacingDirectionHorizontal.EAST -> 3
+    }.toByte()
+
+    MclNode(nodeName, param2 = param2)
+}
 }
