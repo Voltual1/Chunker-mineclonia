@@ -11,7 +11,7 @@ import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.F
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
-import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChiseledBookshelfBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.ChiseledBookshelfBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.banner.ChunkerBannerPattern
@@ -103,22 +103,23 @@ object MclBlockEntityRegistry {
     }
     
     private fun convertChiseledBookshelf(be: ChiseledBookshelfBlockEntity): MclBlockEntityData {
-    val size = 6
-    val items = MutableList(size) { MclItemStack("", 0) }
-
-    // 将 Chunker 槽位内容转移到 MineClonia 节点库存
-    for ((slotByte, chunkerItem) in be.items) {
-        val slot = slotByte.toInt()
-        if (slot in 0 until size) {
-            items[slot] = MclItemRegistry.fromChunker(chunkerItem)
+        // 直接获取长度为 6 的数组
+        val booksArray = be.books ?: arrayOfNulls<com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack>(6)
+        
+        // 映射数组到 MclItemStack 列表
+        val items = booksArray.map { book ->
+            MclItemRegistry.fromChunker(book)
         }
-    }
 
-    return MclBlockEntityData(
-        fields = mapOf("last_slot_used" to "0"), // 初始化最后使用的槽位
-        inventories = mapOf("main" to MclInventory(3, items))
-    )
-}
+        return MclBlockEntityData(
+            fields = mapOf(
+                "last_slot_used" to "0",
+                "infotext" to "Chiseled Bookshelf"
+            ),
+            // MineClonia 饰纹书架 inventory 名称为 "main"，大小为 6
+            inventories = mapOf("main" to MclInventory(3, items))
+        )
+    }
 
     private fun convertChest(be: BlockEntity): MclBlockEntityData {
         val size = 27 
