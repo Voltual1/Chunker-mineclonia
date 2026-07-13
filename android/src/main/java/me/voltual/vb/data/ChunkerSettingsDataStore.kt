@@ -13,6 +13,7 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
         val KEY_THREAD_COUNT = intPreferencesKey("thread_count")
         val KEY_PROCESS_MAPS = booleanPreferencesKey("process_maps")
         val KEY_ENERGY_SAVING_MODE = booleanPreferencesKey("energy_saving_mode")
+        val KEY_ENABLE_SLICING = booleanPreferencesKey("enable_slicing")
         
         // 获取系统推荐的最大核心数
         val maxAvailableCores: Int
@@ -31,7 +32,12 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
 
     // 地图预览节能模式（点哪里亮哪里)
     val energySavingMode: Flow<Boolean> = dataStore.data.map { preferences ->
-        preferences[KEY_ENERGY_SAVING_MODE] ?: false
+        preferences[KEY_ENERGY_SAVING_MODE] ?: true
+    }
+
+    // 内存安全切片模式（大世界必需），默认关闭
+    val enableSlicing: Flow<Boolean> = dataStore.data.map { preferences ->
+        preferences[KEY_ENABLE_SLICING] ?: false
     }
 
     suspend fun setThreadCount(count: Int) {
@@ -49,6 +55,12 @@ class ChunkerSettingsDataStore(private val dataStore: DataStore<Preferences>) {
     suspend fun setEnergySavingMode(enabled: Boolean) {
         dataStore.edit { preferences ->
             preferences[KEY_ENERGY_SAVING_MODE] = enabled
+        }
+    }
+
+    suspend fun setEnableSlicing(enabled: Boolean) {
+        dataStore.edit { preferences ->
+            preferences[KEY_ENABLE_SLICING] = enabled
         }
     }
 }

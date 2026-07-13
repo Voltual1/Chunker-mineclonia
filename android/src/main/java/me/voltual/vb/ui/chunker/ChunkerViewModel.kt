@@ -108,8 +108,13 @@ class ChunkerViewModel(
     fun stopExecution(navigator: Navigator) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val workManager = RemoteWorkManager.getInstance(context)
+                // Cancel local worker
+                val workManager = WorkManager.getInstance(context)
                 workManager.cancelUniqueWork("world_conversion_work")
+                
+                // Cancel remote worker
+                val remoteWorkManager = RemoteWorkManager.getInstance(context)
+                remoteWorkManager.cancelUniqueWork("world_conversion_work")
             } catch (ignored: Exception) {}
 
             conversionTaskRepository.clearActiveManifests()
@@ -125,8 +130,11 @@ class ChunkerViewModel(
     fun killApplicationProcess() {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val workManager = RemoteWorkManager.getInstance(context)
+                val workManager = WorkManager.getInstance(context)
                 workManager.cancelUniqueWork("world_conversion_work")
+                
+                val remoteWorkManager = RemoteWorkManager.getInstance(context)
+                remoteWorkManager.cancelUniqueWork("world_conversion_work")
             } catch (ignored: Exception) {}
 
             conversionTaskRepository.clearActiveManifests()
@@ -152,6 +160,7 @@ class ChunkerViewModel(
 
         val userThreadCount = conversionSettingsDataStore.threadCount.first()
         val userProcessMaps = conversionSettingsDataStore.processMaps.first()
+        val enableSlicing = conversionSettingsDataStore.enableSlicing.first()
 
         val workManager = WorkManager.getInstance(context)
         val remoteWorkManager = RemoteWorkManager.getInstance(context)
@@ -166,6 +175,8 @@ class ChunkerViewModel(
             logFile.delete()
         }
 
+        // Tail job is mostly useful for Remote worker writing to slice_log.txt
+        // Direct worker writes to System.out directly which is routed to outBridge in the same process
         val tailJob = viewModelScope.launch(Dispatchers.IO) {
             val delayTime = 100L
             var filePointer = 0L 
@@ -191,7 +202,7 @@ class ChunkerViewModel(
 
         var isSuccess = false
         var attempt = 0
-        val maxAttempts = 15
+        val maxAttempts = if (enableSlicing) 15 else 1 // No retry for direct conversion (OOM crashes whole app anyway)
 
         // Save active state using Room
         val worldId = calculateWorldIdentity(File(args.inputPath))
@@ -221,26 +232,47 @@ class ChunkerViewModel(
                     targetWorkId = activeWork.id
                     outBridge.println("\u001B[1;32m[System] Successfully reattached to active background conversion instance.\u001B[0m")
                 } else {
-                    val workData = workDataOf(
-                        "inputPath" to args.inputPath,
-                        "outputPath" to args.outputPath,
-                        "format" to args.format,
-                        "threadCount" to userThreadCount,
-                        "processMaps" to userProcessMaps,
-                        "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
-                        "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
-                    )
+                    if (enableSlicing) {
+                        val workData = workDataOf(
+                            "inputPath" to args.inputPath,
+                            "outputPath" to args.outputPath,
+                            "format" to args.format,
+                            "threadCount" to userThreadCount,
+                            "processMaps" to userProcessMaps,
+                            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_PACKAGE_NAME" to context.packageName,
+                            "androidx.work.impl.workers.RemoteListenableWorker.ARGUMENT_CLASS_NAME" to "androidx.work.multiprocess.RemoteWorkerService"
+                        )
 
-                    val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
-                        .setInputData(workData)
-                        .build()
+                        val workRequest = OneTimeWorkRequestBuilder<ConversionWorker>()
+                            .setInputData(workData)
+                            .build()
 
-                    remoteWorkManager.enqueueUniqueWork(
-                        "world_conversion_work",
-                        ExistingWorkPolicy.REPLACE,
-                        workRequest
-                    )
-                    targetWorkId = workRequest.id
+                        remoteWorkManager.enqueueUniqueWork(
+                            "world_conversion_work",
+                            ExistingWorkPolicy.REPLACE,
+                            workRequest
+                        )
+                        targetWorkId = workRequest.id
+                    } else {
+                        val workData = workDataOf(
+                            "inputPath" to args.inputPath,
+                            "outputPath" to args.outputPath,
+                            "format" to args.format,
+                            "threadCount" to userThreadCount,
+                            "processMaps" to userProcessMaps
+                        )
+
+                        val workRequest = OneTimeWorkRequestBuilder<DirectConversionWorker>()
+                            .setInputData(workData)
+                            .build()
+
+                        workManager.enqueueUniqueWork(
+                            "world_conversion_work",
+                            ExistingWorkPolicy.REPLACE,
+                            workRequest
+                        )
+                        targetWorkId = workRequest.id
+                    }
                 }
 
                 val finalWorkInfo = workManager.getWorkInfoByIdFlow(targetWorkId)
@@ -249,10 +281,10 @@ class ChunkerViewModel(
                 if (finalWorkInfo?.state == WorkInfo.State.SUCCEEDED) {
                     isSuccess = true
                 } else if (finalWorkInfo?.state == WorkInfo.State.CANCELLED) {
-                    outBridge.println("\n\u001B[1;31m[System] Sliced conversion stopped by user request.\u001B[0m")
+                    outBridge.println("\n\u001B[1;31m[System] Conversion stopped by user request.\u001B[0m")
                     break
                 } else {
-                    outBridge.println("\n\u001B[1;33m[System] Process died or encountered lock error. Restarting worker...\u001B[0m")
+                    outBridge.println("\n\u001B[1;31m[System] Process died or encountered error.\u001B[0m")
                 }
             } catch (e: Exception) {
                 outBridge.println("\n\u001B[1;33m[System] Process bridge exception: ${e.message}. Retrying...\u001B[0m")
@@ -260,7 +292,7 @@ class ChunkerViewModel(
         }
 
         if (!isSuccess && attempt >= maxAttempts) {
-            outBridge.println("\n\u001B[1;31m[FATAL ERROR] Sliced conversion failed after maximum retries.\u001B[0m")
+            outBridge.println("\n\u001B[1;31m[FATAL ERROR] Conversion failed.\u001B[0m")
         }
 
         tailJob.cancel() 

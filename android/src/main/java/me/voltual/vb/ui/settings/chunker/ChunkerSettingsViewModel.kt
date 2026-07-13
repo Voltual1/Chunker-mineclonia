@@ -23,6 +23,9 @@ class ChunkerSettingsViewModel(
     val energySavingMode: StateFlow<Boolean> = dataStore.energySavingMode
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
 
+    val enableSlicing: StateFlow<Boolean> = dataStore.enableSlicing
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
     val maxCores = ChunkerSettingsDataStore.maxAvailableCores
 
     fun updateThreadCount(count: Int) {
@@ -40,6 +43,12 @@ class ChunkerSettingsViewModel(
     fun updateEnergySavingMode(enabled: Boolean) {
         viewModelScope.launch {
             dataStore.setEnergySavingMode(enabled)
+        }
+    }
+
+    fun updateEnableSlicing(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.setEnableSlicing(enabled)
         }
     }
 

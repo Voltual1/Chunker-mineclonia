@@ -36,6 +36,7 @@ fun ChunkerSettingsScreen(
     val threadCount by viewModel.threadCount.collectAsState()
     val processMaps by viewModel.processMaps.collectAsState()
     val energySavingMode by viewModel.energySavingMode.collectAsState()
+    val enableSlicing by viewModel.enableSlicing.collectAsState()
     
     val scrollState = rememberScrollState()
     var showClearDialog by remember { mutableStateOf(false) }
@@ -112,6 +113,39 @@ fun ChunkerSettingsScreen(
                     text = "■ 当前平台物理核心限界: ${viewModel.maxCores}。线程设置过高会导致温控降频与系统卡顿。",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.8f)
+                )
+            }
+        }
+
+        // 新增：防 OOM 内存安全切片模式
+        BBQCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "SAFE_SLICING_MODE // 内存安全切片",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "将世界数据分割成小型阵列流，通过额外挂载独立的系统子进程运算并逐一合并。这是处理巨型存档防 JVM 爆炸的终极方案，但对于小型地图来说开启此模式会导致速度变慢且性能浪费。小世界建议关闭。",
+                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Switch(
+                    checked = enableSlicing,
+                    onCheckedChange = { viewModel.updateEnableSlicing(it) },
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.primary,
+                        checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    )
                 )
             }
         }
@@ -204,7 +238,7 @@ fun ChunkerSettingsScreen(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "清空所有存储在 DataStore 寄存器中的物理断点。此指令执行后将不可回滚，下次转换必须全新全量扫描。",
+                        text = "清空所有存储在数据库寄存器中的物理切片断点。此指令执行后将不可回滚，下次转换必须全新全量扫描。",
                         style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
                         color = MaterialTheme.colorScheme.outline
                     )
