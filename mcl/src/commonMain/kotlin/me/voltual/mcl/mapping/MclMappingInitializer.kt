@@ -15,7 +15,8 @@ object MclMappingInitializer {
             MclBedMapping,
             MclAmethystMapping,
             MclBannerMapping,
-            MclCopperMapping
+            MclCopperMapping,
+            MclFlowerPotMapping // 新增映射模块
         )
         
         println("正在加载 Mineclonia 映射模块...")
