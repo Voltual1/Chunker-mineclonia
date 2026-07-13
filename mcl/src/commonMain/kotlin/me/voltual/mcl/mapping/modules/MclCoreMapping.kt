@@ -381,6 +381,14 @@ object MclCoreMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.SOUL_WALL_TORCH, dsl.wallTorch("mcl_blackstone:soul_torch_wall", "mcl_blackstone:soul_torch_wall"))
         
         registry.register(ChunkerVanillaBlockType.DECORATED_POT, dsl.directional("mcl_pottery_sherds:pot"))
+        
+
+        registry.register(ChunkerVanillaBlockType.VINE, dsl.vine())
+        registry.register(ChunkerVanillaBlockType.GLOW_LICHEN, dsl.glowLichen())
+        registry.register(ChunkerVanillaBlockType.SUSPICIOUS_SAND, dsl.simple("mcl_sus_nodes:sand"))
+        
+        // 可疑的砾石映射 
+        registry.register(ChunkerVanillaBlockType.SUSPICIOUS_GRAVEL, dsl.simple("mcl_sus_nodes:gravel"))
 
         
     }

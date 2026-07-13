@@ -178,5 +178,37 @@ registry.register(ChunkerVanillaBlockType.CACTUS, dsl.simple("mcl_core:cactus"))
 // 甘蔗 -> 映射到 mcl_core:reeds
 registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds"))
 
+        // 1. 蜂箱与蜂巢动态映射 (Beehive & Bee Nest)
+        registry.register(ChunkerVanillaBlockType.BEEHIVE, BlockMapper { id ->
+            val honeyLevel = id.getState(VanillaBlockStates.HONEY_LEVEL) ?: HoneyLevel._0
+            val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+            
+            val nodeName = if (honeyLevel == HoneyLevel._0) "mcl_beehives:beehive" else "mcl_beehives:beehive_${honeyLevel.ordinal}"
+            val param2 = when (facing) {
+                FacingDirectionHorizontal.SOUTH -> 0
+                FacingDirectionHorizontal.WEST -> 1
+                FacingDirectionHorizontal.NORTH -> 2
+                FacingDirectionHorizontal.EAST -> 3
+            }.toByte()
+            MclNode(nodeName, param2 = param2)
+        })
+
+        registry.register(ChunkerVanillaBlockType.BEE_NEST, BlockMapper { id ->
+            val honeyLevel = id.getState(VanillaBlockStates.HONEY_LEVEL) ?: HoneyLevel._0
+            val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
+            
+            val nodeName = if (honeyLevel == HoneyLevel._0) "mcl_beehives:bee_nest" else "mcl_beehives:bee_nest_${honeyLevel.ordinal}"
+            val param2 = when (facing) {
+                FacingDirectionHorizontal.SOUTH -> 0
+                FacingDirectionHorizontal.WEST -> 1
+                FacingDirectionHorizontal.NORTH -> 2
+                FacingDirectionHorizontal.EAST -> 3
+            }.toByte()
+            MclNode(nodeName, param2 = param2)
+        })
+
+        // 2. 地表普通小蘑菇
+        registry.register(ChunkerVanillaBlockType.BROWN_MUSHROOM, dsl.simple("mcl_flowers:brown_mushroom"))
+        registry.register(ChunkerVanillaBlockType.RED_MUSHROOM, dsl.simple("mcl_flowers:red_mushroom"))
     }
 }
