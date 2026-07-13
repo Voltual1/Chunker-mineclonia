@@ -30,7 +30,7 @@ object MclFlowerPotMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.POTTED_WHITE_TULIP, dsl.simple("mcl_flowerpots:flower_pot_tulip_white"))
         registry.register(ChunkerVanillaBlockType.POTTED_PINK_TULIP, dsl.simple("mcl_flowerpots:flower_pot_tulip_pink"))
 
-        // 3. 树苗盆栽 (修正 Mangrove 命名)
+        // 3. 树苗盆栽 (mcl_trees)
         registry.register(ChunkerVanillaBlockType.POTTED_OAK_SAPLING, dsl.simple("mcl_flowerpots:flower_pot_sapling_oak"))
         registry.register(ChunkerVanillaBlockType.POTTED_SPRUCE_SAPLING, dsl.simple("mcl_flowerpots:flower_pot_sapling_spruce"))
         registry.register(ChunkerVanillaBlockType.POTTED_BIRCH_SAPLING, dsl.simple("mcl_flowerpots:flower_pot_sapling_birch"))
@@ -40,16 +40,20 @@ object MclFlowerPotMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.POTTED_PALE_OAK_SAPLING, dsl.simple("mcl_flowerpots:flower_pot_sapling_pale_oak"))
         registry.register(ChunkerVanillaBlockType.POTTED_CHERRY_SAPLING, dsl.simple("mcl_flowerpots:flower_pot_sapling_cherry_blossom"))
         
-        // 特殊：红树林盆栽在 MineClonia 中称为 propagule
+        // 特殊：红树林盆栽
         registry.register(ChunkerVanillaBlockType.POTTED_MANGROVE_PROPAGULE, dsl.simple("mcl_flowerpots:flower_pot_propagule"))
 
-        // 4. 蘑菇与真菌
+        // 4. 蘑菇与真菌 (mcl_mushrooms / mcl_crimson)
         registry.register(ChunkerVanillaBlockType.POTTED_BROWN_MUSHROOM, dsl.simple("mcl_flowerpots:flower_pot_mushroom_brown"))
         registry.register(ChunkerVanillaBlockType.POTTED_RED_MUSHROOM, dsl.simple("mcl_flowerpots:flower_pot_mushroom_red"))
         registry.register(ChunkerVanillaBlockType.POTTED_CRIMSON_FUNGUS, dsl.simple("mcl_flowerpots:flower_pot_crimson_fungus"))
         registry.register(ChunkerVanillaBlockType.POTTED_WARPED_FUNGUS, dsl.simple("mcl_flowerpots:flower_pot_warped_fungus"))
+        
+        // 特殊：地狱菌丝盆栽
+        registry.register(ChunkerVanillaBlockType.POTTED_CRIMSON_ROOTS, dsl.simple("mcl_flowerpots:flower_pot_crimson_roots"))
+        registry.register(ChunkerVanillaBlockType.POTTED_WARPED_ROOTS, dsl.simple("mcl_flowerpots:flower_pot_warped_roots"))
 
-        // 5. 其他装饰植物 (修正 Dead Bush 命名)
+        // 5. 其他装饰植物
         registry.register(ChunkerVanillaBlockType.POTTED_DEAD_BUSH, dsl.simple("mcl_flowerpots:flower_pot_deadbush"))
         registry.register(ChunkerVanillaBlockType.POTTED_FERN, dsl.simple("mcl_flowerpots:flower_pot_fern"))
         registry.register(ChunkerVanillaBlockType.POTTED_CACTUS, dsl.simple("mcl_flowerpots:flower_pot_cactus"))
