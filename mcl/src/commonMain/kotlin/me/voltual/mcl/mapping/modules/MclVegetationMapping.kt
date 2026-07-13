@@ -172,5 +172,11 @@ registry.register(ChunkerVanillaBlockType.BAMBOO, BlockMapper { id ->
     MclNode(nodeName, param2 = 0)
 })
 
+// 仙人掌 -> 映射到 mcl_core:cactus
+registry.register(ChunkerVanillaBlockType.CACTUS, dsl.simple("mcl_core:cactus"))
+
+// 甘蔗 -> 映射到 mcl_core:reeds
+registry.register(ChunkerVanillaBlockType.SUGAR_CANE, dsl.simple("mcl_core:reeds"))
+
     }
 }
