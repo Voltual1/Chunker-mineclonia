@@ -51,10 +51,12 @@
 -keep class * extends com.google.common.reflect.TypeToken { public protected *; }
 -keep class * extends com.google.common.reflect.TypeCapture { public protected *; }
 
--keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty { *; }
--keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty$* { *; }
--keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
--keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
+#-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty { *; }
+#-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemProperty$* { *; }
+#-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerDyeColor { *; }
+#-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemDisplay { *; }
+
+-keep class com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.** { *; }
 
 -keepclassmembers class org.apache.mina.transport.socket.nio.NioProcessor {
     protected <methods>;
