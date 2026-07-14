@@ -72,7 +72,7 @@ fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
             Text(
                 text = "SYSTEM STATUS // ONLINE",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = MaterialTheme.secondary
+                color = MaterialTheme.colorScheme.secondary
             )
         }
     }
