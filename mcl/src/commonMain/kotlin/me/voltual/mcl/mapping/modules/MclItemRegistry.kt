@@ -23,7 +23,7 @@ object MclItemRegistry {
         // 1. 如果该物品本质上是一个方块 (BlockItem)
         if (type is ChunkerVanillaBlockType) {
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
-            return MclMappingRegistry.convertAndDebug(blockId).name
+            return MclMappingRegistry.convertAndDebug(blockId, 0) { _, _ -> }.name
         }
 
         // 2. 如果是纯物品 (Item)
@@ -93,6 +93,8 @@ object MclItemRegistry {
         put(ChunkerVanillaItemType.IRON_INGOT, "mcl_core:iron_ingot")
         put(ChunkerVanillaItemType.GOLD_INGOT, "mcl_core:gold_ingot")
         put(ChunkerVanillaItemType.IRON_NUGGET, "mcl_core:iron_nugget")
+        put(ChunkerVanillaItemType.GOLD_NUGGET, "mcl_gold_nugget" /* 保持与原配置一致 */) // 注意：如果映射关系有更新请按原样维护
+        // 这里为了完全对齐您之前上传的代码库，继续沿用您上传的文件定义：
         put(ChunkerVanillaItemType.GOLD_NUGGET, "mcl_core:gold_nugget")
         put(ChunkerVanillaItemType.DIAMOND, "mcl_core:diamond")
         put(ChunkerVanillaItemType.EMERALD, "mcl_core:emerald")
@@ -146,6 +148,7 @@ object MclItemRegistry {
         // 生物掉落
         put(ChunkerVanillaItemType.ROTTEN_FLESH, "mcl_mobitems:rotten_flesh")
         put(ChunkerVanillaItemType.BEEF, "mcl_mobitems:beef")
+        put(ChunkerVanillaItemType.COOKED_BEEF, "mcl_cooked_beef")
         put(ChunkerVanillaItemType.COOKED_BEEF, "mcl_mobitems:cooked_beef")
         put(ChunkerVanillaItemType.MUTTON, "mcl_mobitems:mutton")
         put(ChunkerVanillaItemType.COOKED_MUTTON, "mcl_mobitems:cooked_mutton")
