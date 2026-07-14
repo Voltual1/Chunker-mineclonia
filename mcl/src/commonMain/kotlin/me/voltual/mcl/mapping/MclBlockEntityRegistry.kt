@@ -81,7 +81,6 @@ object MclBlockEntityRegistry {
     )
 
     init {
-        // 使用通用的容器转换器处理箱子、陷阱箱、潜影盒、木桶
         register(ChestBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
         register(TrappedChestBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
         register(ShulkerBoxBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
@@ -119,6 +118,27 @@ object MclBlockEntityRegistry {
         )
     }
 
+    // 辅助函数：根据 Luanti Formspec V4 的规范完美生成槽位背景网格
+    private fun getSlotBgV4(x: Double, y: Double, w: Int, h: Int, size: Double = 0.05, texture: String = "mcl_formspec_itemslot.png"): String {
+        val sb = java.lang.StringBuilder()
+        for (i in 0 until w) {
+            for (j in 0 until h) {
+                val cx = x + i * 1.25
+                val cy = y + j * 1.25
+                val px = cx - size
+                val py = cy - size
+                val psize = 1.0 + (size * 2.0)
+                
+                // 去除可能出现的多余 .0 尾缀以匹配引擎最佳解析格式
+                val pxStr = px.toString().removeSuffix(".0")
+                val pyStr = py.toString().removeSuffix(".0")
+                val psizeStr = psize.toString().removeSuffix(".0")
+                sb.append("image[$pxStr,$pyStr;$psizeStr,$psizeStr;$texture]")
+            }
+        }
+        return sb.toString()
+    }
+
     /**
      * 通用的 27 格容器转换逻辑
      */
@@ -126,7 +146,6 @@ object MclBlockEntityRegistry {
         val size = 27 
         val items = MutableList(size) { MclItemStack("", 0) }
 
-        // 获取 Java 类中的 getItems() Map
         val containerItems = be.items
 
         for ((slotByte, chunkerItem) in containerItems) {
@@ -136,10 +155,36 @@ object MclBlockEntityRegistry {
             }
         }
 
+        val name = when (be) {
+            is ShulkerBoxBlockEntity -> "Shulker Box"
+            is BarrelBlockEntity -> "Barrel"
+            else -> "Chest"
+        }
+
+        // 使用转义的控制字符来注入 Mineclonia V4 界面的标签标题颜色
+        val labelColor = "\u001B(c@#313131)"
+        
+        // 【关键修复】：完整还原 mcl_chests 针对 Shulker Box 的 formspec_version[4] UI！
+        val formspec = buildString {
+            append("formspec_version[4]")
+            append("size[11.75,10.425]")
+            append("label[0.375,0.375;$labelColor$name]")
+            append(getSlotBgV4(0.375, 0.75, 9, 3))
+            append("list[context;main;0.375,0.75;9,3;]")
+            append("label[0.375,4.7;${labelColor}Inventory]")
+            append(getSlotBgV4(0.375, 5.1, 9, 3))
+            append("list[current_player;main;0.375,5.1;9,3;9]")
+            append(getSlotBgV4(0.375, 9.05, 9, 1))
+            append("list[current_player;main;0.375,9.05;9,1;]")
+            append("listring[context;main]")
+            append("listring[current_player;main]")
+        }
+
         return MclBlockEntityData(
             fields = mapOf(
-                "infotext" to "Container",
-                "formspec" to "size[11.75,10.425]list[context;main;0.375,0.75;9,3;]list[current_player;main;0.375,5.1;9,3;9]list[current_player;main;0.375,9.05;9,1;]"
+                "name" to name,
+                "infotext" to name,
+                "formspec" to formspec
             ),
             inventories = mapOf("main" to MclInventory(9, items))
         )
