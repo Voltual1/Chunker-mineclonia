@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -71,7 +72,7 @@ fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
             Text(
                 text = "SYSTEM STATUS // ONLINE",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                color = MaterialTheme.colorScheme.secondary
+                color = MaterialTheme.secondary
             )
         }
     }
@@ -87,7 +88,7 @@ fun NavigationDrawerItems(
     val allDrawerItems = remember {
         mutableListOf(
             DrawerItem("home", "首页 // HOME", IconSource.Vector(IcMenuHome), Home),
-            DrawerItem("stitch", "存档缝合 // STITCH", IconSource.Vector(Icons.Default.MergeType), StitchDest),
+            DrawerItem("stitch", "存档缝合 // STITCH", IconSource.Vector(Icons.AutoMirrored.Filled.MergeType), StitchDest),
             DrawerItem("map_preview", "地图预览 // MAP", IconSource.Vector(Icons.Default.Map), MapPreviewDest()),
             DrawerItem("pack_converter", "材质转换 // PACK", IconSource.Vector(Icons.Default.Build), PackConverterDest),
             DrawerItem("decoder", "存档还原 // DECODE", IconSource.Vector(healing), DecoderDest),

@@ -299,8 +299,8 @@ class MapPreviewViewModel : ViewModel(), KoinComponent {
                         context = context, targetParentFolder = DocumentFile.fromFile(rootDir),
                         newFolderNameInTargetPath = previewDir.name, skipEmptyFiles = false,
                         onConflict = object : SingleFolderConflictCallback(viewModelScope) {
-                            override fun onParentConflict(d: DocumentFile, a: ParentFolderConflictAction, m: Boolean) {
-                                a.confirmResolution(ConflictResolution.REPLACE)
+                            override fun onParentConflict(destinationFolder: DocumentFile, action: ParentFolderConflictAction, canMerge: Boolean) {
+                                action.confirmResolution(ConflictResolution.REPLACE)
                             }
                         }
                     ).collect { if (it is SingleFolderResult.Completed || it is SingleFolderResult.Error) countDownLatch.countDown() }
