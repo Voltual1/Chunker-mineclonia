@@ -14,28 +14,21 @@ object MclRedstoneMapping : MclMappingModule {
         val registry = MclMappingRegistry
         val dsl = MclMappingDsl
 
-        // 1. 红石核心
         registry.register(ChunkerVanillaBlockType.REDSTONE_WIRE, dsl.redstoneWire())
         registry.register(ChunkerVanillaBlockType.REDSTONE_BLOCK, dsl.simple("mcl_redstone_torch:redstoneblock"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_LAMP, dsl.furnaceLike("mcl_redstone_lamp:lamp_off", "mcl_redstone_lamp:lamp_on"))
         
-        // 2. 红石火把 (已经通过 DSL 修正)
-        registry.register(ChunkerVanillaBlockType.REDSTONE_TORCH, dsl.litOre("mcl_redstone_torch:redstone_torch_off", "mcl_redstone_torch:redstone_torch_on"))
+        // ==========================================
+        // 【关键修复】：将落地红石火把改为 litFloorMounted
+        // ==========================================
+        registry.register(ChunkerVanillaBlockType.REDSTONE_TORCH, dsl.litFloorMounted("mcl_redstone_torch:redstone_torch_off", "mcl_redstone_torch:redstone_torch_on"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_WALL_TORCH, dsl.wallTorch("mcl_redstone_torch:redstone_torch_off_wall", "mcl_redstone_torch:redstone_torch_on_wall"))
 
-        // 3. 中继器 (Repeater)
         registry.register(ChunkerVanillaBlockType.REPEATER, dsl.repeater())
-
-        // 4. 比较器 (Comparator)
         registry.register(ChunkerVanillaBlockType.COMPARATOR, dsl.comparator())
-
-        // 5. 目标块 (Target)
         registry.register(ChunkerVanillaBlockType.TARGET, dsl.litOre("mcl_target:target_off", "mcl_target:target_on"))
-
-        // 6. 阳光探测器
         registry.register(ChunkerVanillaBlockType.DAYLIGHT_DETECTOR, dsl.daylightDetector())
 
-        // 7. 观测者 (Observer) - 修复 Z 轴颠倒与东/西颠倒
         registry.register(ChunkerVanillaBlockType.OBSERVER, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.NORTH
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
@@ -52,7 +45,6 @@ object MclRedstoneMapping : MclMappingModule {
             MclNode("$nodeBase$suffix", param2 = (param2 as Int).toByte())
         })
 
-        // 8. 杠杆 (Lever) - 修复墙壁方向的 Z 轴与东西向
         registry.register(ChunkerVanillaBlockType.LEVER, BlockMapper { id ->
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
             val attach = id.getState(VanillaBlockStates.ATTACHMENT_TYPE) ?: AttachmentType.WALL
@@ -72,7 +64,6 @@ object MclRedstoneMapping : MclMappingModule {
             MclNode("mcl_lever:lever$state", param2 = param2)
         })
 
-        // 9. 按钮与压力板
         registry.register(ChunkerVanillaBlockType.STONE_BUTTON, dsl.button("stone"))
         registry.register(ChunkerVanillaBlockType.POLISHED_BLACKSTONE_BUTTON, dsl.button("polished_blackstone"))
         registry.register(ChunkerVanillaBlockType.STONE_PRESSURE_PLATE, dsl.pressurePlate("stone"))
@@ -80,18 +71,15 @@ object MclRedstoneMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.LIGHT_WEIGHTED_PRESSURE_PLATE, dsl.pressurePlate("light"))
         registry.register(ChunkerVanillaBlockType.HEAVY_WEIGHTED_PRESSURE_PLATE, dsl.pressurePlate("heavy"))
 
-        // 10. 活塞
         registry.register(ChunkerVanillaBlockType.PISTON, dsl.piston(false))
         registry.register(ChunkerVanillaBlockType.STICKY_PISTON, dsl.piston(true))
         registry.register(ChunkerVanillaBlockType.PISTON_HEAD, dsl.pistonHead())
 
-        // 11. 动力组件
         registry.register(ChunkerVanillaBlockType.DISPENSER, dsl.dispenserLike("mcl_dispensers:dispenser"))
         registry.register(ChunkerVanillaBlockType.DROPPER, dsl.dispenserLike("mcl_dispensers:dropper"))
         registry.register(ChunkerVanillaBlockType.HOPPER, dsl.hopper())
         registry.register(ChunkerVanillaBlockType.NOTE_BLOCK, dsl.simple("mcl_noteblock:noteblock"))
 
-        // 12. 讲台 (Lectern) - 修复东西颠倒
         registry.register(ChunkerVanillaBlockType.LECTERN, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
             val hasBook = id.getState(VanillaBlockStates.HAS_BOOK) == Bool.TRUE
@@ -113,11 +101,9 @@ object MclRedstoneMapping : MclMappingModule {
             MclNode(nodeName, param2 = param2.toByte())
         })
         
-        // 13. 铁门与铁活板门
         registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
         registry.register(ChunkerVanillaBlockType.IRON_DOOR, dsl.door("mcl_doors:iron_door"))
 
-        // 14. 铜活板门
         registerCopperTrapdoors()
     }
 

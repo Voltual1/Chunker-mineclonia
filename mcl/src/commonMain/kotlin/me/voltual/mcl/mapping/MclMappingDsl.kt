@@ -11,6 +11,11 @@ object MclMappingDsl {
         MclNode(targetName)
     }
 
+    // 1.5 落地挂载专用映射 (用于落地火把等 wallmounted 方块，1 = 附着于地面)
+    fun floorMounted(targetName: String) = BlockMapper { _ ->
+        MclNode(targetName, param2 = 1)
+    }
+
     // 2. 水平朝向映射 (facedir)
     fun directional(targetName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
@@ -90,7 +95,13 @@ object MclMappingDsl {
         if (litState == Bool.TRUE) MclNode(lit) else MclNode(normal)
     }
 
-    // 9. 墙装红石火把与普通火把 (修复朝向)
+    // 8.5 落地亮灭状态映射 (专用于红石火把)
+    fun litFloorMounted(offName: String, onName: String) = BlockMapper { id ->
+        val litState = id.getState(VanillaBlockStates.LIT) ?: Bool.FALSE
+        if (litState == Bool.TRUE) MclNode(onName, param2 = 1) else MclNode(offName, param2 = 1)
+    }
+
+    // 9. 墙装红石火把与普通火把
     fun wallTorch(offName: String, onName: String) = BlockMapper { id ->
         val lit = id.getState(VanillaBlockStates.LIT) ?: Bool.FALSE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
@@ -704,12 +715,12 @@ object MclMappingDsl {
         val nodeBase = if (open) "mcl_barrels:barrel_open" else "mcl_barrels:barrel_closed"
         
         val param2 = when (facing) {
-            FacingDirection.DOWN -> 20 
-            FacingDirection.UP -> 0    
+            FacingDirection.DOWN -> 15 
+            FacingDirection.UP -> 1    
             FacingDirection.SOUTH -> 0
-            FacingDirection.EAST -> 1
+            FacingDirection.WEST -> 1
             FacingDirection.NORTH -> 2
-            FacingDirection.WEST -> 3
+            FacingDirection.EAST -> 3
         }.toByte()
         
         MclNode(nodeBase, param2 = param2)
