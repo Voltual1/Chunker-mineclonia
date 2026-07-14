@@ -74,18 +74,21 @@ object MclDimensionMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.PURPUR_BLOCK, dsl.simple("mcl_end:purpur_block"))
         registry.register(ChunkerVanillaBlockType.PURPUR_PILLAR, dsl.log("mcl_end:purpur_pillar"))
 
-registry.register(ChunkerVanillaBlockType.END_ROD, BlockMapper { id ->
-    val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
-    val param2 = when (facing) {
-        FacingDirection.DOWN -> 20.toByte() // 顶挂朝下
-        FacingDirection.UP -> 0.toByte()    // 立地朝上
-        FacingDirection.NORTH -> 8.toByte()  // 挂北墙 (指向南，param2 = 8)
-        FacingDirection.SOUTH -> 4.toByte()  // 挂南墙 (指向北，param2 = 4)
-        FacingDirection.EAST -> 16.toByte()  // 挂东墙 (指向西，param2 = 16)
-        FacingDirection.WEST -> 12.toByte()  // 挂西墙 (指向东，param2 = 12)
-    }
-    MclNode("mcl_end:end_rod", param2 = param2)
-})
+        // ==========================================
+        // 【最终修复】：末地烛 (End Rod) 完全物理镜像翻转
+        // ==========================================
+        registry.register(ChunkerVanillaBlockType.END_ROD, BlockMapper { id ->
+            val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
+            val param2 = when (facing) {
+                FacingDirection.DOWN -> 20.toByte()  // 顶挂朝下
+                FacingDirection.UP -> 0.toByte()     // 立地朝上
+                FacingDirection.NORTH -> 8.toByte()  // 指向 -Z (南)
+                FacingDirection.SOUTH -> 4.toByte()  // 指向 +Z (北)
+                FacingDirection.EAST -> 12.toByte()  // 修正：指向 +X (东)
+                FacingDirection.WEST -> 16.toByte()  // 修正：指向 -X (西)
+            }
+            MclNode("mcl_end:end_rod", param2 = param2)
+        })
 
         registry.register(ChunkerVanillaBlockType.CHORUS_PLANT, dsl.simple("mcl_end:chorus_plant"))
         registry.register(ChunkerVanillaBlockType.CHORUS_FLOWER, dsl.simple("mcl_end:chorus_flower"))

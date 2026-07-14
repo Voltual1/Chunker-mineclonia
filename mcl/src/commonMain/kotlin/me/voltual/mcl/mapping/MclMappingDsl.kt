@@ -63,16 +63,16 @@ object MclMappingDsl {
         MclNode(targetName, param2 = param2)
     }
 
-    // 6. 通用 3D wallmounted 朝向映射 (精确对齐物理附着墙面)
+    // 6. 通用 3D wallmounted 朝向映射
     fun wallmounted(targetName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
         val param2 = when (facing) {
-            FacingDirection.DOWN -> 0  // 附着在天花板
-            FacingDirection.UP -> 1    // 附着在地面
-            FacingDirection.NORTH -> 5 // 附着在北墙 (Luanti +Z)
-            FacingDirection.SOUTH -> 4 // 附着在南墙 (Luanti -Z)
-            FacingDirection.EAST -> 3  // 附着在东墙 (Luanti +X)
-            FacingDirection.WEST -> 2  // 附着在西墙 (Luanti -X)
+            FacingDirection.DOWN -> 0
+            FacingDirection.UP -> 1
+            FacingDirection.NORTH -> 5 // 附着于北墙 (-Z)
+            FacingDirection.SOUTH -> 4 // 附着于南墙 (+Z)
+            FacingDirection.EAST -> 2  // 附着于东墙 (+X)
+            FacingDirection.WEST -> 3  // 附着于西墙 (-X)
         }.toByte()
         MclNode(targetName, param2 = param2)
     }
@@ -101,16 +101,16 @@ object MclMappingDsl {
         if (litState == Bool.TRUE) MclNode(onName, param2 = 1) else MclNode(offName, param2 = 1)
     }
 
-    // 9. 挂墙火把映射 (精确物理墙面)
+    // 9. 挂墙火把映射 (按指向判定)
     fun wallTorch(offName: String, onName: String) = BlockMapper { id ->
         val lit = id.getState(VanillaBlockStates.LIT) ?: Bool.FALSE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (lit == Bool.TRUE) onName else offName
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 5 // 附着在北墙
-            FacingDirectionHorizontal.SOUTH -> 4 // 附着在南墙
-            FacingDirectionHorizontal.EAST -> 3  // 附着在东墙
-            FacingDirectionHorizontal.WEST -> 2  // 附着在西墙
+            FacingDirectionHorizontal.NORTH -> 4 // 指向北 (-Z)，附着于南墙 (+Z)
+            FacingDirectionHorizontal.SOUTH -> 5 // 指向南 (+Z)，附着于北墙 (-Z)
+            FacingDirectionHorizontal.EAST -> 3  // 指向东 (+X)，附着于西墙 (-X)
+            FacingDirectionHorizontal.WEST -> 2  // 指向西 (-X)，附着于东墙 (+X)
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
@@ -135,8 +135,8 @@ object MclMappingDsl {
                 FacingDirectionHorizontal.WEST -> 15
             }
             AttachmentType.WALL -> when (direction) {
-                FacingDirectionHorizontal.NORTH -> 5
-                FacingDirectionHorizontal.SOUTH -> 4
+                FacingDirectionHorizontal.NORTH -> 4
+                FacingDirectionHorizontal.SOUTH -> 5
                 FacingDirectionHorizontal.EAST -> 3
                 FacingDirectionHorizontal.WEST -> 2
             }
@@ -389,13 +389,13 @@ object MclMappingDsl {
         when (facing) {
             FacingDirectionHorizontalDown.DOWN -> MclNode("mcl_hoppers:hopper$state")
             FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 0)
-            FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
+            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
             FacingDirectionHorizontalDown.NORTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
-            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
+            FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
         }
     }
 
-    // 27. 木质多重部件双叶门逻辑 (Wood Doors)
+    // 27. 木质多重部件双叶门逻辑
     fun door(customBase: String) = BlockMapper { id ->
         val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
         val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
@@ -407,9 +407,9 @@ object MclMappingDsl {
         
         var param2 = when (facing) {
             FacingDirectionHorizontal.SOUTH -> 0
-            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.EAST -> 1
             FacingDirectionHorizontal.NORTH -> 2
-            FacingDirectionHorizontal.EAST -> 3
+            FacingDirectionHorizontal.WEST -> 3
         }
         
         if (open) {
@@ -418,7 +418,7 @@ object MclMappingDsl {
         MclNode("${customBase}_${part}_${style}", param2 = param2.toByte())
     }
 
-    // 28. 木质活板门逻辑 (Wood Trapdoors)
+    // 28. 木质活板门逻辑
     fun trapdoor(customBase: String) = BlockMapper { id ->
         val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
         val half = id.getState(VanillaBlockStates.HALF) ?: Half.BOTTOM
@@ -427,9 +427,9 @@ object MclMappingDsl {
         val nodeName = if (open) "${customBase}_open" else customBase
         var param2 = when (facing) {
             FacingDirectionHorizontal.SOUTH -> 0
-            FacingDirectionHorizontal.WEST -> 1
+            FacingDirectionHorizontal.EAST -> 1
             FacingDirectionHorizontal.NORTH -> 2
-            FacingDirectionHorizontal.EAST -> 3
+            FacingDirectionHorizontal.WEST -> 3
         }
         
         if (half == Half.TOP) {
@@ -540,8 +540,8 @@ object MclMappingDsl {
         
         val param2: Byte = when (face) {
             GrindstoneAttachmentType.WALL -> when (facing) {
-                FacingDirectionHorizontal.NORTH -> 5
-                FacingDirectionHorizontal.SOUTH -> 4
+                FacingDirectionHorizontal.NORTH -> 4
+                FacingDirectionHorizontal.SOUTH -> 5
                 FacingDirectionHorizontal.EAST -> 3
                 FacingDirectionHorizontal.WEST -> 2
             }
@@ -572,15 +572,15 @@ object MclMappingDsl {
         MclNode("mcl_dripstone:dripstone_${dirStr}_$thickStr")
     }
 
-    // 38. 幽匿脉络逻辑 (Sculk Vein)
+    // 38. 幽匿脉络逻辑 (Sculk Vein) - 【最终修复：完全翻转为附着墙面】
     fun sculkVein() = BlockMapper { id ->
         val param2: Byte = when {
-            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1
-            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0
-            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5
-            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4
-            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 3
-            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 2
+            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1  // 附着在地面
+            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0    // 附着在天花板
+            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5 // 附着于北墙 (-Z)
+            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4 // 附着于南墙 (+Z)
+            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 2  // 附着于东墙 (+X)
+            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 3  // 附着于西墙 (-X)
             else -> 1
         }.toByte()
         MclNode("mcl_sculk:vein", param2 = param2)
@@ -603,7 +603,7 @@ object MclMappingDsl {
         MclNode("mcl_sculk:shrieker", param2 = param2)
     }
     
-    // 41. 发光地衣映射 (Glow Lichen)
+    // 41. 发光地衣映射 (Glow Lichen) - 【最终修复：完全翻转为附着墙面】
     fun glowLichen() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -624,10 +624,10 @@ object MclMappingDsl {
             val param2 = when {
                 down -> 1.toByte()
                 up -> 0.toByte()
-                east -> 3.toByte()
-                west -> 2.toByte()
-                north -> 5.toByte()
-                south -> 4.toByte()
+                east -> 2.toByte()  // 附着在东墙 (+X)
+                west -> 3.toByte()  // 附着在西墙 (-X)
+                north -> 5.toByte() // 附着在北墙 (-Z)
+                south -> 4.toByte() // 附着在南墙 (+Z)
                 else -> 1.toByte()
             }
             MclNode("mcl_core:glow_lichen", param2 = param2)
@@ -643,7 +643,7 @@ object MclMappingDsl {
         }
     }
 
-    // 42. 藤蔓映射 (Vine)
+    // 42. 藤蔓映射 (Vine) - 【最终修复：完全翻转为附着墙面】
     fun vine() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -653,10 +653,10 @@ object MclMappingDsl {
 
         val param2 = when {
             up -> 1.toByte()
-            east -> 3.toByte()
-            west -> 2.toByte()
-            north -> 5.toByte()
-            south -> 4.toByte()
+            east -> 2.toByte()  // 东
+            west -> 3.toByte()  // 西
+            north -> 5.toByte() // 北
+            south -> 4.toByte() // 南
             else -> 1.toByte()
         }
         MclNode("mcl_core:vine", param2 = param2)
@@ -669,14 +669,14 @@ object MclMappingDsl {
         MclNode("mcl_heads:$mclName", param2 = param2)
     }
 
-    // 44. 挂墙头颅 (Wall Head)
+    // 44. 挂墙头颅 (Wall Head) - 【最终修复：完全翻转为附着墙面】
     fun wallHead(mclName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 5
-            FacingDirectionHorizontal.SOUTH -> 4
-            FacingDirectionHorizontal.EAST -> 3
-            FacingDirectionHorizontal.WEST -> 2
+            FacingDirectionHorizontal.NORTH -> 5 // 北墙 (-Z)
+            FacingDirectionHorizontal.SOUTH -> 4 // 南墙 (+Z)
+            FacingDirectionHorizontal.EAST -> 2  // 东墙 (+X)
+            FacingDirectionHorizontal.WEST -> 3  // 西墙 (-X)
         }.toByte()
         MclNode("mcl_heads:${mclName}_wall", param2 = param2)
     }
@@ -718,9 +718,9 @@ object MclMappingDsl {
             FacingDirection.DOWN -> 15 
             FacingDirection.UP -> 1    
             FacingDirection.SOUTH -> 0
-            FacingDirection.WEST -> 1
+            FacingDirection.EAST -> 1
             FacingDirection.NORTH -> 2
-            FacingDirection.EAST -> 3
+            FacingDirection.WEST -> 3
         }.toByte()
         
         MclNode(nodeBase, param2 = param2)
