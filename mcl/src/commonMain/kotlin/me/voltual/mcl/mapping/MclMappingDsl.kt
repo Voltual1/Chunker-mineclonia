@@ -63,7 +63,7 @@ object MclMappingDsl {
         MclNode(targetName, param2 = param2)
     }
 
-    // 6. 通用 3D wallmounted 朝向映射 (例如紫水晶簇等，精确对齐物理附着墙面)
+    // 6. 通用 3D wallmounted 朝向映射 (精确对齐物理附着墙面)
     fun wallmounted(targetName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
         val param2 = when (facing) {
@@ -144,7 +144,12 @@ object MclMappingDsl {
         MclNode("mcl_buttons:button_${basename}${suffix}", param2 = param2)
     }
 
-    // ... [中间逻辑保持原样，无需修改] ...
+    // 11. 压力板映射
+    fun pressurePlate(basename: String) = BlockMapper { id ->
+        val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
+        val suffix = if (powered == Bool.TRUE) "_on" else "_off"
+        MclNode("mcl_pressureplates:pressure_plate_${basename}${suffix}")
+    }
 
     // 12. 箱子逻辑
     fun chest(baseNode: String) = BlockMapper { id ->
@@ -386,7 +391,7 @@ object MclMappingDsl {
             FacingDirectionHorizontalDown.SOUTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 0)
             FacingDirectionHorizontalDown.WEST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 1)
             FacingDirectionHorizontalDown.NORTH -> MclNode("mcl_hoppers:hopper_side$state", param2 = 2)
-            FacingDirectionHorizontalDown.EAST -> mcl_hoppers:hopper_side$state", param2 = 3)
+            FacingDirectionHorizontalDown.EAST -> MclNode("mcl_hoppers:hopper_side$state", param2 = 3)
         }
     }
 
@@ -535,7 +540,7 @@ object MclMappingDsl {
         
         val param2: Byte = when (face) {
             GrindstoneAttachmentType.WALL -> when (facing) {
-                FacingDirectionHorizontal.NORTH -> 5 // 精准物理朝向
+                FacingDirectionHorizontal.NORTH -> 5
                 FacingDirectionHorizontal.SOUTH -> 4
                 FacingDirectionHorizontal.EAST -> 3
                 FacingDirectionHorizontal.WEST -> 2
@@ -567,15 +572,15 @@ object MclMappingDsl {
         MclNode("mcl_dripstone:dripstone_${dirStr}_$thickStr")
     }
 
-    // 38. 幽匿脉络逻辑 (Sculk Vein) - 【完全修复对齐】
+    // 38. 幽匿脉络逻辑 (Sculk Vein)
     fun sculkVein() = BlockMapper { id ->
         val param2: Byte = when {
-            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1  // 附着在地面上
-            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0    // 附着在天花板上
-            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5 // 附着于北墙 (+Z)
-            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4 // 附着于南墙 (-Z)
-            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 3  // 附着于东墙 (+X)
-            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 2  // 附着于西墙 (-X)
+            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1
+            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0
+            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5
+            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4
+            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 3
+            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 2
             else -> 1
         }.toByte()
         MclNode("mcl_sculk:vein", param2 = param2)
@@ -598,7 +603,7 @@ object MclMappingDsl {
         MclNode("mcl_sculk:shrieker", param2 = param2)
     }
     
-    // 41. 发光地衣映射 (Glow Lichen) - 【完全修复对齐】
+    // 41. 发光地衣映射 (Glow Lichen)
     fun glowLichen() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -619,10 +624,10 @@ object MclMappingDsl {
             val param2 = when {
                 down -> 1.toByte()
                 up -> 0.toByte()
-                east -> 3.toByte()  // 附着在东墙
-                west -> 2.toByte()  // 附着在西墙
-                north -> 5.toByte() // 附着在北墙
-                south -> 4.toByte() // 附着在南墙
+                east -> 3.toByte()
+                west -> 2.toByte()
+                north -> 5.toByte()
+                south -> 4.toByte()
                 else -> 1.toByte()
             }
             MclNode("mcl_core:glow_lichen", param2 = param2)
@@ -638,7 +643,7 @@ object MclMappingDsl {
         }
     }
 
-    // 42. 藤蔓映射 (Vine) - 【完全修复对齐】
+    // 42. 藤蔓映射 (Vine)
     fun vine() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -648,10 +653,10 @@ object MclMappingDsl {
 
         val param2 = when {
             up -> 1.toByte()
-            east -> 3.toByte()  // 东
-            west -> 2.toByte()  // 西
-            north -> 5.toByte() // 北
-            south -> 4.toByte() // 南
+            east -> 3.toByte()
+            west -> 2.toByte()
+            north -> 5.toByte()
+            south -> 4.toByte()
             else -> 1.toByte()
         }
         MclNode("mcl_core:vine", param2 = param2)
@@ -664,14 +669,14 @@ object MclMappingDsl {
         MclNode("mcl_heads:$mclName", param2 = param2)
     }
 
-    // 44. 挂墙头颅 (Wall Head) - 【完全修复对齐】
+    // 44. 挂墙头颅 (Wall Head)
     fun wallHead(mclName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 5 // 北墙
-            FacingDirectionHorizontal.SOUTH -> 4 // 南墙
-            FacingDirectionHorizontal.EAST -> 3  // 东墙
-            FacingDirectionHorizontal.WEST -> 2  // 西墙
+            FacingDirectionHorizontal.NORTH -> 5
+            FacingDirectionHorizontal.SOUTH -> 4
+            FacingDirectionHorizontal.EAST -> 3
+            FacingDirectionHorizontal.WEST -> 2
         }.toByte()
         MclNode("mcl_heads:${mclName}_wall", param2 = param2)
     }
