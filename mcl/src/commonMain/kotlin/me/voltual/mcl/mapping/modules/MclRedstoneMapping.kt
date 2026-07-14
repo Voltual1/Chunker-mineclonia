@@ -19,7 +19,7 @@ object MclRedstoneMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.REDSTONE_BLOCK, dsl.simple("mcl_redstone_torch:redstoneblock"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_LAMP, dsl.furnaceLike("mcl_redstone_lamp:lamp_off", "mcl_redstone_lamp:lamp_on"))
         
-        // 2. 红石火把
+        // 2. 红石火把 (已经通过 DSL 修正)
         registry.register(ChunkerVanillaBlockType.REDSTONE_TORCH, dsl.litOre("mcl_redstone_torch:redstone_torch_off", "mcl_redstone_torch:redstone_torch_on"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_WALL_TORCH, dsl.wallTorch("mcl_redstone_torch:redstone_torch_off_wall", "mcl_redstone_torch:redstone_torch_on_wall"))
 
@@ -35,7 +35,7 @@ object MclRedstoneMapping : MclMappingModule {
         // 6. 阳光探测器
         registry.register(ChunkerVanillaBlockType.DAYLIGHT_DETECTOR, dsl.daylightDetector())
 
-        // 7. 观测者 (Observer)
+        // 7. 观测者 (Observer) - 修复 Z 轴颠倒与东/西颠倒
         registry.register(ChunkerVanillaBlockType.OBSERVER, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.NORTH
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
@@ -44,30 +44,29 @@ object MclRedstoneMapping : MclMappingModule {
             val (nodeBase, param2) = when (facing) {
                 FacingDirection.DOWN -> "mcl_observers:observer_down" to 0
                 FacingDirection.UP -> "mcl_observers:observer_up" to 0
-                FacingDirection.NORTH -> "mcl_observers:observer" to 0
+                FacingDirection.NORTH -> "mcl_observers:observer" to 2
+                FacingDirection.SOUTH -> "mcl_observers:observer" to 0
                 FacingDirection.EAST -> "mcl_observers:observer" to 1
-                FacingDirection.SOUTH -> "mcl_observers:observer" to 2
                 FacingDirection.WEST -> "mcl_observers:observer" to 3
             }
             MclNode("$nodeBase$suffix", param2 = (param2 as Int).toByte())
         })
 
-        // 8. 杠杆 (Lever)
+        // 8. 杠杆 (Lever) - 修复墙壁方向的 Z 轴与东西向
         registry.register(ChunkerVanillaBlockType.LEVER, BlockMapper { id ->
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
             val attach = id.getState(VanillaBlockStates.ATTACHMENT_TYPE) ?: AttachmentType.WALL
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
             val state = if (powered == Bool.TRUE) "_on" else "_off"
             
-            // Mineclonia Lever Facedir 逻辑
             val param2 = when (attach) {
                 AttachmentType.FLOOR -> if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 8 else 10
                 AttachmentType.CEILING -> if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 15 else 13
                 AttachmentType.WALL -> when (facing) {
-                    FacingDirectionHorizontal.NORTH -> 2
-                    FacingDirectionHorizontal.SOUTH -> 3
-                    FacingDirectionHorizontal.WEST -> 4
-                    FacingDirectionHorizontal.EAST -> 5
+                    FacingDirectionHorizontal.NORTH -> 4
+                    FacingDirectionHorizontal.SOUTH -> 5
+                    FacingDirectionHorizontal.EAST -> 3
+                    FacingDirectionHorizontal.WEST -> 2
                 }
             }.toByte()
             MclNode("mcl_lever:lever$state", param2 = param2)
@@ -92,7 +91,7 @@ object MclRedstoneMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.HOPPER, dsl.hopper())
         registry.register(ChunkerVanillaBlockType.NOTE_BLOCK, dsl.simple("mcl_noteblock:noteblock"))
 
-        // 12. 讲台 (Lectern)
+        // 12. 讲台 (Lectern) - 修复东西颠倒
         registry.register(ChunkerVanillaBlockType.LECTERN, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
             val hasBook = id.getState(VanillaBlockStates.HAS_BOOK) == Bool.TRUE
@@ -100,15 +99,13 @@ object MclRedstoneMapping : MclMappingModule {
 
             val nodeName = if (hasBook) "mcl_lectern:lectern_with_book" else "mcl_lectern:lectern"
             
-            // Minetest facedir
             var param2 = when (facing) {
-                FacingDirectionHorizontal.NORTH -> 0
+                FacingDirectionHorizontal.SOUTH -> 0
                 FacingDirectionHorizontal.EAST -> 1
-                FacingDirectionHorizontal.SOUTH -> 2
+                FacingDirectionHorizontal.NORTH -> 2
                 FacingDirectionHorizontal.WEST -> 3
             }
 
-            // 根据 mcl_lectern_init.lua，若处于激活（翻页）状态，则加上 128
             if (powered) {
                 param2 += 128
             }
@@ -116,11 +113,11 @@ object MclRedstoneMapping : MclMappingModule {
             MclNode(nodeName, param2 = param2.toByte())
         })
         
-        // 13. 铁门与铁活板门 (修复了旧版的重复注册)
+        // 13. 铁门与铁活板门
         registry.register(ChunkerVanillaBlockType.IRON_TRAPDOOR, dsl.trapdoor("mcl_doors:iron_trapdoor"))
         registry.register(ChunkerVanillaBlockType.IRON_DOOR, dsl.door("mcl_doors:iron_door"))
 
-        // 14. 修复：调用新添加的铜活板门映射函数
+        // 14. 铜活板门
         registerCopperTrapdoors()
     }
 
@@ -133,9 +130,7 @@ object MclRedstoneMapping : MclMappingModule {
             val mcBase = "${prefix}COPPER_TRAPDOOR"
             val mclBase = "mcl_copper:${prefix.lowercase()}copper_trapdoor"
             
-            // 正常版本
             registry.register(enumValueOf(mcBase), dsl.trapdoor(mclBase))
-            // 涂蜡版本
             registry.register(enumValueOf("WAXED_$mcBase"), dsl.trapdoor(mclBase))
         }
     }
