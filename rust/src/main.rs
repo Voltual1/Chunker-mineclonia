@@ -1,7 +1,5 @@
 use std::env;
-use std::path::Path;
 use std::time::Instant;
-use std::sync::atomic::Ordering;
 
 use mc2mt::mc_map::MCMap;
 use mc2mt::mt_map::{serialize_block, MTMap};

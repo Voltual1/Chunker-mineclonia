@@ -28,7 +28,7 @@ pub extern "system" fn JNI_OnLoad(_vm: jni::JavaVM, _reserved: *mut std::ffi::c_
 }
 
 // =========================================================================
-// 统一命名空间：全部绑定到 me.voltual.mc2mt.MC2MTLib
+// 统一命名空间：全部绑定 to me.voltual.mc2mt.MC2MTLib
 // =========================================================================
 
 #[no_mangle]
@@ -173,7 +173,7 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_initNativeEngine(
 /// 接收来自 JVM 的 Chunk 数据并高效拷贝合并
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_writeChunkFast(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _class: JClass,
     cx: jint,
     cy: jint,
