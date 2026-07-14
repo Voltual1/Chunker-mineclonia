@@ -91,6 +91,8 @@ object MclBlockEntityRegistry {
         register(BannerBlockEntity::class.java) { be -> convertBanner(be as BannerBlockEntity) }
         register(DecoratedPotBlockEntity::class.java) { be -> convertDecoratedPot(be as DecoratedPotBlockEntity) }
         register(ChiseledBookshelfBlockEntity::class.java) { be -> convertChiseledBookshelf(be as ChiseledBookshelfBlockEntity) }
+        
+        register(BarrelBlockEntity::class.java) { be -> convertChest(be) } // 注册木桶转换器
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -118,6 +120,34 @@ object MclBlockEntityRegistry {
             ),
             // MineClonia 饰纹书架 inventory 名称为 "main"，大小为 6
             inventories = mapOf("main" to MclInventory(3, items))
+        )
+    }
+    
+    private fun convertChest(be: BlockEntity): MclBlockEntityData {
+        val size = 27 
+        val items = MutableList(size) { MclItemStack("", 0) }
+
+        val chestItems = when (be) {
+            is ChestBlockEntity -> be.items
+            is TrappedChestBlockEntity -> be.items
+            is ShulkerBoxBlockEntity -> be.items
+            is BarrelBlockEntity -> be.items // 处理木桶物品
+            else -> emptyMap()
+        }
+
+        for ((slotByte, chunkerItem) in chestItems) {
+            val slot = slotByte.toInt()
+            if (slot in 0 until size) {
+                items[slot] = MclItemRegistry.fromChunker(chunkerItem)
+            }
+        }
+
+        return MclBlockEntityData(
+            fields = mapOf(
+                "infotext" to "Container",
+                "formspec" to "size[11.75,10.425]list[context;main;0.375,0.75;9,3;]list[current_player;main;0.375,5.1;9,3;9]list[current_player;main;0.375,9.05;9,1;]"
+            ),
+            inventories = mapOf("main" to MclInventory(9, items))
         )
     }
 

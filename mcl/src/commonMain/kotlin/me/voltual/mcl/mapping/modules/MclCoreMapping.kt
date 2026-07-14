@@ -449,6 +449,12 @@ object MclCoreMapping : MclMappingModule {
 
         registry.register(ChunkerVanillaBlockType.BOOKSHELF, dsl.simple("mcl_books:bookshelf"))
         registry.register(ChunkerVanillaBlockType.CHISELED_BOOKSHELF, dsl.chiseledBookshelf())
+        
+        // 工作台
+        registry.register(ChunkerVanillaBlockType.CRAFTING_TABLE, dsl.simple("mcl_crafting_table:crafting_table"))
+
+        // 木桶 (使用 DSL 中的特殊 barrel() 处理逻辑)
+        registry.register(ChunkerVanillaBlockType.BARREL, dsl.barrel())
     }
 
 

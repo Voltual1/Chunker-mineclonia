@@ -6,6 +6,30 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.b
 
 object MclMappingDsl {
 
+    // ... 保持原有代码不变 ...
+
+    // 46. 木桶逻辑 (Barrels)
+    // 根据 open 状态选择节点，根据 facing 转换 6 向 facedir
+    fun barrel() = BlockMapper { id ->
+        val open = id.getState(VanillaBlockStates.OPEN) == Bool.TRUE
+        val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
+        val nodeBase = if (open) "mcl_barrels:barrel_open" else "mcl_barrels:barrel_closed"
+        
+        // Minetest facedir 6向映射 (对应 mcl_barrels 逻辑)
+        val param2 = when (facing) {
+            FacingDirection.DOWN -> 15 // 底部朝下
+            FacingDirection.UP -> 1    // 顶部朝上 (默认)
+            FacingDirection.SOUTH -> 0
+            FacingDirection.WEST -> 1
+            FacingDirection.NORTH -> 2
+            FacingDirection.EAST -> 3
+        }.toByte()
+        
+        MclNode(nodeBase, param2 = param2)
+    }
+
+    // ... 其余 DSL 函数保持不变 ...
+
     // 1. 简单无状态映射
     fun simple(targetName: String) = BlockMapper { _ ->
         MclNode(targetName)
