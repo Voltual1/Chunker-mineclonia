@@ -7,10 +7,12 @@ import me.voltual.mcl.mapping.MclItemRegistry
 
 import com.google.gson.JsonElement
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.*
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.ContainerBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.FurnaceBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.TrappedChestBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.ShulkerBoxBlockEntity
+import com.hivemc.chunker.conversion.intermediate.column.blockentity.container.randomizable.BarrelBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.ChiseledBookshelfBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.sign.SignBlockEntity
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType
@@ -79,9 +81,11 @@ object MclBlockEntityRegistry {
     )
 
     init {
-        register(ChestBlockEntity::class.java) { be -> convertChest(be) }
-        register(TrappedChestBlockEntity::class.java) { be -> convertChest(be) }
-        register(ShulkerBoxBlockEntity::class.java) { be -> convertChest(be) }
+        // 使用通用的容器转换器处理箱子、陷阱箱、潜影盒、木桶
+        register(ChestBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
+        register(TrappedChestBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
+        register(ShulkerBoxBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
+        register(BarrelBlockEntity::class.java) { be -> convertContainer(be as ContainerBlockEntity) }
 
         register(FurnaceBlockEntity::class.java) { be -> convertFurnace(be as FurnaceBlockEntity) }
         register(SignBlockEntity::class.java) { be -> convertSign(be as SignBlockEntity) }
@@ -91,8 +95,6 @@ object MclBlockEntityRegistry {
         register(BannerBlockEntity::class.java) { be -> convertBanner(be as BannerBlockEntity) }
         register(DecoratedPotBlockEntity::class.java) { be -> convertDecoratedPot(be as DecoratedPotBlockEntity) }
         register(ChiseledBookshelfBlockEntity::class.java) { be -> convertChiseledBookshelf(be as ChiseledBookshelfBlockEntity) }
-        
-        register(BarrelBlockEntity::class.java) { be -> convertChest(be) } // 注册木桶转换器
     }
 
     fun <T : BlockEntity> register(clazz: Class<T>, converter: (BlockEntity) -> MclBlockEntityData) {
@@ -105,64 +107,29 @@ object MclBlockEntityRegistry {
     }
     
     private fun convertChiseledBookshelf(be: ChiseledBookshelfBlockEntity): MclBlockEntityData {
-        // 直接获取长度为 6 的数组
         val booksArray = be.books ?: arrayOfNulls<com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.ChunkerItemStack>(6)
-        
-        // 映射数组到 MclItemStack 列表
-        val items = booksArray.map { book ->
-            MclItemRegistry.fromChunker(book)
-        }
+        val items = booksArray.map { book -> MclItemRegistry.fromChunker(book) }
 
         return MclBlockEntityData(
             fields = mapOf(
                 "last_slot_used" to "0",
                 "infotext" to "Chiseled Bookshelf"
             ),
-            // MineClonia 饰纹书架 inventory 名称为 "main"，大小为 6
             inventories = mapOf("main" to MclInventory(3, items))
         )
     }
-    
-    private fun convertChest(be: BlockEntity): MclBlockEntityData {
+
+    /**
+     * 通用的 27 格容器转换逻辑
+     */
+    private fun convertContainer(be: ContainerBlockEntity): MclBlockEntityData {
         val size = 27 
         val items = MutableList(size) { MclItemStack("", 0) }
 
-        val chestItems = when (be) {
-            is ChestBlockEntity -> be.items
-            is TrappedChestBlockEntity -> be.items
-            is ShulkerBoxBlockEntity -> be.items
-            is BarrelBlockEntity -> be.items // 处理木桶物品
-            else -> emptyMap()
-        }
+        // 获取 Java 类中的 getItems() Map
+        val containerItems = be.items
 
-        for ((slotByte, chunkerItem) in chestItems) {
-            val slot = slotByte.toInt()
-            if (slot in 0 until size) {
-                items[slot] = MclItemRegistry.fromChunker(chunkerItem)
-            }
-        }
-
-        return MclBlockEntityData(
-            fields = mapOf(
-                "infotext" to "Container",
-                "formspec" to "size[11.75,10.425]list[context;main;0.375,0.75;9,3;]list[current_player;main;0.375,5.1;9,3;9]list[current_player;main;0.375,9.05;9,1;]"
-            ),
-            inventories = mapOf("main" to MclInventory(9, items))
-        )
-    }
-
-    private fun convertChest(be: BlockEntity): MclBlockEntityData {
-        val size = 27 
-        val items = MutableList(size) { MclItemStack("", 0) }
-
-        val chestItems = when (be) {
-            is ChestBlockEntity -> be.items
-            is TrappedChestBlockEntity -> be.items
-            is ShulkerBoxBlockEntity -> be.items
-            else -> emptyMap()
-        }
-
-        for ((slotByte, chunkerItem) in chestItems) {
+        for ((slotByte, chunkerItem) in containerItems) {
             val slot = slotByte.toInt()
             if (slot in 0 until size) {
                 items[slot] = MclItemRegistry.fromChunker(chunkerItem)
@@ -179,61 +146,40 @@ object MclBlockEntityRegistry {
     }
     
     private fun convertDecoratedPot(be: DecoratedPotBlockEntity): MclBlockEntityData {
-    // 直接调用 Java 源码中暴露的 getter 获取四个面的标识符
-    val backId = be.back
-    val leftId = be.left
-    val rightId = be.right
-    val frontId = be.front
+        val backId = be.back
+        val leftId = be.left
+        val rightId = be.right
+        val frontId = be.front
 
-    // 辅助转换函数：将 ChunkerItemStackIdentifier 映射到 Mineclonia 的陶片名称
-    fun getSherdName(id: ChunkerItemStackIdentifier?): String? {
-        if (id == null || id.isAir) return null
-        
-        val itemType = id.itemStackType
-        // 如果不是纯物品或者是普通红砖，则返回 null（Mineclonia 中对应 nil，渲染默认红砖面）
-        if (itemType == ChunkerVanillaItemType.BRICK) return null
-        
-        if (itemType is ChunkerVanillaItemType) {
-            val rawName = itemType.name // 例如 "ANGLER_POTTERY_SHERD"
-            return rawName.lowercase()
-                .replace("_pottery_sherd", "")
-                .replace("arms_up", "arms_up") // 保留下划线特殊陶片
+        fun getSherdName(id: ChunkerItemStackIdentifier?): String? {
+            if (id == null || id.isAir) return null
+            val itemType = id.itemStackType
+            if (itemType == ChunkerVanillaItemType.BRICK) return null
+            if (itemType is ChunkerVanillaItemType) {
+                return itemType.name.lowercase()
+                    .replace("_pottery_sherd", "")
+            }
+            return null
         }
-        return null
-    }
 
-    // Mineclonia 中根据 mcl_pottery_sherds_init.lua 期待的序列化顺序依次是：
-    // 索引 1: 后面 (Back)  -> 对应 getBack()
-    // 索引 2: 右面 (Right) -> 对应 getRight()
-    // 索引 3: 前面 (Front) -> 对应 getFront()
-    // 索引 4: 左面 (Left)  -> 对应 getLeft()
-    val faces = arrayOf(
-        getSherdName(backId),
-        getSherdName(rightId),
-        getSherdName(frontId),
-        getSherdName(leftId)
-    )
-
-    // 拼接成 Lua 序列化序列：{ "miner", "blade", "arms_up", "heart" }
-    val sb = StringBuilder()
-    sb.append("{")
-    for (i in 0..3) {
-        val face = faces[i]
-        if (face != null) {
-            sb.append("\"$face\"")
-        } else {
-            sb.append("nil")
-        }
-        if (i < 3) sb.append(", ")
-    }
-    sb.append("}")
-
-    return MclBlockEntityData(
-        fields = mapOf(
-            "pot_faces" to sb.toString()
+        val faces = arrayOf(
+            getSherdName(backId),
+            getSherdName(rightId),
+            getSherdName(frontId),
+            getSherdName(leftId)
         )
-    )
-}
+
+        val sb = StringBuilder()
+        sb.append("{")
+        for (i in 0..3) {
+            val face = faces[i]
+            if (face != null) sb.append("\"$face\"") else sb.append("nil")
+            if (i < 3) sb.append(", ")
+        }
+        sb.append("}")
+
+        return MclBlockEntityData(fields = mapOf("pot_faces" to sb.toString()))
+    }
 
     private fun convertFurnace(furnace: FurnaceBlockEntity): MclBlockEntityData {
         val srcItem = MclItemRegistry.fromChunker(furnace.items[0])
@@ -310,7 +256,6 @@ object MclBlockEntityRegistry {
         if (book != null && !book.identifier.isAir) {
             val mclBook = MclItemRegistry.fromChunker(book)
             fields["book_item"] = "${mclBook.name} ${mclBook.count} ${mclBook.wear}"
-            
             fields["page"] = (lectern.page + 1).toString()
             fields["pages"] = "15" 
             fields["infotext"] = "Lectern with book"
@@ -320,57 +265,43 @@ object MclBlockEntityRegistry {
     }
 
     private fun convertBanner(banner: BannerBlockEntity): MclBlockEntityData {
-    val fields = mutableMapOf<String, String>()
-    val inventories = mutableMapOf<String, MclInventory>()
+        val fields = mutableMapOf<String, String>()
+        val inventories = mutableMapOf<String, MclInventory>()
 
-    // ==========================================
-    // 【精准色彩提取系统 - 直接访问架构注入的 blockType】
-    // ==========================================
-    var mclColor = "white" // 基础默认值
-    val blockType = banner.blockType
+        var mclColor = "white"
+        val blockType = banner.blockType
 
-    if (blockType is ChunkerVanillaBlockType) {
-        val blockTypeName = blockType.name // 如 "ORANGE_BANNER", "RED_WALL_BANNER"
-        val colorsList = listOf(
-            "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
-            "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
-        )
-        val matchedMcColor = colorsList.firstOrNull { blockTypeName.contains(it) }
-        if (matchedMcColor != null) {
-            mclColor = when (matchedMcColor) {
-                "GRAY" -> "grey"
-                "LIGHT_GRAY" -> "silver"
-                else -> matchedMcColor.lowercase()
+        if (blockType is ChunkerVanillaBlockType) {
+            val blockTypeName = blockType.name
+            val colorsList = listOf(
+                "WHITE", "ORANGE", "MAGENTA", "LIGHT_BLUE", "YELLOW", "LIME", "PINK", "GRAY",
+                "LIGHT_GRAY", "CYAN", "PURPLE", "BLUE", "BROWN", "GREEN", "RED", "BLACK"
+            )
+            val matchedMcColor = colorsList.firstOrNull { blockTypeName.contains(it) }
+            if (matchedMcColor != null) {
+                mclColor = when (matchedMcColor) {
+                    "GRAY" -> "grey"
+                    "LIGHT_GRAY" -> "silver"
+                    else -> matchedMcColor.lowercase()
+                }
             }
         }
-    } else if (banner.base.isPresent) {
-        // 回退到 banner.base 底色（盾牌等）
-        val baseDye = banner.base.get()
-        mclColor = when (baseDye) {
-            ChunkerDyeColor.GRAY -> "grey"
-            ChunkerDyeColor.LIGHT_GRAY -> "silver"
-            else -> baseDye.name.lowercase()
+
+        val bannerItemName = "mcl_banners:banner_item_$mclColor"
+        val itemStack = MclItemStack(bannerItemName, 1, 0)
+        
+        val patterns = banner.patterns
+        if (patterns.isNotEmpty()) {
+            val serializedLayers = serializeLayersToLua(patterns)
+            itemStack.metadata = mapOf("layers" to serializedLayers)
+            fields["layers"] = serializedLayers
         }
+
+        inventories["banner"] = MclInventory(1, listOf(itemStack))
+        fields["rotation_level"] = "0"
+
+        return MclBlockEntityData(fields = fields, inventories = inventories)
     }
-
-    val bannerItemName = "mcl_banners:banner_item_$mclColor"
-    val itemStack = MclItemStack(bannerItemName, 1, 0)
-    
-    val patterns = banner.patterns
-    if (patterns.isNotEmpty()) {
-        val serializedLayers = serializeLayersToLua(patterns)
-        itemStack.metadata = mapOf("layers" to serializedLayers)
-        fields["layers"] = serializedLayers
-    }
-
-    inventories["banner"] = MclInventory(1, listOf(itemStack))
-    fields["rotation_level"] = "0" // 旋转角度已由 MclBannerMapping 的节点放置逻辑处理
-
-    return MclBlockEntityData(
-        fields = fields,
-        inventories = inventories
-    )
-}
 
     private fun serializeLayersToLua(patterns: List<it.unimi.dsi.fastutil.Pair<ChunkerDyeColor, ChunkerBannerPattern>>): String {
         val sb = StringBuilder()
@@ -392,9 +323,7 @@ object MclBlockEntityRegistry {
             sb.append("[\"color\"] = \"$unicolor\", ")
             sb.append("[\"pattern\"] = \"$mclPattern\"")
             sb.append(" }")
-            if (i < patterns.size - 1) {
-                sb.append(", ")
-            }
+            if (i < patterns.size - 1) sb.append(", ")
         }
         sb.append(" }")
         return sb.toString()
