@@ -75,17 +75,17 @@ object MclDimensionMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.PURPUR_PILLAR, dsl.log("mcl_end:purpur_pillar"))
 
         // ==========================================
-        // 【最终修复】：末地烛 (End Rod) 完全物理镜像翻转
+        // 【基准修复】：末地烛基于 24-facedir 的物理方向计算
         // ==========================================
         registry.register(ChunkerVanillaBlockType.END_ROD, BlockMapper { id ->
             val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
             val param2 = when (facing) {
-                FacingDirection.DOWN -> 20.toByte()  // 顶挂朝下
-                FacingDirection.UP -> 0.toByte()     // 立地朝上
-                FacingDirection.NORTH -> 8.toByte()  // 指向 -Z (南)
-                FacingDirection.SOUTH -> 4.toByte()  // 指向 +Z (北)
-                FacingDirection.EAST -> 12.toByte()  // 修正：指向 +X (东)
-                FacingDirection.WEST -> 16.toByte()  // 修正：指向 -X (西)
+                FacingDirection.DOWN -> 20.toByte()  // 顶挂朝下 (Y-)
+                FacingDirection.UP -> 0.toByte()     // 立地朝上 (Y+)
+                FacingDirection.NORTH -> 8.toByte()  // 指向北 (-Z)
+                FacingDirection.SOUTH -> 4.toByte()  // 指向南 (+Z)
+                FacingDirection.EAST -> 12.toByte()  // 指向东 (+X)
+                FacingDirection.WEST -> 16.toByte()  // 指向西 (-X)
             }
             MclNode("mcl_end:end_rod", param2 = param2)
         })

@@ -63,16 +63,16 @@ object MclMappingDsl {
         MclNode(targetName, param2 = param2)
     }
 
-    // 6. 通用 3D wallmounted 朝向映射
+    // 6. 通用 3D wallmounted (面向/指向 类) - [完全对齐火把的基准]
     fun wallmounted(targetName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_ALL) ?: FacingDirection.UP
         val param2 = when (facing) {
-            FacingDirection.DOWN -> 0
-            FacingDirection.UP -> 1
-            FacingDirection.NORTH -> 5 // 附着于北墙 (-Z)
-            FacingDirection.SOUTH -> 4 // 附着于南墙 (+Z)
-            FacingDirection.EAST -> 2  // 附着于东墙 (+X)
-            FacingDirection.WEST -> 3  // 附着于西墙 (-X)
+            FacingDirection.DOWN -> 0  
+            FacingDirection.UP -> 1    
+            FacingDirection.NORTH -> 4 
+            FacingDirection.SOUTH -> 5 
+            FacingDirection.EAST -> 3  
+            FacingDirection.WEST -> 2  
         }.toByte()
         MclNode(targetName, param2 = param2)
     }
@@ -101,36 +101,34 @@ object MclMappingDsl {
         if (litState == Bool.TRUE) MclNode(onName, param2 = 1) else MclNode(offName, param2 = 1)
     }
 
-    // 9. 挂墙火把映射 (按指向判定)
+    // 9. 挂墙火把映射 (基准)
     fun wallTorch(offName: String, onName: String) = BlockMapper { id ->
         val lit = id.getState(VanillaBlockStates.LIT) ?: Bool.FALSE
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val nodeName = if (lit == Bool.TRUE) onName else offName
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 4 // 指向北 (-Z)，附着于南墙 (+Z)
-            FacingDirectionHorizontal.SOUTH -> 5 // 指向南 (+Z)，附着于北墙 (-Z)
-            FacingDirectionHorizontal.EAST -> 3  // 指向东 (+X)，附着于西墙 (-X)
-            FacingDirectionHorizontal.WEST -> 2  // 指向西 (-X)，附着于东墙 (+X)
+            FacingDirectionHorizontal.NORTH -> 4 
+            FacingDirectionHorizontal.SOUTH -> 5 
+            FacingDirectionHorizontal.EAST -> 3  
+            FacingDirectionHorizontal.WEST -> 2  
         }.toByte()
         MclNode(nodeName, param2 = param2)
     }
 
-    // ==========================================
-    // 【关键修复】：限制按钮 param2 的合法值在 0~5 之间
-    // ==========================================
+    // 10. 按钮映射 - [基准修复：面向类，限定 0-5]
     fun button(basename: String) = BlockMapper { id ->
         val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
         val suffix = if (powered == Bool.TRUE) "_on" else "_off"
         val facing = id.getState(VanillaBlockStates.ATTACHMENT_TYPE) ?: AttachmentType.FLOOR
         val direction = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            AttachmentType.FLOOR -> 1   // 严格限定落地为 1
-            AttachmentType.CEILING -> 0 // 严格限定贴顶为 0
+            AttachmentType.FLOOR -> 1   
+            AttachmentType.CEILING -> 0 
             AttachmentType.WALL -> when (direction) {
-                FacingDirectionHorizontal.NORTH -> 5 // 附着于北墙
-                FacingDirectionHorizontal.SOUTH -> 4 // 附着于南墙
-                FacingDirectionHorizontal.EAST -> 3  // 附着于东墙
-                FacingDirectionHorizontal.WEST -> 2  // 附着于西墙
+                FacingDirectionHorizontal.NORTH -> 4 
+                FacingDirectionHorizontal.SOUTH -> 5 
+                FacingDirectionHorizontal.EAST -> 3  
+                FacingDirectionHorizontal.WEST -> 2  
             }
         }.toByte()
         MclNode("mcl_buttons:button_${basename}${suffix}", param2 = param2)
@@ -169,8 +167,8 @@ object MclMappingDsl {
             FacingDirection.UP -> 0
             FacingDirection.NORTH -> 4
             FacingDirection.SOUTH -> 5
-            FacingDirection.WEST -> 3
-            FacingDirection.EAST -> 2
+            FacingDirection.EAST -> 3
+            FacingDirection.WEST -> 2
         }.toByte()
         MclNode("mcl_chests:${mclColor}_shulker_box_small", param2 = param2)
     }
@@ -525,15 +523,15 @@ object MclMappingDsl {
         }
     }
     
-    // 36. 砂轮逻辑 (Grindstone)
+    // 36. 砂轮逻辑 (Grindstone) - [基准修复：面向类]
     fun grindstone() = BlockMapper { id ->
         val face = id.getState(VanillaBlockStates.GRINDSTONE_ATTACHMENT_TYPE) ?: GrindstoneAttachmentType.FLOOR
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         
         val param2: Byte = when (face) {
             GrindstoneAttachmentType.WALL -> when (facing) {
-                FacingDirectionHorizontal.NORTH -> 5
-                FacingDirectionHorizontal.SOUTH -> 4
+                FacingDirectionHorizontal.NORTH -> 4
+                FacingDirectionHorizontal.SOUTH -> 5
                 FacingDirectionHorizontal.EAST -> 3
                 FacingDirectionHorizontal.WEST -> 2
             }
@@ -564,15 +562,15 @@ object MclMappingDsl {
         MclNode("mcl_dripstone:dripstone_${dirStr}_$thickStr")
     }
 
-    // 38. 幽匿脉络逻辑 (Sculk Vein)
+    // 38. 幽匿脉络逻辑 (Sculk Vein) - [基准修复：附着类，对应火把基准的逆面]
     fun sculkVein() = BlockMapper { id ->
         val param2: Byte = when {
-            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1
-            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0
-            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5
-            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4
-            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 3
-            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 2
+            id.getState(VanillaBlockStates.DOWN) == Bool.TRUE -> 1  
+            id.getState(VanillaBlockStates.UP) == Bool.TRUE -> 0    
+            id.getState(VanillaBlockStates.NORTH) == Bool.TRUE -> 5 // 附着北墙，面向南
+            id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE -> 4 // 附着南墙，面向北
+            id.getState(VanillaBlockStates.EAST) == Bool.TRUE -> 2  // 附着东墙，面向西
+            id.getState(VanillaBlockStates.WEST) == Bool.TRUE -> 3  // 附着西墙，面向东
             else -> 1
         }.toByte()
         MclNode("mcl_sculk:vein", param2 = param2)
@@ -595,7 +593,7 @@ object MclMappingDsl {
         MclNode("mcl_sculk:shrieker", param2 = param2)
     }
     
-    // 41. 发光地衣映射 (Glow Lichen)
+    // 41. 发光地衣映射 (Glow Lichen) - [基准修复：附着类]
     fun glowLichen() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -616,8 +614,8 @@ object MclMappingDsl {
             val param2 = when {
                 down -> 1.toByte()
                 up -> 0.toByte()
-                east -> 3.toByte()
-                west -> 2.toByte()
+                east -> 2.toByte()
+                west -> 3.toByte()
                 north -> 5.toByte()
                 south -> 4.toByte()
                 else -> 1.toByte()
@@ -635,7 +633,7 @@ object MclMappingDsl {
         }
     }
 
-    // 42. 藤蔓映射 (Vine)
+    // 42. 藤蔓映射 (Vine) - [基准修复：附着类]
     fun vine() = BlockMapper { id ->
         val north = id.getState(VanillaBlockStates.NORTH) == Bool.TRUE
         val south = id.getState(VanillaBlockStates.SOUTH) == Bool.TRUE
@@ -645,8 +643,8 @@ object MclMappingDsl {
 
         val param2 = when {
             up -> 1.toByte()
-            east -> 3.toByte()
-            west -> 2.toByte()
+            east -> 2.toByte()
+            west -> 3.toByte()
             north -> 5.toByte()
             south -> 4.toByte()
             else -> 1.toByte()
@@ -661,12 +659,12 @@ object MclMappingDsl {
         MclNode("mcl_heads:$mclName", param2 = param2)
     }
 
-    // 44. 挂墙头颅 (Wall Head)
+    // 44. 挂墙头颅 (Wall Head) - [基准修复：面向类]
     fun wallHead(mclName: String) = BlockMapper { id ->
         val facing = id.getState(VanillaBlockStates.FACING_HORIZONTAL) ?: FacingDirectionHorizontal.NORTH
         val param2 = when (facing) {
-            FacingDirectionHorizontal.NORTH -> 5
-            FacingDirectionHorizontal.SOUTH -> 4
+            FacingDirectionHorizontal.NORTH -> 4
+            FacingDirectionHorizontal.SOUTH -> 5
             FacingDirectionHorizontal.EAST -> 3
             FacingDirectionHorizontal.WEST -> 2
         }.toByte()

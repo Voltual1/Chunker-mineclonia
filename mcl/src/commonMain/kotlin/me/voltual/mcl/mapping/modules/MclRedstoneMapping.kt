@@ -43,7 +43,7 @@ object MclRedstoneMapping : MclMappingModule {
         })
 
         // ==========================================
-        // 【关键修复】：限制拉杆 param2 合法值，彻底禁止非法水平旋转混用
+        // 【基准修复】：拉杆属于面向类，应用 0-5 基准
         // ==========================================
         registry.register(ChunkerVanillaBlockType.LEVER, BlockMapper { id ->
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
@@ -52,13 +52,13 @@ object MclRedstoneMapping : MclMappingModule {
             val state = if (powered == Bool.TRUE) "_on" else "_off"
             
             val param2 = when (attach) {
-                AttachmentType.FLOOR -> 1   // 严格限定落地为 1
-                AttachmentType.CEILING -> 0 // 严格限定贴顶为 0
+                AttachmentType.FLOOR -> 1   
+                AttachmentType.CEILING -> 0 
                 AttachmentType.WALL -> when (facing) {
-                    FacingDirectionHorizontal.NORTH -> 5 // 附着于北墙
-                    FacingDirectionHorizontal.SOUTH -> 4 // 附着于南墙
-                    FacingDirectionHorizontal.EAST -> 3  // 附着于东墙
-                    FacingDirectionHorizontal.WEST -> 2  // 附着于西墙
+                    FacingDirectionHorizontal.NORTH -> 4 
+                    FacingDirectionHorizontal.SOUTH -> 5 
+                    FacingDirectionHorizontal.EAST -> 3  
+                    FacingDirectionHorizontal.WEST -> 2  
                 }
             }.toByte()
             MclNode("mcl_lever:lever$state", param2 = param2)
