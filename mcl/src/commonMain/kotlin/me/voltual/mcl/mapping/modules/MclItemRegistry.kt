@@ -23,7 +23,7 @@ object MclItemRegistry {
         // 1. 如果该物品本质上是一个方块 (BlockItem)
         if (type is ChunkerVanillaBlockType) {
             val blockId = com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier(type)
-            return MclMappingRegistry.convert(blockId).name
+            return MclMappingRegistry.convertAndDebug(blockId).name
         }
 
         // 2. 如果是纯物品 (Item)

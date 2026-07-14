@@ -86,7 +86,6 @@ object MclCoreMapping : MclMappingModule {
                 Bites._4 -> "mcl_cake:cake_3"
                 Bites._5 -> "mcl_cake:cake_2"
                 Bites._6 -> "mcl_cake:cake_1"
-                else -> "mcl_cake:cake"
             }
             MclNode(nodeName)
         })
@@ -137,7 +136,7 @@ object MclCoreMapping : MclMappingModule {
             "mcl_stairs:slab_mud_brick_top",
             "mcl_stairs:slab_mud_brick_double"
         ))
-        registry.register(ChunkerVanillaBlockType.MUD_BRICK_WALL, dsl.simple("mcl_walls:mudbrick"))
+        registry.register(ChunkerVanillaBlockType.MUD_BRICK_WALL, dsl.simple("mcl_mud:mudbrick"))
 
         registry.register(ChunkerVanillaBlockType.DEEPSLATE, dsl.log("mcl_deepslate:deepslate"))
         registry.register(ChunkerVanillaBlockType.COBBLED_DEEPSLATE, dsl.simple("mcl_deepslate:deepslate_cobbled"))

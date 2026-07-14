@@ -39,7 +39,7 @@ object MclRedstoneMapping : MclMappingModule {
                 FacingDirection.EAST -> "mcl_observers:observer" to 1
                 FacingDirection.WEST -> "mcl_observers:observer" to 3
             }
-            MclNode("$nodeBase$suffix", param2 = (param2 as Int).toByte())
+            MclNode("$nodeBase$suffix", param2 = param2.toByte())
         })
 
         // ==========================================
