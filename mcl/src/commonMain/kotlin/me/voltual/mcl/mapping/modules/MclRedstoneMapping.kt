@@ -18,9 +18,6 @@ object MclRedstoneMapping : MclMappingModule {
         registry.register(ChunkerVanillaBlockType.REDSTONE_BLOCK, dsl.simple("mcl_redstone_torch:redstoneblock"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_LAMP, dsl.furnaceLike("mcl_redstone_lamp:lamp_off", "mcl_redstone_lamp:lamp_on"))
         
-        // ==========================================
-        // 【关键修复】：将落地红石火把改为 litFloorMounted
-        // ==========================================
         registry.register(ChunkerVanillaBlockType.REDSTONE_TORCH, dsl.litFloorMounted("mcl_redstone_torch:redstone_torch_off", "mcl_redstone_torch:redstone_torch_on"))
         registry.register(ChunkerVanillaBlockType.REDSTONE_WALL_TORCH, dsl.wallTorch("mcl_redstone_torch:redstone_torch_off_wall", "mcl_redstone_torch:redstone_torch_on_wall"))
 
@@ -45,6 +42,9 @@ object MclRedstoneMapping : MclMappingModule {
             MclNode("$nodeBase$suffix", param2 = (param2 as Int).toByte())
         })
 
+        // ==========================================
+        // 【关键修复】：限制拉杆 param2 合法值，彻底禁止非法水平旋转混用
+        // ==========================================
         registry.register(ChunkerVanillaBlockType.LEVER, BlockMapper { id ->
             val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
             val attach = id.getState(VanillaBlockStates.ATTACHMENT_TYPE) ?: AttachmentType.WALL
@@ -52,13 +52,13 @@ object MclRedstoneMapping : MclMappingModule {
             val state = if (powered == Bool.TRUE) "_on" else "_off"
             
             val param2 = when (attach) {
-                AttachmentType.FLOOR -> if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 8 else 10
-                AttachmentType.CEILING -> if (facing == FacingDirectionHorizontal.NORTH || facing == FacingDirectionHorizontal.SOUTH) 15 else 13
+                AttachmentType.FLOOR -> 1   // 严格限定落地为 1
+                AttachmentType.CEILING -> 0 // 严格限定贴顶为 0
                 AttachmentType.WALL -> when (facing) {
-                    FacingDirectionHorizontal.NORTH -> 4
-                    FacingDirectionHorizontal.SOUTH -> 5
-                    FacingDirectionHorizontal.EAST -> 3
-                    FacingDirectionHorizontal.WEST -> 2
+                    FacingDirectionHorizontal.NORTH -> 5 // 附着于北墙
+                    FacingDirectionHorizontal.SOUTH -> 4 // 附着于南墙
+                    FacingDirectionHorizontal.EAST -> 3  // 附着于东墙
+                    FacingDirectionHorizontal.WEST -> 2  // 附着于西墙
                 }
             }.toByte()
             MclNode("mcl_lever:lever$state", param2 = param2)
