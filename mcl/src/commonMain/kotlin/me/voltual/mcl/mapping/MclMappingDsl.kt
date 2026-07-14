@@ -144,7 +144,12 @@ object MclMappingDsl {
         MclNode("mcl_buttons:button_${basename}${suffix}", param2 = param2)
     }
 
-    // ... [中间逻辑完全保持不变] ...
+    // 11. 压力板映射
+    fun pressurePlate(basename: String) = BlockMapper { id ->
+        val powered = id.getState(VanillaBlockStates.POWERED) ?: Bool.FALSE
+        val suffix = if (powered == Bool.TRUE) "_on" else "_off"
+        MclNode("mcl_pressureplates:pressure_plate_${basename}${suffix}")
+    }
 
     // 12. 箱子逻辑
     fun chest(baseNode: String) = BlockMapper { id ->
