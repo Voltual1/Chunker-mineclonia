@@ -298,17 +298,29 @@ class ConversionWorker(
         val dbOptions = Options().createIfMissing(false).writeBufferSize(4 * 1024 * 1024).blockSize(4 * 1024)
         srcDb = factory.open(srcDbDir, dbOptions)
 
-        var currentSliceIndex = currentManifest.progressIndex
-        var lastProcessedKey: ByteArray? = currentManifest.getLastBedrockKey()
-        var hasMoreData = true
-        val CHUNK_LIMIT_PER_SLICE = 256
+        System.out.println("\n[Slicing] Scanning Bedrock database to partition regions...")
+        val regionCoords = mutableSetOf<Pair<Int, Int>>()
+        val readIterator = srcDb!!.iterator()
+        readIterator.seekToFirst()
+        while (readIterator.hasNext() && !isStopped && !isSelfKilling) {
+            val entry = readIterator.next()
+            if (isBedrockChunkKey(entry.key)) {
+                val (cx, cz) = getBedrockChunkCoords(entry.key)
+                regionCoords.add(Pair(cx shr 5, cz shr 5)) // 转换为 Region 坐标
+            }
+        }
+        readIterator.close()
 
-        while (hasMoreData) {
+        val regionList = regionCoords.toList()
+        System.out.println("[Slicing] Found ${regionList.size} regions to process safely.")
+
+        for ((index, region) in regionList.withIndex()) {
             if (isStopped || isSelfKilling) break
+            if (index < currentManifest.progressIndex) continue
 
             val runtime = Runtime.getRuntime()
             val usedMem = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024)
-            System.out.println("\n[Slicing] Slice #$currentSliceIndex | Heap: ${usedMem}MB")
+            System.out.println("\n[Slicing] Processing Bedrock Region ${index + 1}/${regionList.size}: (${region.first}, ${region.second}) | Heap: ${usedMem}MB")
 
             deleteDirectory(sliceInputDir)
             deleteDirectory(sliceOutputDir)
@@ -325,39 +337,26 @@ class ConversionWorker(
             val tempDbOptions = Options().createIfMissing(true).writeBufferSize(2 * 1024 * 1024)
             val tempDb = factory.open(sliceDbDir, tempDbOptions)
 
-            var loadedChunkCount = 0
-            var nextBoundaryKey: ByteArray? = null
-
-            srcDb!!.iterator().use { readIterator ->
-                if (lastProcessedKey != null) {
-                    readIterator.seek(lastProcessedKey)
-                    // If we found the exact same key, advance by one to prevent duplication
-                    if (readIterator.hasNext()) {
-                        val peekEntry = readIterator.peekNext()
-                        if (java.util.Arrays.equals(peekEntry.key, lastProcessedKey)) {
-                            readIterator.next()
-                        }
+            val sliceIterator = srcDb!!.iterator()
+            sliceIterator.seekToFirst()
+            var chunkCount = 0
+            while (sliceIterator.hasNext() && !isStopped && !isSelfKilling) {
+                val entry = sliceIterator.next()
+                if (isBedrockChunkKey(entry.key)) {
+                    val (cx, cz) = getBedrockChunkCoords(entry.key)
+                    if ((cx shr 5) == region.first && (cz shr 5) == region.second) {
+                        tempDb.put(entry.key, entry.value)
+                        chunkCount++
                     }
                 } else {
-                    readIterator.seekToFirst()
-                }
-
-                while (readIterator.hasNext() && loadedChunkCount < CHUNK_LIMIT_PER_SLICE) {
-                    if (isStopped || isSelfKilling) break
-                    val entry = readIterator.next()
-                    if (isBedrockChunkKey(entry.key)) loadedChunkCount++
+                    // 全局元数据必须随带写入
                     tempDb.put(entry.key, entry.value)
-                    nextBoundaryKey = entry.key
                 }
-                if (!readIterator.hasNext()) hasMoreData = false
             }
+            sliceIterator.close()
             tempDb.close()
 
-            if (loadedChunkCount == 0) break
-
-            lastProcessedKey = nextBoundaryKey
-            currentManifest = currentManifest.copy(progressIndex = currentSliceIndex).withLastBedrockKey(lastProcessedKey)
-            conversionTaskRepository.saveManifest(currentManifest)
+            if (chunkCount == 0) continue
 
             val sliceConverter = WorldConverter(UUID.randomUUID())
             currentConverter = sliceConverter
@@ -396,13 +395,20 @@ class ConversionWorker(
 
             mergeOutputSlice(sliceOutputDir, outputPathFile, targetTypeName, factory)
             
-            currentSliceIndex++
-            currentManifest = currentManifest.copy(progressIndex = currentSliceIndex)
+            // 安全保存持久化索引以供恢复
+            currentManifest = currentManifest.copy(progressIndex = index + 1)
             conversionTaskRepository.saveManifest(currentManifest)
 
             System.gc()
             System.runFinalization()
         }
+    }
+
+    private fun getBedrockChunkCoords(key: ByteArray): Pair<Int, Int> {
+        val buffer = ByteBuffer.wrap(key).order(ByteOrder.LITTLE_ENDIAN)
+        val x = buffer.int
+        val z = buffer.int
+        return Pair(x, z)
     }
 
     private fun closeDatabases() {
@@ -514,6 +520,12 @@ class ConversionWorker(
         val srcPath = src.absolutePath.toPath()
         val destPath = dest.absolutePath.toPath()
         fs.createDirectories(destPath.parent!!)
+        
+        // 确保不会因为目标存在而引发未捕获的 OKIO 覆写安全隐患
+        if (fs.exists(destPath)) {
+            fs.delete(destPath)
+        }
+        
         fs.copy(srcPath, destPath)
     }
 
