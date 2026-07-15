@@ -1,7 +1,7 @@
 package me.voltual.vb.ui.home
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.BorderStroke // 修复：补全 BorderStroke 导入
+import androidx.compose.foundation.BorderStroke 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable

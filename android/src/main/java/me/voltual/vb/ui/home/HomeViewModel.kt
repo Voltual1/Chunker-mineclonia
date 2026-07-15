@@ -112,7 +112,6 @@ class HomeViewModel : ViewModel() {
 
         if (useExistingInput) {
             val outputDir = File(localOutputPath)
-            // [Fix] 移除 outputDir.deleteRecursively()，将输出目录管理权交给 Worker 的进度系统
             if (!outputDir.exists()) {
                 outputDir.mkdirs()
             }
@@ -182,7 +181,6 @@ class HomeViewModel : ViewModel() {
                             }
 
                             val outputDir = File(localOutputPath)
-                            // [Fix] 同上，全新复制任务的清理工作也将由 Worker 判断 progressIndex == 0 来执行
                             if (!outputDir.exists()) {
                                 outputDir.mkdirs()
                             }
