@@ -54,14 +54,14 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
 
         WorkManager.getInstance(this).pruneWork()
 
-        val crashLogFile = File(filesDir, "terminal_crash.log")
+/*        val crashLogFile = File(filesDir, "terminal_crash.log")
         try {
             com.termux.terminal.JNI.setupNativeCrashHandler(crashLogFile.absolutePath)
         } catch (e: Throwable) {
             e.printStackTrace()
         }
 
-        checkAndRecoverCrashLog(crashLogFile)
+        checkAndRecoverCrashLog(crashLogFile)*/
     }
 
     override val workManagerConfiguration: Configuration
