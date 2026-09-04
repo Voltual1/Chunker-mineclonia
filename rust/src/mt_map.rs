@@ -82,8 +82,8 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
     let c_corrupted_path = CString::new(corrupted_str)
         .map_err(|e| e.to_string())?;
 
-    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄
-    let raw_db_out = db_out.handle() as *mut std::ffi::c_void;
+    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄 (修正：包裹在 unsafe 块内)
+    let raw_db_out = unsafe { db_out.handle() } as *mut std::ffi::c_void;
 
     unsafe {
         // 4. 初始化恢复器。zLostAndFound 传入 NULL，代表使用默认配置
@@ -152,7 +152,7 @@ impl MTMap {
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create output dir: {}", e))?;
 
         // =========================================================================
-        // 核心改动：原子损坏检测与自动恢复逻辑
+        // 原子损坏检测与自动恢复逻辑
         // =========================================================================
         if db_path.exists() {
             log::info!("Starting database integrity scan on {:?}", db_path);
