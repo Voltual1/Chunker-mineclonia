@@ -140,6 +140,7 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_convertMap<'local>(
 }
 
 /// 初始化全局的 Minetest 数据库写出引擎
+/// 增强：失败时向 JVM 抛出包含详细 Rust 错误上下文的 RuntimeException 异常
 #[no_mangle]
 pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_initNativeEngine(
     mut env: JNIEnv,
@@ -151,7 +152,10 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_initNativeEngine(
 ) -> jboolean {
     let path_str: String = match env.get_string(&db_path) {
         Ok(s) => s.into(),
-        Err(_) => return jni::sys::JNI_FALSE,
+        Err(_) => {
+            let _ = env.throw_new("java/lang/RuntimeException", "Failed to resolve db_path parameter from JVM");
+            return jni::sys::JNI_FALSE;
+        }
     };
 
     let path = Path::new(&path_str);
@@ -165,6 +169,11 @@ pub extern "system" fn Java_me_voltual_mc2mt_MC2MTLib_initNativeEngine(
         }
         Err(e) => {
             error!("Failed to initialize native MTMap engine: {}", e);
+            // 直接将 Rust 的错误穿透抛给 Java 层，诊断信息彻底透明
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                &format!("Failed to initialize native MTMap engine (Rust details): {}", e)
+            );
             jni::sys::JNI_FALSE
         }
     }
