@@ -15,8 +15,9 @@ pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
 pub const BLOCK_Y_OFFSET: i32 = 4;
 
 // =========================================================================
-// SQLite Recover 扩展底层 C FFI 声明
+// SQLite Recover 扩展底层 C FFI 声明 (已添加显式动态链接指示)
 // =========================================================================
+#[link(name = "sqlite3")]
 extern "C" {
     pub fn sqlite3_recover_init(
         db: *mut std::ffi::c_void,
@@ -82,7 +83,7 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
     let c_corrupted_path = CString::new(corrupted_str)
         .map_err(|e| e.to_string())?;
 
-    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄 (修正：包裹在 unsafe 块内)
+    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄
     let raw_db_out = unsafe { db_out.handle() } as *mut std::ffi::c_void;
 
     unsafe {
@@ -102,7 +103,7 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
             } else if rc == 0 { // SQLITE_OK
                 continue;
             } else {
-                // 发生内部异常，捕获详细错误信息
+                // 发生内部异常，捕获 detailed 错误信息
                 let err_code = sqlite3_recover_errcode(recover_ptr);
                 let err_msg_ptr = sqlite3_recover_errmsg(recover_ptr);
                 let err_msg = if !err_msg_ptr.is_null() {
@@ -232,7 +233,7 @@ impl MTMap {
              local spawn_pos = {{x={}, y={}, z={}}}\n\
              minetest.register_on_newplayer(function(player)\n\
                  player:set_pos(spawn_pos)\n\
-             end)\n\
+                 end)\n\
              minetest.register_on_respawnplayer(function(player)\n\
                  player:set_pos(spawn_pos)\n\
                  return true\n\
