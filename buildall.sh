@@ -47,10 +47,20 @@ cd rust
 
 # --- 编译 arm64-v8a ---
 echo "Building for arm64-v8a..."
+# 指向 jniLibs 下对应架构的 so 目录，并设置动态链接属性与链接器参数
+export SQLITE3_LIB_DIR="$BASEDIR/android/src/main/jniLibs/arm64-v8a"
+export SQLITE3_STATIC=0
+export RUSTFLAGS="-C link-arg=-L$SQLITE3_LIB_DIR"
+
 cargo ndk -t arm64-v8a --platform 30 build --release
 
-# --- 编译 armeabi-v7a (新增) ---
+# --- 编译 armeabi-v7a ---
 echo "Building for armeabi-v7a..."
+# 切换至 32位 ARM 对应的 so 目录，并更新链接器路径参数
+export SQLITE3_LIB_DIR="$BASEDIR/android/src/main/jniLibs/armeabi-v7a"
+export SQLITE3_STATIC=0
+export RUSTFLAGS="-C link-arg=-L$SQLITE3_LIB_DIR"
+
 cargo ndk -t armeabi-v7a --platform 30 build --release
 
 
@@ -60,7 +70,7 @@ JNILIBS_V8A_DIR="$BASEDIR/android/src/main/jniLibs/arm64-v8a"
 mkdir -p "$JNILIBS_V8A_DIR"
 cp target/aarch64-linux-android/release/libmc2mt.so "$JNILIBS_V8A_DIR/"
 
-# --- 拷贝 armeabi-v7a (新增) ---
+# --- 拷贝 armeabi-v7a ---
 JNILIBS_V7A_DIR="$BASEDIR/android/src/main/jniLibs/armeabi-v7a"
 mkdir -p "$JNILIBS_V7A_DIR"
 cp target/armv7-linux-androideabi/release/libmc2mt.so "$JNILIBS_V7A_DIR/"
