@@ -75,7 +75,7 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
         return am.runningAppProcesses?.firstOrNull { it.pid == pid }?.processName
     }
 
-    private fun checkAndRecoverCrashLog(crashLogFile: File) {
+/*    private fun checkAndRecoverCrashLog(crashLogFile: File) {
         applicationScope.launch(Dispatchers.IO) {
             if (crashLogFile.exists()) {
                 try {
@@ -96,7 +96,7 @@ class BBQApplication : Application(), KoinStartup, Configuration.Provider {
                 }
             }
         }
-    }
+    }*/
 
     override fun onKoinStartup() = koinConfiguration {
         androidContext(this@BBQApplication)
