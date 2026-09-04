@@ -6,12 +6,125 @@ use flate2::write::ZlibEncoder;
 use flate2::Compression;
 use std::io::Write;
 use serde::{Serialize, Deserialize};
+use std::ffi::{CString, CStr};
 
 use crate::mc_map::{MCBlock, NODES_PER_BLOCK};
 use crate::convert::{get_conversion, CONTENT_AIR, REGISTRY};
 
 pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
 pub const BLOCK_Y_OFFSET: i32 = 4;
+
+// =========================================================================
+// SQLite Recover 扩展底层 C FFI 声明
+// =========================================================================
+extern "C" {
+    pub fn sqlite3_recover_init(
+        db: *mut std::ffi::c_void,
+        zDb: *const std::os::raw::c_char,
+        zLostAndFound: *const std::os::raw::c_char,
+    ) -> *mut std::ffi::c_void;
+
+    pub fn sqlite3_recover_config(
+        p: *mut std::ffi::c_void,
+        op: std::os::raw::c_int,
+        pArg: *mut std::ffi::c_void,
+    ) -> std::os::raw::c_int;
+
+    pub fn sqlite3_recover_step(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
+
+    pub fn sqlite3_recover_errcode(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
+
+    pub fn sqlite3_recover_errmsg(p: *mut std::ffi::c_void) -> *const std::os::raw::c_char;
+
+    pub fn sqlite3_recover_clean(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
+}
+
+/// 快速检测 SQLite 文件的完整性。
+/// 采用 quick_check(1)，只捕获第一个错误，极速响应，适合每次启动前快速扫描。
+pub fn check_db_integrity(db_path: &Path) -> bool {
+    if !db_path.exists() {
+        return true; // 文件不存在意味着无需修复，直接新建即可
+    }
+
+    let conn = match Connection::open(db_path) {
+        Ok(c) => c,
+        Err(_) => return false, // 无法正常 Open 句柄说明头部已损坏
+    };
+
+    let mut stmt = match conn.prepare("PRAGMA quick_check(1);") {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    let mut rows = match stmt.query([]) {
+        Ok(r) => r,
+        Err(_) => return false,
+    };
+
+    if let Ok(Some(row)) = rows.next() {
+        if let Ok(res) = row.get::<_, String>(0) {
+            return res.eq_ignore_ascii_case("ok");
+        }
+    }
+
+    false
+}
+
+/// 运行底层 `recover` 引擎，将损坏的数据库修复并写入新的数据库。
+pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), String> {
+    // 1. 创建并打开全新的、干净的目标数据库句柄
+    let db_out = Connection::open(recovered_path)
+        .map_err(|e| format!("Failed to open empty output DB for recovery: {}", e))?;
+
+    // 2. 转换损坏数据库的文件路径为 CString
+    let corrupted_str = corrupted_path.to_str()
+        .ok_or_else(|| "Invalid non-UTF8 database path".to_string())?;
+    let c_corrupted_path = CString::new(corrupted_str)
+        .map_err(|e| e.to_string())?;
+
+    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄
+    let raw_db_out = db_out.handle() as *mut std::ffi::c_void;
+
+    unsafe {
+        // 4. 初始化恢复器。zLostAndFound 传入 NULL，代表使用默认配置
+        let recover_ptr = sqlite3_recover_init(raw_db_out, c_corrupted_path.as_ptr(), std::ptr::null());
+        if recover_ptr.is_null() {
+            return Err("Failed to initialize SQLite recover instance (returned NULL)".to_string());
+        }
+
+        log::info!("SQLite recover engine initialized. Restructuring database...");
+
+        // 5. 循环执行恢复步骤
+        loop {
+            let rc = sqlite3_recover_step(recover_ptr);
+            if rc == 101 { // SQLITE_DONE
+                break;
+            } else if rc == 0 { // SQLITE_OK
+                continue;
+            } else {
+                // 发生内部异常，捕获详细错误信息
+                let err_code = sqlite3_recover_errcode(recover_ptr);
+                let err_msg_ptr = sqlite3_recover_errmsg(recover_ptr);
+                let err_msg = if !err_msg_ptr.is_null() {
+                    CStr::from_ptr(err_msg_ptr).to_string_lossy().into_owned()
+                } else {
+                    "No diagnostic error message".to_string()
+                };
+
+                sqlite3_recover_clean(recover_ptr);
+                return Err(format!("Step-recovery failed (rc: {}, code: {}): {}", rc, err_code, err_msg));
+            }
+        }
+
+        // 6. 清理恢复器句柄
+        let clean_rc = sqlite3_recover_clean(recover_ptr);
+        if clean_rc != 0 {
+            return Err(format!("SQLite recover clean failed with code {}", clean_rc));
+        }
+    }
+
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct MTPos {
@@ -25,7 +138,6 @@ pub fn encode_pos(pos: MTPos) -> i64 {
     let z = pos.z as i64;
     let y = pos.y as i64;
     let x = pos.x as i64;
-    // 纯粹的官方正规 Minetest SQLite Hash 函数，绝不掺杂扭曲区块结构的负号！
     z * 0x1000000 + y * 0x1000 + x
 }
 
@@ -38,6 +150,42 @@ impl MTMap {
     pub fn new_from_db_path(db_path: &Path, _spawn_pos: (i32, i32, i32)) -> Result<Self, String> {
         let parent = db_path.parent().unwrap_or(Path::new("."));
         std::fs::create_dir_all(parent).map_err(|e| format!("Failed to create output dir: {}", e))?;
+
+        // =========================================================================
+        // 核心改动：原子损坏检测与自动恢复逻辑
+        // =========================================================================
+        if db_path.exists() {
+            log::info!("Starting database integrity scan on {:?}", db_path);
+            if !check_db_integrity(db_path) {
+                log::warn!("CRITICAL: Database {:?} is corrupted! Activating auto-recovery pipeline...", db_path);
+
+                let corrupted_backup = db_path.with_extension("sqlite.corrupted");
+                if corrupted_backup.exists() {
+                    std::fs::remove_file(&corrupted_backup)
+                        .map_err(|e| format!("Failed to clean stale backup: {}", e))?;
+                }
+
+                // 备份损坏现场
+                std::fs::rename(db_path, &corrupted_backup)
+                    .map_err(|e| format!("Failed to isolate corrupted database: {}", e))?;
+
+                // 启动安全提取与修复
+                match run_recovery(&corrupted_backup, db_path) {
+                    Ok(_) => {
+                        log::info!("Database recover succeeded. Cleaning up corrupted isolated data.");
+                        let _ = std::fs::remove_file(&corrupted_backup);
+                    }
+                    Err(err_msg) => {
+                        log::error!("Database recover failed: {}. Restoring safe-snapshot...", err_msg);
+                        // 还原现场，以保留物理文件让外部工具介入诊断
+                        let _ = std::fs::rename(&corrupted_backup, db_path);
+                        return Err(format!("SQLite programmatic recover failed: {}", err_msg));
+                    }
+                }
+            } else {
+                log::info!("Database integrity verified successfully.");
+            }
+        }
 
         let conn = Connection::open(&db_path)
             .map_err(|e| format!("Failed to open SQLite database: {}", e))?;
