@@ -2,6 +2,8 @@ package me.voltual.mc2mt
 
 object MC2MTLib {
     init {
+        // 显式先于 mc2mt 加载 sqlite3
+        System.loadLibrary("sqlite3")
         System.loadLibrary("mc2mt")
     }
 

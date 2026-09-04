@@ -15,7 +15,7 @@ pub const SER_FMT_VER_HIGHEST_WRITE: u8 = 25;
 pub const BLOCK_Y_OFFSET: i32 = 4;
 
 // =========================================================================
-// SQLite Recover 扩展底层 C FFI 声明 (已添加显式动态链接指示)
+// SQLite Recover 扩展底层 C FFI 声明
 // =========================================================================
 #[link(name = "sqlite3")]
 extern "C" {
@@ -37,7 +37,8 @@ extern "C" {
 
     pub fn sqlite3_recover_errmsg(p: *mut std::ffi::c_void) -> *const std::os::raw::c_char;
 
-    pub fn sqlite3_recover_clean(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
+    // 关键修正：官方 API 接口名称为 sqlite3_recover_finish
+    pub fn sqlite3_recover_finish(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
 }
 
 /// 快速检测 SQLite 文件的完整性。
@@ -103,7 +104,7 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
             } else if rc == 0 { // SQLITE_OK
                 continue;
             } else {
-                // 发生内部异常，捕获 detailed 错误信息
+                // 发生内部异常，捕获详细错误信息
                 let err_code = sqlite3_recover_errcode(recover_ptr);
                 let err_msg_ptr = sqlite3_recover_errmsg(recover_ptr);
                 let err_msg = if !err_msg_ptr.is_null() {
@@ -112,15 +113,15 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
                     "No diagnostic error message".to_string()
                 };
 
-                sqlite3_recover_clean(recover_ptr);
+                sqlite3_recover_finish(recover_ptr);
                 return Err(format!("Step-recovery failed (rc: {}, code: {}): {}", rc, err_code, err_msg));
             }
         }
 
         // 6. 清理恢复器句柄
-        let clean_rc = sqlite3_recover_clean(recover_ptr);
+        let clean_rc = sqlite3_recover_finish(recover_ptr);
         if clean_rc != 0 {
-            return Err(format!("SQLite recover clean failed with code {}", clean_rc));
+            return Err(format!("SQLite recover finish failed with code {}", clean_rc));
         }
     }
 
