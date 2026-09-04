@@ -1,6 +1,6 @@
 <resources>
     <style name="Theme.BBQ.Launcher" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:windowBackground">@drawable/splash_xml</item>
+        <item name="android:windowBackground">@drawable/splash_cloud</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>

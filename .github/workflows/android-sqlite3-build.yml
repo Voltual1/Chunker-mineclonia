@@ -1,0 +1,53 @@
+name: Build Android sqlite3
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: android-sqlite3
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android NDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null
+          sdkmanager --install "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Download official SQLite source
+        run: scripts/download_sqlite.sh
+
+      - name: Build sqlite3
+        run: scripts/build_android.sh
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sqlite3-android
+          path: android-sqlite3/dist/sqlite3-android-*.zip
+
+      - name: Publish GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/sqlite3-android-*.zip \
+            --title "$GITHUB_REF_NAME" \
+            --notes "Android sqlite3 binaries built from official SQLite source." \
+          || gh release upload "$GITHUB_REF_NAME" dist/sqlite3-android-*.zip --clobber
