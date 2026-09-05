@@ -161,22 +161,18 @@ fun BreakpointManagerScreen(
                             items(items = filteredList, key = { it.worldId }) { manifest ->
                                 // 核心改动：用原生的标准 Box 包裹卡片，确保点击事件不被 BBQCard 吃掉
                                 Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            scope.launch {
-                                                try {
-                                                    paneNavigator.navigateTo(
-                                                        ListDetailPaneScaffoldRole.Detail,
-                                                        BreakpointNavigationData(worldId = manifest.worldId, isNew = false)
-                                                    )
-                                                } catch (e: Exception) {
-                                                    e.printStackTrace()
-                                                    snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
-                                                }
-                                            }
-                                        }
-                                ) {
+    modifier = Modifier
+        .fillMaxWidth()
+        .clickable {
+            paneNavigator.navigateTo(
+                ListDetailPaneScaffoldRole.Detail,
+                BreakpointNavigationData(
+                    worldId = manifest.worldId,
+                    isNew = false
+                )
+            )
+        }
+) {
                                     BreakpointItemCard(manifest = manifest)
                                 }
                             }
