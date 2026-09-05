@@ -44,11 +44,9 @@ fun BreakpointManagerScreen(
     val scope = rememberCoroutineScope()
     val state by viewModel.uiState.collectAsState()
     
-    // 1. 强制声明 String 类型参数，彻底规避 Any 类型在 rememberSaveable 序列化时的静默失败
-    val paneNavigator = rememberListDetailPaneScaffoldNavigator<String>()
-
-    // 2. 声明本地 MutableState，用于与 Pyrolysis 对齐的响应式推流
-    val sheetData = remember { mutableStateOf<String?>(null) }
+    // 强制适配强类型 Parcelable 导航器
+    val paneNavigator = rememberListDetailPaneScaffoldNavigator<BreakpointNavigationData>()
+    val sheetData = remember { mutableStateOf<BreakpointNavigationData?>(null) }
 
     val filteredList = remember(state.manifests, state.searchQuery) {
         state.manifests.filter {
@@ -117,11 +115,11 @@ fun BreakpointManagerScreen(
                                     try {
                                         paneNavigator.navigateTo(
                                             ListDetailPaneScaffoldRole.Detail,
-                                            "__new_breakpoint__"
+                                            BreakpointNavigationData(worldId = "", isNew = true)
                                         )
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
+                                        snackbarHostState.showSnackbar("LAUNCH_ERR // 新建动作挂起失败: ${e.localizedMessage}")
                                     }
                                 }
                             },
@@ -168,11 +166,11 @@ fun BreakpointManagerScreen(
                                             try {
                                                 paneNavigator.navigateTo(
                                                     ListDetailPaneScaffoldRole.Detail,
-                                                    manifest.worldId
+                                                    BreakpointNavigationData(worldId = manifest.worldId, isNew = false)
                                                 )
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
-                                                snackbarHostState.showSnackbar("LAUNCH_ERR // 协程载入中断: ${e.localizedMessage}")
+                                                snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
                                             }
                                         }
                                     }
@@ -184,20 +182,21 @@ fun BreakpointManagerScreen(
             }
         },
         detailPane = {
-            // 3. 完美复刻 Pyrolysis 架构，将 Navigator 目的节点推回本地 MutableState，触发瞬时重绘
+            // 完美复刻 Pyrolysis 的 takeIf 面板映射流，确保数据 100% 被推送到目的地
             sheetData.value = paneNavigator.currentDestination
                 ?.takeIf { it.pane == this.paneRole }?.contentKey
+                ?.let { it as? BreakpointNavigationData }
 
-            val selectedWorldId = sheetData.value
+            val navData = sheetData.value
 
             // 响应式检索对应的配置，或根据标识产生空实体
-            val editorManifest = remember(selectedWorldId, state.manifests) {
-                if (selectedWorldId == "__new_breakpoint__") {
-                    viewModel.createEmptyManifest()
-                } else if (selectedWorldId != null) {
-                    state.manifests.find { it.worldId == selectedWorldId }
-                } else {
+            val editorManifest = remember(navData, state.manifests) {
+                if (navData == null) {
                     null
+                } else if (navData.isNew) {
+                    viewModel.createEmptyManifest()
+                } else {
+                    state.manifests.find { it.worldId == navData.worldId }
                 }
             }
 
