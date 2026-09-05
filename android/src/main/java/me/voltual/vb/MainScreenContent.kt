@@ -10,6 +10,9 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.FocusManager
 import androidx.compose.ui.unit.dp
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.window.core.layout.WindowWidthSizeClass
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -88,7 +91,7 @@ fun PyrolysisApp(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3AdaptiveApi::class)
 @Composable
 fun MainScreenContent(
     navigationState: NavigationState,
@@ -109,52 +112,55 @@ fun MainScreenContent(
 
     val topAppBarController = LocalTopAppBarController.current
 
-    ModalNavigationDrawer(
-        drawerState = drawerState,
-        drawerContent = {
-            Box(modifier = Modifier.width(300.dp)) { 
-                Column(
-                    modifier = Modifier
-                        .fillMaxHeight()
-                        .roundScreenPadding()
-                        .background(MaterialTheme.colorScheme.surface) 
-                        .border(
-                            width = 1.dp,
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                        )
-                ) {                    
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(64.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                            .padding(horizontal = 24.dp),
-                        contentAlignment = Alignment.CenterStart
-                    ) {
-                        Text(
-                            text = "VECTOR // TERMINAL",
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
-                                letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
-                            ),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    
-                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+    // Adaptive感知：如果宽度达到 Expanded 级别（如平板或横屏），则触发大屏常驻模式
+    val adaptiveInfo = currentWindowAdaptiveInfo()
+    val isExpandedScreen = adaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.EXPANDED
 
-                    NavigationDrawerItems(
-                        navigator = navigator,
-                        currentTopLevelRoute = currentTopLevelRoute,
-                        drawerState = drawerState,
-                        scope = scope
+    // 抽离统一的侧边栏 UI 构建
+    val drawerContent = @Composable {
+        Box(modifier = Modifier.width(300.dp)) { 
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .roundScreenPadding()
+                    .background(MaterialTheme.colorScheme.surface) 
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                    )
+            ) {                    
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(64.dp)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(horizontal = 24.dp),
+                    contentAlignment = Alignment.CenterStart
+                ) {
+                    Text(
+                        text = "VECTOR // TERMINAL",
+                        style = MaterialTheme.typography.titleMedium.copy(
+                            fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                            letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                        ),
+                        color = MaterialTheme.colorScheme.primary
                     )
                 }
+                
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+                NavigationDrawerItems(
+                    navigator = navigator,
+                    currentTopLevelRoute = currentTopLevelRoute,
+                    drawerState = if (isExpandedScreen) null else drawerState,
+                    scope = scope
+                )
             }
-        },
-        gesturesEnabled = true,
-        modifier = Modifier.fillMaxSize()
-    ) {
+        }
+    }
+
+    // 抽离统一的右侧主体视窗 UI 构建
+    val scaffoldContent = @Composable {
         Scaffold(
             topBar = {
                 Column {
@@ -178,7 +184,8 @@ fun MainScreenContent(
                                         tint = MaterialTheme.colorScheme.onSurface
                                     )
                                 }
-                            } else {
+                            } else if (!isExpandedScreen) {
+                                // 仅在紧凑屏幕下才显示用于唤出侧边栏的汉堡菜单
                                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                     Icon(
                                         imageVector = Icons.Default.Menu,
@@ -237,6 +244,26 @@ fun MainScreenContent(
             }
         )
     }
+
+    // 宽屏模式 -> 分屏常驻面板 (Permanent Navigation Drawer)
+    // 紧凑模式 -> 覆盖式抽屉面板 (Modal Navigation Drawer)
+    if (isExpandedScreen) {
+        PermanentNavigationDrawer(
+            drawerContent = { drawerContent() },
+            modifier = Modifier.fillMaxSize()
+        ) {
+            scaffoldContent()
+        }
+    } else {
+        ModalNavigationDrawer(
+            drawerState = drawerState,
+            drawerContent = { drawerContent() },
+            gesturesEnabled = true,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            scaffoldContent()
+        }
+    }
 }
 
 @Composable
@@ -254,6 +281,7 @@ fun getTitleForDestination(route: NavKey?): String {
         PackConverterDest -> "材质包转换 PACK"
         DecoderDest -> "存档还原 DECODER"
         is MapPreviewDest -> "地图预览 MAP"
+        is StitchDest -> "存档缝合 STITCH"
         else -> "SYSTEM // $route"
     }
 }

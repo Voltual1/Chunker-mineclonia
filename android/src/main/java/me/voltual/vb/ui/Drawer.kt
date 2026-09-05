@@ -82,7 +82,7 @@ fun DrawerHeader(modifier: Modifier = Modifier, backgroundUri: String?) {
 fun NavigationDrawerItems(
     navigator: Navigator,
     currentTopLevelRoute: NavKey?,           
-    drawerState: DrawerState,
+    drawerState: DrawerState?, // 适配平板自适应模式：允许为空
     scope: CoroutineScope
 ) {
     val allDrawerItems = remember {
@@ -230,7 +230,7 @@ private fun ItemContent(
     onItemClick: (String) -> Unit,
     isDragged: Boolean,
     scope: CoroutineScope,
-    drawerState: DrawerState,
+    drawerState: DrawerState?,
     navigator: Navigator,
     modifier: Modifier = Modifier
 ) {
@@ -264,7 +264,7 @@ private fun ItemContent(
         selected = isSelected,
         onClick = {
             onItemClick(item.id)
-            scope.launch { drawerState.close() }    
+            scope.launch { drawerState?.close() } // 适配平板自适应模式：允许为空  
             navigator.navigate(item.route)
         },
         modifier = modifier
