@@ -43,16 +43,12 @@ fun BreakpointManagerScreen(
 ) {
     val scope = rememberCoroutineScope()
     val state by viewModel.uiState.collectAsState()
-    val paneNavigator = rememberListDetailPaneScaffoldNavigator<Any>()
+    
+    // 1. 强制声明 String 类型参数，彻底规避 Any 类型在 rememberSaveable 序列化时的静默失败
+    val paneNavigator = rememberListDetailPaneScaffoldNavigator<String>()
 
-    // 声明本地核心选择状态，作为双栏绑定中枢
-    var selectedWorldId by remember { mutableStateOf<String?>(null) }
-
-    // 敏锐监听 Navigator 的当前历史节点，实现系统物理返回键与本地选择的完美同步
-    val currentContentKey = paneNavigator.currentDestination?.contentKey as? String
-    LaunchedEffect(currentContentKey) {
-        selectedWorldId = currentContentKey
-    }
+    // 2. 声明本地 MutableState，用于与 Pyrolysis 对齐的响应式推流
+    val sheetData = remember { mutableStateOf<String?>(null) }
 
     val filteredList = remember(state.manifests, state.searchQuery) {
         state.manifests.filter {
@@ -117,12 +113,16 @@ fun BreakpointManagerScreen(
                     floatingActionButton = {
                         FloatingActionButton(
                             onClick = {
-                                selectedWorldId = "__new_breakpoint__"
                                 scope.launch {
-                                    paneNavigator.navigateTo(
-                                        ListDetailPaneScaffoldRole.Detail,
-                                        "__new_breakpoint__"
-                                    )
+                                    try {
+                                        paneNavigator.navigateTo(
+                                            ListDetailPaneScaffoldRole.Detail,
+                                            "__new_breakpoint__"
+                                        )
+                                    } catch (e: Exception) {
+                                        e.printStackTrace()
+                                        snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
+                                    }
                                 }
                             },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -164,13 +164,16 @@ fun BreakpointManagerScreen(
                                 BreakpointItemCard(
                                     manifest = manifest,
                                     onClick = {
-                                        // 顶层状态瞬时变更
-                                        selectedWorldId = manifest.worldId
                                         scope.launch {
-                                            paneNavigator.navigateTo(
-                                                ListDetailPaneScaffoldRole.Detail,
-                                                manifest.worldId
-                                            )
+                                            try {
+                                                paneNavigator.navigateTo(
+                                                    ListDetailPaneScaffoldRole.Detail,
+                                                    manifest.worldId
+                                                )
+                                            } catch (e: Exception) {
+                                                e.printStackTrace()
+                                                snackbarHostState.showSnackbar("LAUNCH_ERR // 协程载入中断: ${e.localizedMessage}")
+                                            }
                                         }
                                     }
                                 )
@@ -181,6 +184,12 @@ fun BreakpointManagerScreen(
             }
         },
         detailPane = {
+            // 3. 完美复刻 Pyrolysis 架构，将 Navigator 目的节点推回本地 MutableState，触发瞬时重绘
+            sheetData.value = paneNavigator.currentDestination
+                ?.takeIf { it.pane == this.paneRole }?.contentKey
+
+            val selectedWorldId = sheetData.value
+
             // 响应式检索对应的配置，或根据标识产生空实体
             val editorManifest = remember(selectedWorldId, state.manifests) {
                 if (selectedWorldId == "__new_breakpoint__") {
@@ -199,19 +208,33 @@ fun BreakpointManagerScreen(
                         onSave = { originalId, manifest ->
                             viewModel.saveManifest(originalId, manifest)
                             scope.launch {
-                                snackbarHostState.showSnackbar("SAVE_OK // 断点覆写写入成功")
-                                paneNavigator.navigateBack()
+                                try {
+                                    snackbarHostState.showSnackbar("SAVE_OK // 断点覆写写入成功")
+                                    paneNavigator.navigateBack()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             }
                         },
                         onDelete = { worldId ->
                             viewModel.deleteManifest(worldId)
                             scope.launch {
-                                snackbarHostState.showSnackbar("DELETE_OK // 断点注册段已被物理抹除")
-                                paneNavigator.navigateBack()
+                                try {
+                                    snackbarHostState.showSnackbar("DELETE_OK // 断点注册段已被物理抹除")
+                                    paneNavigator.navigateBack()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
                             }
                         },
                         onDismiss = {
-                            scope.launch { paneNavigator.navigateBack() }
+                            scope.launch {
+                                try {
+                                    paneNavigator.navigateBack()
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                }
+                            }
                         }
                     )
                 } else {
