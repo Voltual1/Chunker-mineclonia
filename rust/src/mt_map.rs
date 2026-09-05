@@ -22,7 +22,7 @@ extern "C" {
     pub fn sqlite3_recover_init(
         db: *mut std::ffi::c_void,
         zDb: *const std::os::raw::c_char,
-        zLostAndFound: *const std::os::raw::c_char,
+        zUri: *const std::os::raw::c_char,
     ) -> *mut std::ffi::c_void;
 
     pub fn sqlite3_recover_config(
@@ -37,7 +37,6 @@ extern "C" {
 
     pub fn sqlite3_recover_errmsg(p: *mut std::ffi::c_void) -> *const std::os::raw::c_char;
 
-    // 关键修正：官方 API 接口名称为 sqlite3_recover_finish
     pub fn sqlite3_recover_finish(p: *mut std::ffi::c_void) -> std::os::raw::c_int;
 }
 
@@ -74,29 +73,35 @@ pub fn check_db_integrity(db_path: &Path) -> bool {
 
 /// 运行底层 `recover` 引擎，将损坏的数据库修复并写入新的数据库。
 pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), String> {
-    // 1. 创建并打开全新的、干净的目标数据库句柄
-    let db_out = Connection::open(recovered_path)
-        .map_err(|e| format!("Failed to open empty output DB for recovery: {}", e))?;
+    // 1. 打开损坏的、作为提取源的输入数据库句柄
+    let db_in = Connection::open(corrupted_path)
+        .map_err(|e| format!("Failed to open corrupted DB for recovery: {}", e))?;
 
-    // 2. 转换损坏数据库的文件路径为 CString
-    let corrupted_str = corrupted_path.to_str()
-        .ok_or_else(|| "Invalid non-UTF8 database path".to_string())?;
-    let c_corrupted_path = CString::new(corrupted_str)
+    // 2. 将输出数据库的路径转换为 CString 作为 zUri
+    let recovered_str = recovered_path.to_str()
+        .ok_or_else(|| "Invalid non-UTF8 recovered database path".to_string())?;
+    let c_recovered_path = CString::new(recovered_str)
         .map_err(|e| e.to_string())?;
 
-    // 3. 提取 rusqlite 托管的底层 raw sqlite3* 句柄
-    let raw_db_out = unsafe { db_out.handle() } as *mut std::ffi::c_void;
+    // 3. 将输入数据库的主名称转换为 CString 作为 zDb (默认为 "main")
+    let c_db_name = CString::new("main").unwrap();
+
+    // 4. 提取 rusqlite 托管的底层 raw sqlite3* 句柄
+    let raw_db_in = unsafe { db_in.handle() } as *mut std::ffi::c_void;
 
     unsafe {
-        // 4. 初始化恢复器。zLostAndFound 传入 NULL，代表使用默认配置
-        let recover_ptr = sqlite3_recover_init(raw_db_out, c_corrupted_path.as_ptr(), std::ptr::null());
+        // 5. 初始化恢复器。
+        // 第一个参数：损坏的输入 db 句柄
+        // 第二个参数：损坏的输入 db 对应的 Schema 空间 ("main")
+        // 第三个参数：修复后新文件的输出路径 (c_recovered_path)
+        let recover_ptr = sqlite3_recover_init(raw_db_in, c_db_name.as_ptr(), c_recovered_path.as_ptr());
         if recover_ptr.is_null() {
             return Err("Failed to initialize SQLite recover instance (returned NULL)".to_string());
         }
 
-        log::info!("SQLite recover engine initialized. Restructuring database...");
+        log::info!("SQLite recover engine initialized. Recovering database from {:?} to {:?}", corrupted_path, recovered_path);
 
-        // 5. 循环执行恢复步骤
+        // 6. 循环执行恢复步骤
         loop {
             let rc = sqlite3_recover_step(recover_ptr);
             if rc == 101 { // SQLITE_DONE
@@ -118,7 +123,7 @@ pub fn run_recovery(corrupted_path: &Path, recovered_path: &Path) -> Result<(), 
             }
         }
 
-        // 6. 清理恢复器句柄
+        // 7. 清理恢复器句柄
         let clean_rc = sqlite3_recover_finish(recover_ptr);
         if clean_rc != 0 {
             return Err(format!("SQLite recover finish failed with code {}", clean_rc));
