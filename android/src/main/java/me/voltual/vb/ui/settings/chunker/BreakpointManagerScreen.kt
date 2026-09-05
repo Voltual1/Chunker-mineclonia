@@ -166,7 +166,7 @@ fun BreakpointManagerScreen(
                                             try {
                                                 paneNavigator.navigateTo(
                                                     ListDetailPaneScaffoldRole.Detail,
-                                                    BreakpointNavigationData(worldId = manifest.worldId, isNew = true)
+                                                    BreakpointNavigationData(worldId = "", isNew = true)
                                                 )
                                             } catch (e: Exception) {
                                                 e.printStackTrace()
