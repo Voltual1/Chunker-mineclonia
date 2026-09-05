@@ -6,10 +6,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -108,13 +108,11 @@ fun BreakpointManagerScreen(
                     floatingActionButton = {
                         FloatingActionButton(
                             onClick = {
-                                scope.launch {
-                                    val newManifest = viewModel.createEmptyManifest()
-                                    paneNavigator.navigateTo(
-                                        ListDetailPaneScaffoldRole.Detail,
-                                        newManifest
-                                    )
-                                }
+                                // 传递特定字符串标识，代表新建
+                                paneNavigator.navigateTo(
+                                    ListDetailPaneScaffoldRole.Detail,
+                                    "__new_breakpoint__"
+                                )
                             },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -155,12 +153,11 @@ fun BreakpointManagerScreen(
                                 BreakpointItemCard(
                                     manifest = manifest,
                                     onClick = {
-                                        scope.launch {
-                                            paneNavigator.navigateTo(
-                                                ListDetailPaneScaffoldRole.Detail,
-                                                manifest
-                                            )
-                                        }
+                                        // 只传递 String 类型的 worldId 以防 Bundle 序列化异常
+                                        paneNavigator.navigateTo(
+                                            ListDetailPaneScaffoldRole.Detail,
+                                            manifest.worldId
+                                        )
                                     }
                                 )
                             }
@@ -170,11 +167,24 @@ fun BreakpointManagerScreen(
             }
         },
         detailPane = {
-            val selectedKey = paneNavigator.currentDestination?.contentKey
+            // 从 Navigator 节点拉取被点击的 worldId (String)
+            val selectedWorldId = paneNavigator.currentDestination?.contentKey as? String
+            
+            // 响应式检索对应的配置，或根据标识产生空实体
+            val editorManifest = remember(selectedWorldId, state.manifests) {
+                if (selectedWorldId == "__new_breakpoint__") {
+                    viewModel.createEmptyManifest()
+                } else if (selectedWorldId != null) {
+                    state.manifests.find { it.worldId == selectedWorldId }
+                } else {
+                    null
+                }
+            }
+
             AnimatedPane {
-                if (selectedKey is ConversionManifest) {
+                if (editorManifest != null) {
                     BreakpointEditorPane(
-                        manifest = selectedKey,
+                        manifest = editorManifest,
                         onSave = { originalId, manifest ->
                             viewModel.saveManifest(originalId, manifest)
                             scope.launch {
