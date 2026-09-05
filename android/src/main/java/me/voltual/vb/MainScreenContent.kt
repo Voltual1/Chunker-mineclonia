@@ -112,54 +112,53 @@ fun MainScreenContent(
 
     val topAppBarController = LocalTopAppBarController.current
 
-    // Adaptive感知：如果宽度达到 Expanded 级别（如平板或横屏），则触发大屏常驻模式
+    // Adaptive感知：只要设备的宽度超过手机(COMPACT)，无论是折叠屏还是平板，均触发大屏常驻中控模式
     val adaptiveInfo = currentWindowAdaptiveInfo()
-    val isExpandedScreen = adaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.EXPANDED
+    val isExpandedScreen = adaptiveInfo.windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
 
-    // 抽离统一的侧边栏 UI 构建
-    val drawerContent = @Composable {
-        Box(modifier = Modifier.width(300.dp)) { 
-            Column(
+    // 抽离统一的侧边栏战术内容
+    val innerDrawerContent = @Composable {
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .width(300.dp)
+                .roundScreenPadding()
+                .background(MaterialTheme.colorScheme.surface) 
+                .border(
+                    width = 1.dp,
+                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                )
+        ) {                    
+            Box(
                 modifier = Modifier
-                    .fillMaxHeight()
-                    .roundScreenPadding()
-                    .background(MaterialTheme.colorScheme.surface) 
-                    .border(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                    )
-            ) {                    
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(64.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                        .padding(horizontal = 24.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    Text(
-                        text = "VECTOR // TERMINAL",
-                        style = MaterialTheme.typography.titleMedium.copy(
-                            fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
-                            letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
-                        ),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                
-                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-
-                NavigationDrawerItems(
-                    navigator = navigator,
-                    currentTopLevelRoute = currentTopLevelRoute,
-                    drawerState = if (isExpandedScreen) null else drawerState,
-                    scope = scope
+                    .fillMaxWidth()
+                    .height(64.dp)
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                    .padding(horizontal = 24.dp),
+                contentAlignment = Alignment.CenterStart
+            ) {
+                Text(
+                    text = "VECTOR // TERMINAL",
+                    style = MaterialTheme.typography.titleMedium.copy(
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Black,
+                        letterSpacing = androidx.compose.ui.unit.TextUnit.Unspecified
+                    ),
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
+            
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+
+            NavigationDrawerItems(
+                navigator = navigator,
+                currentTopLevelRoute = currentTopLevelRoute,
+                drawerState = if (isExpandedScreen) null else drawerState,
+                scope = scope
+            )
         }
     }
 
-    // 抽离统一的右侧主体视窗 UI 构建
+    // 抽离统一的右侧视窗
     val scaffoldContent = @Composable {
         Scaffold(
             topBar = {
@@ -185,7 +184,7 @@ fun MainScreenContent(
                                     )
                                 }
                             } else if (!isExpandedScreen) {
-                                // 仅在紧凑屏幕下才显示用于唤出侧边栏的汉堡菜单
+                                // 仅在紧凑屏幕（手机）下显示用于唤出侧边栏的汉堡菜单
                                 IconButton(onClick = { scope.launch { drawerState.open() } }) {
                                     Icon(
                                         imageVector = Icons.Default.Menu,
@@ -245,11 +244,19 @@ fun MainScreenContent(
         )
     }
 
-    // 宽屏模式 -> 分屏常驻面板 (Permanent Navigation Drawer)
-    // 紧凑模式 -> 覆盖式抽屉面板 (Modal Navigation Drawer)
+    // 根据自适应阈值分发给符合 M3 规范的不同 Drawer 容器
     if (isExpandedScreen) {
         PermanentNavigationDrawer(
-            drawerContent = { drawerContent() },
+            drawerContent = {
+                // 使用官方 Sheet 包裹，但将色彩重置为透明，以保留战术边框风格
+                PermanentDrawerSheet(
+                    drawerContainerColor = Color.Transparent,
+                    drawerShape = AppShapes.small,
+                    drawerTonalElevation = 0.dp
+                ) {
+                    innerDrawerContent()
+                }
+            },
             modifier = Modifier.fillMaxSize()
         ) {
             scaffoldContent()
@@ -257,7 +264,15 @@ fun MainScreenContent(
     } else {
         ModalNavigationDrawer(
             drawerState = drawerState,
-            drawerContent = { drawerContent() },
+            drawerContent = { 
+                ModalDrawerSheet(
+                    drawerContainerColor = Color.Transparent,
+                    drawerShape = AppShapes.small,
+                    drawerTonalElevation = 0.dp
+                ) {
+                    innerDrawerContent()
+                }
+            },
             gesturesEnabled = true,
             modifier = Modifier.fillMaxSize()
         ) {
