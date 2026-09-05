@@ -19,7 +19,6 @@ import androidx.datastore.core.DataStore
 import me.voltual.vb.ui.chunker.ChunkerViewModel
 import me.voltual.vb.ui.export.ExportViewModel
 import androidx.datastore.preferences.core.Preferences
-import me.voltual.vb.ui.settings.chunker.BreakpointManagerViewModel
 import me.voltual.vb.core.ftp.FtpServerManager
 import me.voltual.vb.ui.packconverter.PackConverterViewModel
 import me.voltual.vb.ui.decoder.DecoderViewModel
@@ -44,7 +43,6 @@ val appModule = module {
     viewModel { PackConverterViewModel(androidContext()) }
     viewModel { DecoderViewModel(androidContext()) }
     viewModel { NbtEditorViewModel() }
-    viewModel { BreakpointManagerViewModel(get()) }
     viewModel { MapPreviewViewModel() } 
     viewModel { StitchViewModel(androidContext()) } 
    
