@@ -45,6 +45,15 @@ fun BreakpointManagerScreen(
     val state by viewModel.uiState.collectAsState()
     val paneNavigator = rememberListDetailPaneScaffoldNavigator<Any>()
 
+    // 声明本地核心选择状态，作为双栏绑定中枢
+    var selectedWorldId by remember { mutableStateOf<String?>(null) }
+
+    // 敏锐监听 Navigator 的当前历史节点，实现系统物理返回键与本地选择的完美同步
+    val currentContentKey = paneNavigator.currentDestination?.contentKey as? String
+    LaunchedEffect(currentContentKey) {
+        selectedWorldId = currentContentKey
+    }
+
     val filteredList = remember(state.manifests, state.searchQuery) {
         state.manifests.filter {
             it.worldId.contains(state.searchQuery, ignoreCase = true) ||
@@ -108,7 +117,7 @@ fun BreakpointManagerScreen(
                     floatingActionButton = {
                         FloatingActionButton(
                             onClick = {
-                                // 使用协程作用域拉起挂起函数
+                                selectedWorldId = "__new_breakpoint__"
                                 scope.launch {
                                     paneNavigator.navigateTo(
                                         ListDetailPaneScaffoldRole.Detail,
@@ -155,7 +164,8 @@ fun BreakpointManagerScreen(
                                 BreakpointItemCard(
                                     manifest = manifest,
                                     onClick = {
-                                        // 使用协程作用域拉起挂起函数
+                                        // 顶层状态瞬时变更
+                                        selectedWorldId = manifest.worldId
                                         scope.launch {
                                             paneNavigator.navigateTo(
                                                 ListDetailPaneScaffoldRole.Detail,
@@ -171,9 +181,6 @@ fun BreakpointManagerScreen(
             }
         },
         detailPane = {
-            // 从 Navigator 节点拉取被点击的 worldId (String)
-            val selectedWorldId = paneNavigator.currentDestination?.contentKey as? String
-            
             // 响应式检索对应的配置，或根据标识产生空实体
             val editorManifest = remember(selectedWorldId, state.manifests) {
                 if (selectedWorldId == "__new_breakpoint__") {
