@@ -46,6 +46,7 @@ Vector-Breakthrough 选择了更艰难但更彻底的底层重构道路。直接
 感谢以下开源项目及贡献者（按字母顺序排列），正是站在巨人的肩膀上，VB 才成为可能：
 
 - [andob/android-awt](https://github.com/andob/android-awt)
+- [0pen1/android-sqlite3](https://github.com/0pen1/android-sqlite3)
 - [eltanschauung/MC2MT](https://github.com/eltanschauung/MC2MT)
 - [GeyserMC/PackConverter](https://github.com/GeyserMC/PackConverter)
 - [HiveGamesOSS/Chunker](https://github.com/HiveGamesOSS/Chunker)
