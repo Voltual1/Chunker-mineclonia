@@ -67,3 +67,6 @@ data class TerminalExec(
     val isEntity: Boolean,
     val isBedrock: Boolean
 ) : AppDestination
+
+/** 续转物理断点注册表管理器 */
+@Serializable data object BreakpointManagerDest : AppDestination

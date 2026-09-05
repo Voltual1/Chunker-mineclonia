@@ -53,4 +53,18 @@ class ConversionTaskRepository(private val dao: ConversionTaskDao) {
             saveManifest(it.copy(isActive = false))
         }
     }
+
+    /** 
+     * 读取存储在数据库底座中的全量转换断点 
+     */
+    suspend fun getAllManifests(): List<ConversionManifest> {
+        return dao.getAllTasks().mapNotNull { entity ->
+            try {
+                jsonFormat.decodeFromString<ConversionManifest>(entity.stateJson)
+            } catch (e: Exception) {
+                e.printStackTrace()
+                null
+            }
+        }
+    }
 }

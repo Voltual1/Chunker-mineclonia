@@ -35,6 +35,7 @@ import me.voltual.vb.ui.settings.update.UpdateSettingsScreen
 import me.voltual.vb.ui.settings.update.UpdateSettingsViewModel
 import me.voltual.vb.ui.settings.ftp.FtpSettingsScreen
 import me.voltual.vb.ui.settings.chunker.ChunkerSettingsScreen
+import me.voltual.vb.ui.settings.chunker.BreakpointManagerScreen
 import me.voltual.vb.ui.packconverter.PackConverterScreen
 import me.voltual.vb.ui.decoder.DecoderScreen
 import me.voltual.vb.ui.nbt.NbtEditorScreen
@@ -109,12 +110,12 @@ fun BBQNavDisplay(
                         }
                         
                         is MapPreviewDest -> {
-    MapPreviewScreen(
-        initialFolderUri = key.folderUri,
-        snackbarHostState = snackbarHostState,
-        modifier = Modifier.fillMaxSize()
-    )
-}
+                            MapPreviewScreen(
+                                initialFolderUri = key.folderUri,
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
 
                         is Export -> {
                             ExportScreen(modifier = Modifier.fillMaxSize())
@@ -137,6 +138,14 @@ fun BBQNavDisplay(
                         is ChunkerSettings -> {
                             ChunkerSettingsScreen(
                                 snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+
+                        is BreakpointManagerDest -> {
+                            BreakpointManagerScreen(
+                                snackbarHostState = snackbarHostState,
+                                onBack = onBack,
                                 modifier = Modifier.fillMaxSize()
                             )
                         }
@@ -198,34 +207,34 @@ fun BBQNavDisplay(
                         }
                         
                         is ChunkNbtEditorDest -> {
-    val context = LocalContext.current
-    val editableNbt = remember(key) {
-        val uri = android.net.Uri.parse(key.worldDirUri)
-        val docFile = DocumentFileCompat.fromUri(context, uri)
-        val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
-        
-        val dim = when (key.dimensionName) {
-            "minecraft:the_nether" -> Dimension.NETHER
-            "minecraft:the_end" -> Dimension.THE_END
-            else -> Dimension.OVERWORLD
-        }
-        ChunkEditableNbt(
-            worldDir = rawFile,
-            chunkX = key.chunkX,
-            chunkZ = key.chunkZ,
-            dimension = dim,
-            isEntity = key.isEntity,
-            isBedrock = key.isBedrock
-        )
-    }
+                            val context = LocalContext.current
+                            val editableNbt = remember(key) {
+                                val uri = android.net.Uri.parse(key.worldDirUri)
+                                val docFile = DocumentFileCompat.fromUri(context, uri)
+                                val rawFile = docFile?.toRawFile(context) ?: java.io.File(key.worldDirUri)
+                                
+                                val dim = when (key.dimensionName) {
+                                    "minecraft:the_nether" -> Dimension.NETHER
+                                    "minecraft:the_end" -> Dimension.THE_END
+                                    else -> Dimension.OVERWORLD
+                                }
+                                ChunkEditableNbt(
+                                    worldDir = rawFile,
+                                    chunkX = key.chunkX,
+                                    chunkZ = key.chunkZ,
+                                    dimension = dim,
+                                    isEntity = key.isEntity,
+                                    isBedrock = key.isBedrock
+                                )
+                            }
 
-    me.voltual.vb.ui.nbt.NbtEditorScreen(
-        editableNbt = editableNbt,
-        onBack = onBack,
-        snackbarHostState = snackbarHostState,
-        modifier = Modifier.fillMaxSize()
-    )
-}
+                            me.voltual.vb.ui.nbt.NbtEditorScreen(
+                                editableNbt = editableNbt,
+                                onBack = onBack,
+                                snackbarHostState = snackbarHostState,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
 
                         else -> {
                             Box(

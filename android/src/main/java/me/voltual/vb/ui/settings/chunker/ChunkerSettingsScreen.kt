@@ -21,6 +21,8 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQCard
+import me.voltual.vb.ui.LocalNavigator
+import me.voltual.vb.ui.BreakpointManagerDest
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +34,7 @@ fun ChunkerSettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val navigator = LocalNavigator.current
     
     val threadCount by viewModel.threadCount.collectAsState()
     val processMaps by viewModel.processMaps.collectAsState()
@@ -213,6 +216,42 @@ fun ChunkerSettingsScreen(
                         checkedTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     )
                 )
+            }
+        }
+
+        // 续转注册表子管理器卡片入口
+        BBQCard(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "BREAKPOINT_REGISTRY // 续转断点注册表",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "物理转换切片断点支持手动篡改。对于特大、中断的转换任务，可以通过覆写或调整当前进度索引、基岩哈希键来修正损坏的转换流。",
+                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                        color = MaterialTheme.colorScheme.outline
+                    )
+                }
+                Spacer(modifier = Modifier.width(16.dp))
+                Button(
+                    onClick = { navigator.navigate(BreakpointManagerDest) },
+                    shape = AppShapes.small,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text("MANAGE", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                }
             }
         }
 
