@@ -44,7 +44,7 @@ fun BreakpointManagerScreen(
     val scope = rememberCoroutineScope()
     val state by viewModel.uiState.collectAsState()
     
-    // 强制适配强类型 Parcelable 导航器
+    // 强类型自适应导航器
     val paneNavigator = rememberListDetailPaneScaffoldNavigator<BreakpointNavigationData>()
     val sheetData = remember { mutableStateOf<BreakpointNavigationData?>(null) }
 
@@ -159,22 +159,26 @@ fun BreakpointManagerScreen(
                             verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             items(items = filteredList, key = { it.worldId }) { manifest ->
-                                BreakpointItemCard(
-                                    manifest = manifest,
-                                    onClick = {
-                                        scope.launch {
-                                            try {
-                                                paneNavigator.navigateTo(
-                                                    ListDetailPaneScaffoldRole.Detail,
-                                                    BreakpointNavigationData(worldId = "", isNew = true)
-                                                )
-                                            } catch (e: Exception) {
-                                                e.printStackTrace()
-                                                snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
+                                // 核心改动：用原生的标准 Box 包裹卡片，确保点击事件不被 BBQCard 吃掉
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable {
+                                            scope.launch {
+                                                try {
+                                                    paneNavigator.navigateTo(
+                                                        ListDetailPaneScaffoldRole.Detail,
+                                                        BreakpointNavigationData(worldId = manifest.worldId, isNew = false)
+                                                    )
+                                                } catch (e: Exception) {
+                                                    e.printStackTrace()
+                                                    snackbarHostState.showSnackbar("LAUNCH_ERR // 协程跳转中断: ${e.localizedMessage}")
+                                                }
                                             }
                                         }
-                                    }
-                                )
+                                ) {
+                                    BreakpointItemCard(manifest = manifest)
+                                }
                             }
                         }
                     }
@@ -182,7 +186,6 @@ fun BreakpointManagerScreen(
             }
         },
         detailPane = {
-            // 完美复刻 Pyrolysis 的 takeIf 面板映射流，确保数据 100% 被推送到目的地
             sheetData.value = paneNavigator.currentDestination
                 ?.takeIf { it.pane == this.paneRole }?.contentKey
                 ?.let { it as? BreakpointNavigationData }
@@ -253,12 +256,11 @@ fun BreakpointManagerScreen(
 @Composable
 fun BreakpointItemCard(
     manifest: ConversionManifest,
-    onClick: () -> Unit
+    modifier: Modifier = Modifier
 ) {
+    // 卡片本身不再带任何 clickable 以防触摸冲突
     BBQCard(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
