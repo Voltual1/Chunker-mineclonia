@@ -18,11 +18,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.anggrayudi.storage.compose.rememberLauncherForFilePicker
+import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
 import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQCard
-import me.voltual.vb.ui.LocalNavigator
-import me.voltual.vb.ui.BreakpointManagerDest
 import org.koin.compose.viewmodel.koinViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -34,7 +34,6 @@ fun ChunkerSettingsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val navigator = LocalNavigator.current
     
     val threadCount by viewModel.threadCount.collectAsState()
     val processMaps by viewModel.processMaps.collectAsState()
@@ -43,6 +42,45 @@ fun ChunkerSettingsScreen(
     
     val scrollState = rememberScrollState()
     var showClearDialog by remember { mutableStateOf(false) }
+
+    // 挂置 simple-storage 文件夹选择器：用于断点导出
+    val folderPickerLauncher = rememberLauncherForFolderPicker { folder ->
+        viewModel.exportBreakpoints(
+            folder = folder,
+            context = context,
+            onSuccess = {
+                scope.launch {
+                    snackbarHostState.showSnackbar("EXPORT_OK // 断点已安全导出至 breakpoints_backup.json")
+                }
+            },
+            onError = { err ->
+                scope.launch {
+                    snackbarHostState.showSnackbar("EXPORT_FAIL // 备份导出失败: $err")
+                }
+            }
+        )
+    }
+
+    // 挂置 simple-storage 文件选择器：用于断点导入
+    val filePickerLauncher = rememberLauncherForFilePicker(
+        filterMimeTypes = setOf("application/json")
+    ) { files ->
+        val file = files.firstOrNull() ?: return@rememberLauncherForFilePicker
+        viewModel.importBreakpoints(
+            file = file,
+            context = context,
+            onSuccess = {
+                scope.launch {
+                    snackbarHostState.showSnackbar("IMPORT_OK // 断点物理备份已成功合入覆盖")
+                }
+            },
+            onError = { err ->
+                scope.launch {
+                    snackbarHostState.showSnackbar("IMPORT_FAIL // 备份恢复失败: $err")
+                }
+            }
+        )
+    }
 
     Column(
         modifier = modifier
@@ -120,7 +158,7 @@ fun ChunkerSettingsScreen(
             }
         }
 
-        // 新增：防 OOM 内存安全切片模式
+        // 防 OOM 内存安全切片模式
         BBQCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -153,7 +191,7 @@ fun ChunkerSettingsScreen(
             }
         }
 
-        // 新增：3. 地图预览战术节能模式（点哪里亮哪里）
+        // 地图预览战术节能模式（点哪里亮哪里）
         BBQCard(modifier = Modifier.fillMaxWidth()) {
             Row(
                 modifier = Modifier
@@ -219,38 +257,39 @@ fun ChunkerSettingsScreen(
             }
         }
 
-        // 续转注册表子管理器卡片入口
+        // 新增：JSON 断点数据库导出、导入与迁移卡片
         BBQCard(modifier = Modifier.fillMaxWidth()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "BREAKPOINT_REGISTRY // 续转断点注册表",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "物理转换切片断点支持手动篡改。对于特大、中断的转换任务，可以通过覆写或调整当前进度索引、基岩哈希键来修正损坏的转换流。",
-                        style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
-                        color = MaterialTheme.colorScheme.outline
-                    )
-                }
-                Spacer(modifier = Modifier.width(16.dp))
-                Button(
-                    onClick = { navigator.navigate(BreakpointManagerDest) },
-                    shape = AppShapes.small,
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    ),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 10.dp)
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "BREAKPOINT_MIGRATION // 断点备份与迁移",
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "将转换核心所记录的各个存档切片进度导出为 breakpoints_backup.json 文件，或从外部选择备份文件导入。支持手动修改其中内容以实现特殊情况下的强制覆写与续转偏置重置。",
+                    style = MaterialTheme.typography.labelSmall.copy(lineHeight = 14.sp),
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("MANAGE", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    OutlinedButton(
+                        onClick = { filePickerLauncher.launch() },
+                        shape = AppShapes.small,
+                        modifier = Modifier.weight(1f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("IMPORT / 导入", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                    }
+                    Button(
+                        onClick = { folderPickerLauncher.launch() },
+                        shape = AppShapes.small,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("EXPORT / 导出", fontWeight = FontWeight.Black, fontSize = 12.sp)
+                    }
                 }
             }
         }
