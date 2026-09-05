@@ -108,11 +108,13 @@ fun BreakpointManagerScreen(
                     floatingActionButton = {
                         FloatingActionButton(
                             onClick = {
-                                // 传递特定字符串标识，代表新建
-                                paneNavigator.navigateTo(
-                                    ListDetailPaneScaffoldRole.Detail,
-                                    "__new_breakpoint__"
-                                )
+                                // 使用协程作用域拉起挂起函数
+                                scope.launch {
+                                    paneNavigator.navigateTo(
+                                        ListDetailPaneScaffoldRole.Detail,
+                                        "__new_breakpoint__"
+                                    )
+                                }
                             },
                             containerColor = MaterialTheme.colorScheme.primaryContainer,
                             contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -153,11 +155,13 @@ fun BreakpointManagerScreen(
                                 BreakpointItemCard(
                                     manifest = manifest,
                                     onClick = {
-                                        // 只传递 String 类型的 worldId 以防 Bundle 序列化异常
-                                        paneNavigator.navigateTo(
-                                            ListDetailPaneScaffoldRole.Detail,
-                                            manifest.worldId
-                                        )
+                                        // 使用协程作用域拉起挂起函数
+                                        scope.launch {
+                                            paneNavigator.navigateTo(
+                                                ListDetailPaneScaffoldRole.Detail,
+                                                manifest.worldId
+                                            )
+                                        }
                                     }
                                 )
                             }
