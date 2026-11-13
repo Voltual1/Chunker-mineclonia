@@ -1,5 +1,6 @@
 plugins {
-    id("io.freefair.lombok") version "9.1.0"
+    `java-library`
+    id("io.freefair.lombok") version "9.5.0"
 }
 
 version = "Based PackConverter-1ae5b8f048de39d6074132f44d58824c305eb295"
