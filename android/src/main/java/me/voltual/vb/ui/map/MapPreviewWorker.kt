@@ -146,16 +146,15 @@ class MapPreviewWorker(val context: Context, params: WorkerParameters) : RemoteC
                         override fun convertWorld(world: ChunkerWorld?): Task<ColumnConversionHandler> {
                             val columnWriter = worldWriter.writeWorld(world ?: throw NullPointerException())
                             val columnHandler = object : ColumnConversionHandler {
-                                override fun convertColumn(column: ChunkerColumn): Task<java.lang.Void> {
-                                    return columnWriter.writeColumn(column)
+                                // 修正为原版的 void 返回类型
+                                override fun convertColumn(column: ChunkerColumn) {
+                                    columnWriter.writeColumn(column)
                                 }
-                                override fun flushRegion(regionCoordPair: RegionCoordPair): Task<java.lang.Void> {
+                                override fun flushRegion(regionCoordPair: RegionCoordPair) {
                                     columnWriter.flushRegion(regionCoordPair)
-                                    return FutureTask(CompletableFuture.completedFuture(null))
                                 }
-                                override fun flushColumns(): Task<java.lang.Void> {
+                                override fun flushColumns() {
                                     columnWriter.flushColumns()
-                                    return FutureTask(CompletableFuture.completedFuture(null))
                                 }
                             }
                             return FutureTask(CompletableFuture.completedFuture(columnHandler))
