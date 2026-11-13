@@ -1,4 +1,3 @@
-// [file name]: com.hivemc.chunker.conversion.encoding.bedrock.base.reader.BedrockColumnReader.java
 package com.hivemc.chunker.conversion.encoding.bedrock.base.reader;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
@@ -52,7 +51,7 @@ public class BedrockColumnReader implements ColumnReader {
     }
 
     @Override
-    public Task<Void> readColumn(ColumnConversionHandler columnConversionHandler) {
+    public void readColumn(ColumnConversionHandler columnConversionHandler) {
         ChunkerColumn column = new ChunkerColumn(columnCoords);
 
         ArrayList<Task<Void>> processing = new ArrayList<>(4);
@@ -61,9 +60,9 @@ public class BedrockColumnReader implements ColumnReader {
         if (converter.shouldProcessBlockEntities()) processing.add(Task.asyncConsume("Reading Block Entities", TaskWeight.HIGH, this::readBlockEntities, column));
         processing.add(Task.asyncConsume("Reading Chunks", TaskWeight.HIGHER, this::readChunks, column));
 
-        return Task.join(processing)
+        Task.join(processing)
                 .then("Post-processing column", TaskWeight.HIGH, this::postProcess, column)
-                .thenUnwrap("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
+                .thenConsume("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
     }
 
     protected void readBiomeHeightMap(ChunkerColumn column) {

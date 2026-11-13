@@ -1,4 +1,3 @@
-// [file name]: com.hivemc.chunker.conversion.encoding.java.base.reader.JavaColumnReader.java
 package com.hivemc.chunker.conversion.encoding.java.base.reader;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
@@ -28,8 +27,8 @@ import java.util.*;
 public class JavaColumnReader implements ColumnReader {
     private static final Set<String> UNFINISHED_STATUSES = Set.of(
             "empty", "structure_starts", "structure_references", "biomes", "noise", "surface", "carvers", "liquid_carvers",
-            "minecraft:empty", "minecraft:structure_starts", "minecraft:structure_references", "minecraft:biomes",
-            "minecraft:noise", "minecraft:surface", "minecraft:carvers", "minecraft:liquid_carvers"
+            "terrain", "minecraft:empty", "minecraft:structure_starts", "minecraft:structure_references", "minecraft:biomes",
+            "minecraft:noise", "minecraft:surface", "minecraft:carvers", "minecraft:liquid_carvers", "minecraft:terrain"
     );
 
     protected final Converter converter;
@@ -47,11 +46,11 @@ public class JavaColumnReader implements ColumnReader {
     }
 
     @Override
-    public Task<Void> readColumn(ColumnConversionHandler columnConversionHandler) {
-        if (columnNBT == null) return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
+    public void readColumn(ColumnConversionHandler columnConversionHandler) {
+        if (columnNBT == null) return;
         columnNBT = columnNBT.getCompound("Level", columnNBT);
 
-        if (!columnNBT.contains("xPos") || !columnNBT.contains("zPos")) return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
+        if (!columnNBT.contains("xPos") || !columnNBT.contains("zPos")) return;
 
         int xPos = columnNBT.getInt("xPos");
         int zPos = columnNBT.getInt("zPos");
@@ -60,7 +59,7 @@ public class JavaColumnReader implements ColumnReader {
         }
 
         if (columnNBT.contains("Status") && UNFINISHED_STATUSES.contains(columnNBT.getString("Status"))) {
-            return Task.async("Skipped Column", TaskWeight.LOW, () -> {});
+            return;
         }
 
         ChunkerColumn column = new ChunkerColumn(columnCoords);
@@ -73,9 +72,9 @@ public class JavaColumnReader implements ColumnReader {
         if (converter.shouldProcessBlockEntities()) processing.add(Task.asyncConsume("Reading Block Entities", TaskWeight.HIGH, this::readBlockEntities, column));
         processing.add(Task.asyncConsume("Reading Chunks", TaskWeight.HIGHER, this::readChunks, column));
 
-        return Task.join(processing)
+        Task.join(processing)
                 .then("Post-processing column", TaskWeight.HIGH, this::postProcess, column)
-                .thenUnwrap("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
+                .thenConsume("Submitting column", TaskWeight.LOW, columnConversionHandler::convertColumn);
     }
 
     protected void readLightPopulated(ChunkerColumn column) {
