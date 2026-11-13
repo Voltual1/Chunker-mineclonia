@@ -386,7 +386,7 @@ public class CLI implements Runnable {
                 System.err.println("Failed to find suitable writer for the world.");
                 return;
             }
-            
+
             System.out.println(MessageFormat.format(
                     "Converting from {0} {1} to {2} {3}",
                     reader.get().getEncodingType().getName(),

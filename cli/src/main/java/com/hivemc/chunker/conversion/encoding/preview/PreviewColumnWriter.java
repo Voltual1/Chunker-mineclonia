@@ -6,6 +6,8 @@ import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
+import com.hivemc.chunker.scheduling.task.Task;
+import com.hivemc.chunker.scheduling.task.TaskWeight;
 import it.unimi.dsi.fastutil.Pair;
 
 import javax.imageio.ImageIO;
@@ -37,7 +39,7 @@ public class PreviewColumnWriter implements ColumnWriter {
     }
 
     @Override
-    public void writeColumn(ChunkerColumn chunkerColumn) {
+    public Task<Void> writeColumn(ChunkerColumn chunkerColumn) {
         int[] argb = new int[256];
         boolean present = false;
 
@@ -69,6 +71,8 @@ public class PreviewColumnWriter implements ColumnWriter {
             Set<ChunkCoordPair> chunks = worldData.regionToPresentChunks.computeIfAbsent(regionCoordPair, (ignored) -> Sets.newConcurrentHashSet());
             chunks.add(chunkerColumn.getPosition());
         }
+
+        return Task.async("Preview Column Write", TaskWeight.LOW, () -> {});
     }
 
     @Override

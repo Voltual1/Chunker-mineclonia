@@ -102,10 +102,6 @@ public class JavaNamedBiomeResolver extends ChunkerBiomeResolver<String> {
         if (javaVersion.isGreaterThanOrEqual(26, 2, 0)) {
             mapping.put(ChunkerBiome.ChunkerVanillaBiome.SULFUR_CAVES, "minecraft:sulfur_caves");
         }
-
-        if (javaVersion.isGreaterThanOrEqual(26, 3, 0)) {
-            mapping.put(ChunkerBiome.ChunkerVanillaBiome.DAPPLED_FOREST, "minecraft:dappled_forest");
-        }
     }
 
     @Override

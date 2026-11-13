@@ -113,7 +113,7 @@ public class BedrockBlockEntityResolver extends BlockEntityResolver<BedrockResol
         // R19U7
         if (version.isGreaterThanOrEqual(1, 19, 70)) {
             register(new BedrockDecoratedPotBlockEntityHandler());
-            register(new BedrockBrushableBlockEntityHandler(resolvers.converter().shouldProcessLootTables()));
+            register(new BedrockBrushableBlockEntityHandler());
         }
 
         // R19U8

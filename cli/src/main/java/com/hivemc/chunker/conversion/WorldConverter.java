@@ -97,6 +97,10 @@ public class WorldConverter implements Converter {
     private boolean exceptions = false;
     private boolean cancelled = false;
 
+    // Downstream custom fields
+    private volatile boolean memoryPaused = false;
+    private int threadCount = 8;
+
     /**
      * Create a new WorldConverter with a sessionID.
      *
@@ -104,6 +108,45 @@ public class WorldConverter implements Converter {
      */
     public WorldConverter(UUID sessionID) {
         this.sessionID = sessionID;
+    }
+
+    /**
+     * Set the thread count used for the environment.
+     *
+     * @param threadCount the thread count.
+     */
+    public void setThreadCount(int threadCount) {
+        this.threadCount = threadCount;
+    }
+
+    /**
+     * Get whether the converter is currently paused for memory management.
+     *
+     * @return true if memory is paused.
+     */
+    public boolean isMemoryPaused() {
+        return memoryPaused;
+    }
+
+    /**
+     * Set whether the converter should pause for memory management.
+     *
+     * @param paused true if memory should be paused.
+     */
+    public void setMemoryPaused(boolean paused) {
+        this.memoryPaused = paused;
+    }
+
+    @Override
+    public void awaitMemoryPause() {
+        while (memoryPaused && !cancelled) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                break;
+            }
+        }
     }
 
     /**
@@ -123,7 +166,6 @@ public class WorldConverter implements Converter {
     public void setPruningConfigs(@Nullable Map<String, PruningConfig> pruningConfigs) {
         this.pruningConfigs = pruningConfigs;
     }
-
 
     /**
      * Set which dimension should map to which output dimension, if a dimension is not in the map it is discarded.
@@ -555,12 +597,13 @@ public class WorldConverter implements Converter {
         this.writer = writer;
         cancelled = false;
         exceptions = false;
+        memoryPaused = false;
         missingIdentifiers.clear();
-        environment = Task.environment("World Conversion", 8, this::logFatalException, this::handleSignal);
+        environment = Task.environment("World Conversion", threadCount, this::logFatalException, this::handleSignal);
 
         try {
-            // Create the handler that calls the writer
-            LevelWriterConversionHandler writerHandler = new LevelWriterConversionHandler(writer);
+            // Create the handler that calls the writer (passing "this" for Downstream functionality)
+            LevelWriterConversionHandler writerHandler = new LevelWriterConversionHandler(writer, this);
 
             // Create the conversion pipeline (it always uses the writer as a base)
             Pipeline pipeline = new Pipeline(writerHandler);

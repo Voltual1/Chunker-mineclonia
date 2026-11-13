@@ -106,6 +106,34 @@ public class MCAReader implements AutoCloseable {
     }
 
     /**
+     * Read and decompress a column synchronously on the caller's thread.
+     *
+     * @param columnCoordPair the global position being read.
+     * @param offset          the offset to read at.
+     * @return the decompressed CompoundTag.
+     * @throws IOException if it failed to read or decompress the column.
+     */
+    public CompoundTag readColumnSync(ChunkCoordPair columnCoordPair, int offset) throws IOException {
+        randomAccessFile.seek(offset * 4096L);
+
+        int chunkLength = reader.readInt() - 1;
+
+        byte rawType = reader.readByte();
+        byte compressionType = (byte) (rawType & ~0x80);
+
+        byte[] compressedColumn;
+        if ((rawType & 0x80) != 0) {
+            File file = new File(folder, "c." + columnCoordPair.chunkX() + "." + columnCoordPair.chunkZ() + ".mcc");
+            compressedColumn = Files.readAllBytes(file.toPath());
+        } else {
+            compressedColumn = new byte[chunkLength];
+            reader.readBytes(compressedColumn);
+        }
+
+        return decompressColumn(columnCoordPair, compressionType, compressedColumn);
+    }
+
+    /**
      * Decompress a column.
      *
      * @param chunkCoordPair   the co-ordinates of the chunk being decompressed (used for exceptions).

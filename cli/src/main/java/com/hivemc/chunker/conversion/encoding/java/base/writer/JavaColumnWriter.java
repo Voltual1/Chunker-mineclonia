@@ -2,12 +2,13 @@ package com.hivemc.chunker.conversion.encoding.java.base.writer;
 
 import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
-import com.hivemc.chunker.conversion.encoding.bedrock.util.ColumnUtil;
 import com.hivemc.chunker.conversion.encoding.java.base.resolver.JavaResolvers;
+import com.hivemc.chunker.conversion.handlers.pretransform.Edge;
 import com.hivemc.chunker.conversion.handlers.pretransform.manager.PreTransformManager;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome;
 import com.hivemc.chunker.conversion.intermediate.column.blockentity.BlockEntity;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkerChunk;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.ChunkerBlockIdentifier;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerVanillaBlockType;
@@ -24,15 +25,23 @@ import com.hivemc.chunker.nbt.tags.array.ByteArrayTag;
 import com.hivemc.chunker.nbt.tags.array.IntArrayTag;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
+import com.hivemc.chunker.nbt.tags.primitive.ByteTag;
+import com.hivemc.chunker.nbt.tags.primitive.IntTag;
+import com.hivemc.chunker.nbt.tags.primitive.StringTag;
 import com.hivemc.chunker.scheduling.task.FutureTask;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
 import com.hivemc.chunker.util.BlockPosition;
+import com.hivemc.chunker.conversion.encoding.bedrock.util.ColumnUtil;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectMap;
 import it.unimi.dsi.fastutil.bytes.Byte2ObjectOpenHashMap;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * A java column writer.
@@ -59,7 +68,7 @@ public class JavaColumnWriter implements ColumnWriter {
     }
 
     @Override
-    public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+    public Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception {
         CompoundTag root = new CompoundTag(10);
 
         // Write base details
@@ -84,13 +93,13 @@ public class JavaColumnWriter implements ColumnWriter {
         processing.add(Task.async("Writing Biomes", TaskWeight.NORMAL, this::writeBiomes, chunkerColumn));
         processing.add(Task.async("Writing Entities", TaskWeight.HIGH, this::writeEntities, chunkerColumn));
         processing.add(Task.async("Writing Block Entities", TaskWeight.HIGH, this::writeBlockEntities, chunkerColumn));
-        processing.add(Task.async("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
+        processing.add(Task.asyncUnwrap("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
 
         // Write POI
         Task.asyncConsume("Writing POI", TaskWeight.LOW, this::writePOI, chunkerColumn);
 
         // When they're done apply post-processing
-        Task.join(processing)
+        return Task.join(processing)
                 .thenConsume("Combining NBT", TaskWeight.LOW, (result) -> combineNBT(root, result))
                 .then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn, root))
                 .then("Writing column NBT", TaskWeight.LOW, () -> writeNBT(chunkerColumn, root));
@@ -283,10 +292,9 @@ public class JavaColumnWriter implements ColumnWriter {
      * Write all the chunks in the column.
      *
      * @param column the input column.
-     * @return a tag containing the chunks.
+     * @return a task which resolves to a tag containing the chunks.
      */
-    @Nullable
-    protected TagWithName<?> writeChunks(ChunkerColumn column) {
+    protected Task<TagWithName<?>> writeChunks(ChunkerColumn column) {
         // Sections are created here, so we can return them but filled async
         ListTag<CompoundTag, Map<String, Tag<?>>> sections = new ListTag<>(TagType.COMPOUND, column.getChunks().size());
 
@@ -297,17 +305,17 @@ public class JavaColumnWriter implements ColumnWriter {
         FutureTask<List<CompoundTag>> outputs = Task.asyncForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
 
         // Turn the results into sections (they may be null if it did not yield a chunk)
-        outputs.thenConsume("Writing Sections", TaskWeight.LOW, (chunks) -> {
+        return outputs.then("Writing Sections", TaskWeight.LOW, (chunks) -> {
             for (CompoundTag tag : chunks) {
                 if (tag == null) continue;
 
                 // Add the tag
                 sections.add(tag);
             }
-        });
 
-        // Below 1.18 used Sections with capital S
-        return new TagWithName<>("Sections", sections);
+            // Below 1.18 used Sections with capital S
+            return new TagWithName<>("Sections", sections);
+        });
     }
 
     /**
@@ -327,6 +335,9 @@ public class JavaColumnWriter implements ColumnWriter {
         List<BlockEntity> blockEntities = column.getBlockEntities();
         for (int i = 0; i < blockEntities.size(); i++) {
             BlockEntity blockEntity = blockEntities.get(i);
+            
+            blockEntity.setBlockType(column.getBlock(blockEntity.getX(), blockEntity.getY(), blockEntity.getZ()).getType());
+            
             BlockEntity replacement = resolvers.blockEntityResolver().updateBeforeWrite(
                     column,
                     blockEntity.getX(),

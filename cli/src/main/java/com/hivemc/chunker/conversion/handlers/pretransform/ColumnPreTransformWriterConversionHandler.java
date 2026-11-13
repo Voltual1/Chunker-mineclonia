@@ -1,9 +1,11 @@
+// [file name]: com.hivemc.chunker.conversion.handlers.pretransform.ColumnPreTransformWriterConversionHandler.java
 package com.hivemc.chunker.conversion.handlers.pretransform;
 
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler;
 import com.hivemc.chunker.conversion.handlers.pretransform.manager.PreTransformManager;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
+import com.hivemc.chunker.scheduling.task.Task;
 
 import java.util.function.Supplier;
 
@@ -16,13 +18,6 @@ public class ColumnPreTransformWriterConversionHandler implements ColumnConversi
     private final ColumnConversionHandler delegate;
     private final boolean preTransformAllowed;
 
-    /**
-     * Create a new column pre transform writer handler.
-     *
-     * @param preTransformManagerGetter the getter to call for getting the pre-transform manager (it can return null).
-     * @param delegate                  the delegate to call after transformation.
-     * @param preTransformAllowed       whether transform is allowed.
-     */
     public ColumnPreTransformWriterConversionHandler(Supplier<PreTransformManager> preTransformManagerGetter, ColumnConversionHandler delegate, boolean preTransformAllowed) {
         this.preTransformManagerGetter = preTransformManagerGetter;
         this.delegate = delegate;
@@ -30,7 +25,7 @@ public class ColumnPreTransformWriterConversionHandler implements ColumnConversi
     }
 
     @Override
-    public void convertColumn(ChunkerColumn column) {
+    public Task<Void> convertColumn(ChunkerColumn column) {
         // Call pre-transform solver
         PreTransformManager preTransformManager = preTransformManagerGetter.get();
         if (preTransformManager != null) {
@@ -38,18 +33,18 @@ public class ColumnPreTransformWriterConversionHandler implements ColumnConversi
         }
 
         // Call delegate
-        delegate.convertColumn(column);
+        return delegate.convertColumn(column);
     }
 
     @Override
-    public void flushRegion(RegionCoordPair regionCoordPair) {
+    public Task<Void> flushRegion(RegionCoordPair regionCoordPair) {
         // Call delegate
-        delegate.flushRegion(regionCoordPair);
+        return delegate.flushRegion(regionCoordPair);
     }
 
     @Override
-    public void flushColumns() {
+    public Task<Void> flushColumns() {
         // Call delegate
-        delegate.flushColumns();
+        return delegate.flushColumns();
     }
 }

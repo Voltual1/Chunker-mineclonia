@@ -10,11 +10,8 @@ import org.jetbrains.annotations.NotNull;
  * Handler for Brushable Block Entities (Suspicious Sand / Gravel).
  */
 public class JavaBrushableBlockEntityHandler extends BlockEntityHandler<JavaResolvers, CompoundTag, BrushableBlockEntity> {
-    private final boolean enableLootTables;
-
-    public JavaBrushableBlockEntityHandler(boolean enableLootTables) {
+    public JavaBrushableBlockEntityHandler() {
         super("minecraft:brushable_block", BrushableBlockEntity.class, BrushableBlockEntity::new);
-        this.enableLootTables = enableLootTables;
     }
 
     @Override
@@ -24,11 +21,6 @@ public class JavaBrushableBlockEntityHandler extends BlockEntityHandler<JavaReso
         CompoundTag item = input.getCompound("item");
         if (item != null) {
             value.setItem(resolvers.readItem(item));
-        }
-
-        String lootTable = input.getString("LootTable", null);
-        if (lootTable != null && !lootTable.isEmpty() && enableLootTables) {
-            value.setLootTable(lootTable);
         }
     }
 
@@ -40,9 +32,6 @@ public class JavaBrushableBlockEntityHandler extends BlockEntityHandler<JavaReso
         }
         if (value.getItem() != null && !value.getItem().getIdentifier().isAir()) {
             resolvers.writeItem(value.getItem()).ifPresent(item -> output.put("item", item));
-        }
-        if (value.getLootTable() != null && !value.getLootTable().isEmpty() && enableLootTables) {
-            output.put("LootTable", value.getLootTable());
         }
     }
 }

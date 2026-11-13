@@ -61,7 +61,7 @@ public class BedrockColumnWriter implements ColumnWriter {
     }
 
     @Override
-    public void writeColumn(ChunkerColumn chunkerColumn) throws Exception {
+    public Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception {
         // Run any preprocessing
         preProcessColumn(chunkerColumn);
 
@@ -76,10 +76,10 @@ public class BedrockColumnWriter implements ColumnWriter {
         processing.add(Task.asyncConsume("Writing HeightMap/Biomes", TaskWeight.NORMAL, this::writeHeightMapBiomes, chunkerColumn));
         processing.add(Task.asyncConsume("Writing Entities", TaskWeight.HIGH, this::writeEntities, chunkerColumn));
         processing.add(Task.asyncConsume("Writing Block Entities", TaskWeight.HIGH, this::writeBlockEntities, chunkerColumn));
-        processing.add(Task.asyncConsume("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
+        processing.add(Task.asyncUnwrap("Writing Chunks", TaskWeight.HIGHER, this::writeChunks, chunkerColumn));
 
         // When they're done apply post-processing
-        Task.join(processing).then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn));
+        return Task.join(processing).then("Post-processing column", TaskWeight.HIGH, () -> postProcessColumn(chunkerColumn));
     }
 
     @Override
@@ -119,6 +119,9 @@ public class BedrockColumnWriter implements ColumnWriter {
         List<BlockEntity> blockEntities = column.getBlockEntities();
         for (int i = 0; i < blockEntities.size(); i++) {
             BlockEntity blockEntity = blockEntities.get(i);
+            
+            blockEntity.setBlockType(column.getBlock(blockEntity.getX(), blockEntity.getY(), blockEntity.getZ()).getType());
+            
             BlockEntity replacement = resolvers.blockEntityResolver().updateBeforeWrite(
                     column,
                     blockEntity.getX(),
@@ -366,13 +369,14 @@ public class BedrockColumnWriter implements ColumnWriter {
      * Write all the chunks inside the column.
      *
      * @param column the column being written.
+     * @return a task that resolves when all chunks have been written.
      */
-    protected void writeChunks(ChunkerColumn column) {
+    protected Task<Void> writeChunks(ChunkerColumn column) {
         // Create the writer for the chunks
         BedrockChunkWriter chunkWriter = createChunkWriter(column);
 
         // Schedule each chunk to be written
-        Task.asyncConsumeForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
+        return Task.asyncConsumeForEach("Writing Chunk", TaskWeight.NORMAL, chunkWriter::writeChunk, column.getChunks().values());
     }
 
     /**

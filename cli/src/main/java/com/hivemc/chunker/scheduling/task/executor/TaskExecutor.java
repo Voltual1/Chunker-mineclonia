@@ -1,3 +1,4 @@
+// [file name]: com.hivemc.chunker.scheduling.task.executor.TaskExecutor.java
 package com.hivemc.chunker.scheduling.task.executor;
 
 import com.google.common.base.Preconditions;
@@ -17,7 +18,8 @@ import java.util.function.Supplier;
  * {@link #setCurrentThreadExecutor()} method should be called in the relevant thread to ensure tasks are scheduled.
  */
 public class TaskExecutor {
-    private static final ThreadLocal<TaskExecutor> EXECUTORS = new InheritableThreadLocal<>();
+    // FIX MEMORY LEAK: Use simple ThreadLocal instead of InheritableThreadLocal to avoid reference inheritance leak
+    private static final ThreadLocal<TaskExecutor> EXECUTORS = new ThreadLocal<>();
     private static final Comparator<PriorityRunnable> COMPARATOR = Comparator.comparingLong(PriorityRunnable::getPriority).reversed();
     private final PriorityBlockingQueue<PriorityRunnable> tasks = new PriorityBlockingQueue<>(100, COMPARATOR);
     private final Thread[] pool;
@@ -41,6 +43,16 @@ public class TaskExecutor {
         }
         this.exceptionHandler = exceptionHandler;
         this.signalConsumer = signalConsumer;
+    }
+
+    /**
+     * Get the current queue size of the task executor.
+     * This is useful for backpressure and throttling task submissions.
+     *
+     * @return the number of pending tasks.
+     */
+    public int getQueueSize() {
+        return tasks.size();
     }
 
     /**

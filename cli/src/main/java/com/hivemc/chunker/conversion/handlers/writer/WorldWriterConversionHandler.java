@@ -1,5 +1,6 @@
 package com.hivemc.chunker.conversion.handlers.writer;
 
+import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.encoding.base.writer.WorldWriter;
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler;
@@ -14,14 +15,17 @@ import org.jetbrains.annotations.Nullable;
  */
 public class WorldWriterConversionHandler implements WorldConversionHandler {
     protected final WorldWriter writer;
+    protected final Converter converter;
 
     /**
      * Create a new world writer conversion handler.
      *
-     * @param writer the writer to delegate methods to.
+     * @param writer    the writer to delegate methods to.
+     * @param converter the converter instance.
      */
-    public WorldWriterConversionHandler(WorldWriter writer) {
+    public WorldWriterConversionHandler(WorldWriter writer, Converter converter) {
         this.writer = writer;
+        this.converter = converter;
     }
 
     @Override
@@ -48,6 +52,6 @@ public class WorldWriterConversionHandler implements WorldConversionHandler {
      */
     @Nullable
     protected ColumnConversionHandler wrapColumnWriter(@Nullable ColumnWriter writer) {
-        return writer == null ? null : new ColumnWriterConversionHandler(writer);
+        return writer == null ? null : new ColumnWriterConversionHandler(writer, converter);
     }
 }
