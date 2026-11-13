@@ -28,12 +28,12 @@ package org.geysermc.pack.converter.type.texture.transformer.type.block;
 
 import com.google.auto.service.AutoService;
 import net.kyori.adventure.key.Key;
-import org.checkerframework.checker.nullness.qual.Nullable;
 import org.geysermc.pack.converter.type.texture.transformer.TextureTransformer;
 import org.geysermc.pack.converter.type.texture.transformer.TransformContext;
 import org.geysermc.pack.converter.util.ImageUtil;
 import org.geysermc.pack.converter.util.KeyUtil;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 import team.unnamed.creative.texture.Texture;
 
 import java.awt.Graphics;
