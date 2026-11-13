@@ -1,19 +1,27 @@
 [versions]
 picocli = "4.7.7"
-caffeine = "2.9.3"#"3.2.4"
+caffeine = "3.3.0"
 gson = "2.14.0"
-guava = "33.6.0-android"
-#leveldb = "1.1.0"
-#leveldb-api = "1.1.0"
-fastutil = "8.5.18"
+guava = "33.7.1-jre"
+leveldb = "1.1.0"
+leveldb-api = "1.1.0"
+fastutil = "8.5.19"
 lz4 = "1.3.0"
 jetbrains-annotations = "26.1.0"
-junit = "6.1.0"
-junit-platform-launcher = "6.1.0"
-shadow = "9.4.1"
-gitVersion = "5.0.0"
-jpackage = "2.0.1"
+
+# JUnit
+junit = "6.1.3"
+junit-platform-launcher = "6.1.3"
+
+# Plugins
+shadow = "9.6.1"
+gitVersion = "5.1.0"
+jpackage = "2.1.0"
 node = "7.1.0"
+
+#以上为Chunker依赖
+
+
 ftpserver = "1.2.1"
 minaCore = "2.2.5"
 pyrolysis-agp = "9.2.1"

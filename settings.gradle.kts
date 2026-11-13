@@ -35,7 +35,7 @@ include(":mcl")
 include(":android")
 include(":terminal-emulator")
 include(":terminal-view")
-include("cli", "app")
+include("cli"/*, "app"*/)
 
 include(":converter")
 include(":MinecloniaDecoder")

@@ -1,7 +1,5 @@
-// [file name]: com.hivemc.chunker.conversion.handlers.writer.ColumnWriterConversionHandler.java
 package com.hivemc.chunker.conversion.handlers.writer;
 
-import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.ColumnWriter;
 import com.hivemc.chunker.conversion.handlers.ColumnConversionHandler;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
@@ -14,45 +12,29 @@ import com.hivemc.chunker.scheduling.task.TaskWeight;
  */
 public class ColumnWriterConversionHandler implements ColumnConversionHandler {
     protected final ColumnWriter writer;
-    protected final Converter converter;
 
-    public ColumnWriterConversionHandler(ColumnWriter writer, Converter converter) {
+    /**
+     * Create a new column writer conversion handler.
+     *
+     * @param writer the writer to delegate methods to.
+     */
+    public ColumnWriterConversionHandler(ColumnWriter writer) {
         this.writer = writer;
-        this.converter = converter;
     }
 
     @Override
-    public Task<Void> convertColumn(ChunkerColumn column) {
-        return Task.asyncUnwrap("Writing Column Dispatch", TaskWeight.NORMAL, () -> {
-            try {
-                // Return the task from the writer so the reader can actually await disk completion
-                return writer.writeColumn(column);
-            } catch (Throwable t) {
-                converter.logNonFatalException(t);
-                return Task.async("Failed Write Column", TaskWeight.LOW, () -> {});
-            }
-        });
+    public void convertColumn(ChunkerColumn column) {
+        Task.asyncConsume("Writing Column", TaskWeight.NORMAL, writer::writeColumn, column);
     }
 
     @Override
-    public Task<Void> flushRegion(RegionCoordPair regionCoordPair) {
-        return Task.async("Flushing Region", TaskWeight.LOW, () -> {
-            try {
-                writer.flushRegion(regionCoordPair);
-            } catch (Exception e) {
-                converter.logNonFatalException(e);
-            }
-        });
+    public void flushRegion(RegionCoordPair regionCoordPair) {
+        // Writers don't currently have this behaviour
+        Task.asyncConsume("Flushing Region", TaskWeight.NORMAL, writer::flushRegion, regionCoordPair);
     }
 
     @Override
-    public Task<Void> flushColumns() {
-        return Task.async("Flushing Columns", TaskWeight.LOW, () -> {
-            try {
-                writer.flushColumns();
-            } catch (Exception e) {
-                converter.logNonFatalException(e);
-            }
-        });
+    public void flushColumns() {
+        Task.async("Flushing Writer Regions", TaskWeight.NORMAL, writer::flushColumns);
     }
 }

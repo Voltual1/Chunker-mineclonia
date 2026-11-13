@@ -62,7 +62,9 @@ public class BedrockBasicItemResolverTests {
             ChunkerItemProperty.POTION, // Inferred from item ID
             ChunkerItemProperty.STEW_EFFECT, // Inferred from item ID
             ChunkerItemProperty.ENTITY, // Not supported AFAIK
-            ChunkerItemProperty.OMINOUS_BOTTLE_AMPLIFIER // Inferred from item ID
+            ChunkerItemProperty.OMINOUS_BOTTLE_AMPLIFIER, // Inferred from item ID
+            ChunkerItemProperty.EXPLORER_MAP, // Inferred from item ID
+            ChunkerItemProperty.MAP_DECORATION // Stored in the map data rather than on the item
     );
     public static final Map<Class<? extends Enum<?>>, Set<?>> UNSUPPORTED_ENUMS = Map.of(
             ChunkerEnchantmentType.class, Set.of(ChunkerEnchantmentType.SWEEPING_EDGE),
@@ -87,6 +89,7 @@ public class BedrockBasicItemResolverTests {
                     ChunkerVanillaEntityType.PALE_OAK_BOAT,
                     ChunkerVanillaEntityType.MANGROVE_BOAT,
                     ChunkerVanillaEntityType.BAMBOO_RAFT,
+                    ChunkerVanillaEntityType.POPLAR_BOAT,
                     ChunkerVanillaEntityType.OAK_CHEST_BOAT,
                     ChunkerVanillaEntityType.SPRUCE_CHEST_BOAT,
                     ChunkerVanillaEntityType.BIRCH_CHEST_BOAT,
@@ -97,7 +100,9 @@ public class BedrockBasicItemResolverTests {
                     ChunkerVanillaEntityType.PALE_OAK_CHEST_BOAT,
                     ChunkerVanillaEntityType.MANGROVE_CHEST_BOAT,
                     ChunkerVanillaEntityType.BAMBOO_CHEST_RAFT,
-                    ChunkerVanillaEntityType.MANNEQUIN
+                    ChunkerVanillaEntityType.POPLAR_CHEST_BOAT,
+                    ChunkerVanillaEntityType.MANNEQUIN,
+                    ChunkerVanillaEntityType.CUSHION
             )
     );
     // Mock converter with two mock maps

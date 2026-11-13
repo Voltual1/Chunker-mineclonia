@@ -1,6 +1,5 @@
 package com.hivemc.chunker.conversion.handlers.writer;
 
-import com.hivemc.chunker.conversion.encoding.base.Converter;
 import com.hivemc.chunker.conversion.encoding.base.writer.LevelWriter;
 import com.hivemc.chunker.conversion.encoding.base.writer.WorldWriter;
 import com.hivemc.chunker.conversion.handlers.LevelConversionHandler;
@@ -15,17 +14,14 @@ import org.jetbrains.annotations.Nullable;
  */
 public class LevelWriterConversionHandler implements LevelConversionHandler {
     protected final LevelWriter writer;
-    protected final Converter converter;
 
     /**
      * Create a new level writer conversion handler.
      *
-     * @param writer    the writer to delegate methods to.
-     * @param converter the converter instance.
+     * @param writer the writer to delegate methods to.
      */
-    public LevelWriterConversionHandler(LevelWriter writer, Converter converter) {
+    public LevelWriterConversionHandler(LevelWriter writer) {
         this.writer = writer;
-        this.converter = converter;
     }
 
     @Override
@@ -47,6 +43,6 @@ public class LevelWriterConversionHandler implements LevelConversionHandler {
      */
     @Nullable
     protected WorldConversionHandler wrapWorldWriter(@Nullable WorldWriter writer) {
-        return writer == null ? null : new WorldWriterConversionHandler(writer, converter);
+        return writer == null ? null : new WorldWriterConversionHandler(writer);
     }
 }

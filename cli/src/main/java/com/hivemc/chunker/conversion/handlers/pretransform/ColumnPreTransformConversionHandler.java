@@ -1,4 +1,3 @@
-// [file name]: com.hivemc.chunker.conversion.handlers.pretransform.ColumnPreTransformConversionHandler.java
 package com.hivemc.chunker.conversion.handlers.pretransform;
 
 import com.google.common.base.Preconditions;
@@ -9,241 +8,236 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
-import it.unimi.dsi.fastutil.objects.Object2ObjectOpenHashMap;
+import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
+import it.unimi.dsi.fastutil.longs.LongSet;
 import it.unimi.dsi.fastutil.objects.Object2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
-import org.jetbrains.annotations.Nullable;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Because of how certain parts of Minecraft work, some chunks may require data from other chunks, for example paintings
  * need to be relocated to the right chunk.
+ * Because of this we must ensure that we pre-transform these chunks together then process them, this ensures entities
+ * are correctly relocated. This also allows you to do logic that requires neighbouring columns.
+ *
+ * <p>Columns are transformed independently once all four neighbouring positions are known. A transformed column is
+ * held only until every adjacent column that can mutate it has also transformed. This local lifecycle prevents a chain
+ * of connectable blocks from retaining an entire world's columns as one dependency cluster.</p>
  */
 public class ColumnPreTransformConversionHandler implements ColumnConversionHandler {
     private final ColumnConversionHandler delegate;
     private final Map<RegionCoordPair, Map<ChunkCoordPair, ColumnData>> pending = new Object2ReferenceOpenHashMap<>();
     private final Set<RegionCoordPair> incompleteRegions = new ObjectOpenHashSet<>();
-    private final Set<ChunkCoordPair> processedColumns = new ObjectOpenHashSet<>();
-    private final List<ColumnData> cachedPendingSolving = new ArrayList<>();
-    private final Stack<ColumnData> cachedSolvingStack = new Stack<>();
-    private final Set<ColumnData> cachedChecking = new ObjectOpenHashSet<>();
-    private final Set<ColumnData> cachedSolved = new ObjectOpenHashSet<>();
+    private final Set<RegionCoordPair> flushedRegions = new ObjectOpenHashSet<>();
+    private final LongSet processedColumns = new LongOpenHashSet();
+    private final ArrayDeque<ColumnData> readyToTransform = new ArrayDeque<>();
 
+    /**
+     * Create a new column pre-transform conversion handler.
+     *
+     * @param delegate     the delegate to call after pre-transformation.
+     * @param chunkerWorld the world being used for tracking regions which have not completed reading.
+     */
     public ColumnPreTransformConversionHandler(ColumnConversionHandler delegate, ChunkerWorld chunkerWorld) {
         this.delegate = delegate;
         incompleteRegions.addAll(chunkerWorld.getRegions());
     }
 
-    protected void trySolve(ColumnData input, Set<ColumnData> output) {
-        cachedSolvingStack.push(input);
-        while (!cachedSolvingStack.isEmpty()) {
-            ColumnData current = cachedSolvingStack.pop();
-            if (!current.getPendingCheckEdges().isEmpty()) {
-                cachedChecking.clear();
-                break;
-            } else {
-                cachedChecking.add(current);
-                for (ColumnData value : current.getRequiredColumns().values()) {
-                    if (value == null) continue;
-                    if (cachedChecking.add(value)) {
-                        cachedSolvingStack.push(value);
+    @Override
+    public void convertColumn(ChunkerColumn column) {
+        synchronized (this) {
+            ChunkCoordPair position = column.getPosition();
+            Preconditions.checkArgument(processedColumns.add(position.toLong()), "Duplicate chunk processed, unable to solve.");
+
+            ColumnData columnData = new ColumnData(column);
+            pending.computeIfAbsent(position.getRegion(), ignored -> new Object2ReferenceOpenHashMap<>())
+                    .put(position, columnData);
+
+            for (Edge edge : Edge.ALL_EDGES) {
+                ChunkCoordPair relativePosition = edge.getRelative(position);
+                ColumnData neighbour = getPending(relativePosition);
+                if (neighbour != null) {
+                    link(columnData, edge, neighbour);
+                } else if (!incompleteRegions.contains(relativePosition.getRegion())) {
+                    columnData.resolve(edge);
+                }
+            }
+
+            enqueueIfReady(columnData);
+            processReady();
+        }
+    }
+
+    private ColumnData getPending(ChunkCoordPair position) {
+        Map<ChunkCoordPair, ColumnData> region = pending.get(position.getRegion());
+        return region == null ? null : region.get(position);
+    }
+
+    private void link(ColumnData column, Edge edge, ColumnData neighbour) {
+        column.link(edge, neighbour);
+        neighbour.link(edge.getOpposite(), column);
+        enqueueIfReady(neighbour);
+    }
+
+    private void enqueueIfReady(ColumnData columnData) {
+        if (!columnData.transformed && columnData.pendingCheckEdges.isEmpty() && !columnData.queued) {
+            columnData.queued = true;
+            readyToTransform.addLast(columnData);
+        }
+    }
+
+    private void processReady() {
+        while (!readyToTransform.isEmpty()) {
+            ColumnData current = readyToTransform.removeFirst();
+            current.queued = false;
+            if (current.transformed || !current.pendingCheckEdges.isEmpty()) continue;
+
+            current.transform();
+
+            List<ColumnData> neighbours = new ArrayList<>(current.neighbours.values());
+            trySubmit(current);
+            for (ColumnData neighbour : neighbours) {
+                trySubmit(neighbour);
+            }
+        }
+    }
+
+    /**
+     * Submit a transformed column once no adjacent, untransformed column can still mutate it.
+     */
+    private void trySubmit(ColumnData columnData) {
+        if (!columnData.transformed || columnData.submitted) return;
+
+        for (Map.Entry<Edge, ColumnData> entry : columnData.neighbours.entrySet()) {
+            ColumnData neighbour = entry.getValue();
+            if (neighbour.requiredEdges.contains(entry.getKey().getOpposite()) && !neighbour.transformed) {
+                return;
+            }
+        }
+
+        columnData.submitted = true;
+        delegate.convertColumn(columnData.column);
+
+        RegionCoordPair regionPosition = columnData.position.getRegion();
+        Map<ChunkCoordPair, ColumnData> region = pending.get(regionPosition);
+        if (region != null) {
+            region.remove(columnData.position);
+            if (region.isEmpty()) {
+                pending.remove(regionPosition);
+                flushRegionIfComplete(regionPosition);
+            }
+        }
+
+        // Remaining neighbours no longer need the full submitted column. Any neighbour which depended on it has
+        // already transformed, while a neighbour it depended on cannot mutate it.
+        for (Map.Entry<Edge, ColumnData> entry : new ArrayList<>(columnData.neighbours.entrySet())) {
+            entry.getValue().neighbours.remove(entry.getKey().getOpposite());
+        }
+        columnData.neighbours.clear();
+    }
+
+    @Override
+    public void flushRegion(RegionCoordPair regionPosition) {
+        synchronized (this) {
+            incompleteRegions.remove(regionPosition);
+
+            // Resolve positions missing from the region itself.
+            Map<ChunkCoordPair, ColumnData> region = pending.get(regionPosition);
+            if (region != null) {
+                for (ColumnData columnData : new ArrayList<>(region.values())) {
+                    columnData.pendingCheckEdges.removeIf(edge -> edge.getRelative(columnData.position).getRegion().equals(regionPosition));
+                    enqueueIfReady(columnData);
+                }
+            }
+
+            // Resolve columns in adjacent regions which were waiting to learn that a boundary position is absent.
+            for (Edge boundary : Edge.ALL_EDGES) {
+                RegionCoordPair adjacentRegion = new RegionCoordPair(
+                        regionPosition.regionX() + boundary.getX(),
+                        regionPosition.regionZ() + boundary.getZ()
+                );
+                Map<ChunkCoordPair, ColumnData> adjacent = pending.get(adjacentRegion);
+                if (adjacent == null) continue;
+
+                for (ColumnData columnData : new ArrayList<>(adjacent.values())) {
+                    columnData.pendingCheckEdges.removeIf(edge -> edge.getRelative(columnData.position).getRegion().equals(regionPosition));
+                    enqueueIfReady(columnData);
+                }
+            }
+
+            processReady();
+            flushRegionIfComplete(regionPosition);
+        }
+    }
+
+    private void flushRegionIfComplete(RegionCoordPair regionPosition) {
+        if (!incompleteRegions.contains(regionPosition)
+                && !pending.containsKey(regionPosition)
+                && flushedRegions.add(regionPosition)) {
+            delegate.flushRegion(regionPosition);
+        }
+    }
+
+    @Override
+    public void flushColumns() {
+        Task.async("Submitting remaining columns", TaskWeight.NORMAL, () -> {
+            synchronized (this) {
+                incompleteRegions.clear();
+                for (Map<ChunkCoordPair, ColumnData> region : pending.values()) {
+                    for (ColumnData columnData : region.values()) {
+                        columnData.pendingCheckEdges.clear();
+                        enqueueIfReady(columnData);
                     }
                 }
+                processReady();
+
+                Preconditions.checkState(pending.isEmpty(), "Unable to resolve all pending columns before world flush.");
             }
-        }
-        if (!cachedChecking.isEmpty()) {
-            output.addAll(cachedChecking);
-            cachedChecking.clear();
-        }
-        cachedSolvingStack.clear();
+        }).then("Calling delegate flushColumns", TaskWeight.NORMAL, delegate::flushColumns);
     }
 
-    protected void processPendingSolve() {
-        if (!cachedPendingSolving.isEmpty()) {
-            for (ColumnData pendingSolve : cachedPendingSolving) {
-                trySolve(pendingSolve, cachedSolved);
-            }
-            cachedPendingSolving.clear();
-
-            if (!cachedSolved.isEmpty()) {
-                transformCluster(cachedSolved);
-                for (ColumnData value : cachedSolved) {
-                    RegionCoordPair regionCoordPair = value.getPosition().getRegion();
-                    Map<ChunkCoordPair, ColumnData> region = pending.get(regionCoordPair);
-                    region.remove(value.getPosition());
-                }
-                cachedSolved.clear();
-            }
-        }
-    }
-
-    protected boolean solveEdge(ChunkCoordPair position, Edge edge, @Nullable ColumnData columnData) {
-        Edge opposite = edge.getOpposite();
-        ChunkCoordPair relativePosition = edge.getRelative(position);
-        RegionCoordPair relativePositionRegion = relativePosition.getRegion();
-        Map<ChunkCoordPair, ColumnData> region = pending.get(relativePosition.getRegion());
-        ColumnData relativeData = null;
-
-        if (region != null) {
-            relativeData = region.get(relativePosition);
-        }
-
-        if (relativeData == null) {
-            return !incompleteRegions.contains(relativePositionRegion);
-        } else {
-            if (columnData != null && columnData.getRequiredColumns().containsKey(edge)) {
-                relativeData.getRequiredColumns().put(opposite, columnData);
-                columnData.getRequiredColumns().put(edge, relativeData);
-            }
-            if (relativeData.getPendingCheckEdges().remove(opposite)) {
-                if (columnData != null && relativeData.getRequiredColumns().containsKey(opposite)) {
-                    relativeData.getRequiredColumns().put(opposite, columnData);
-                    columnData.getRequiredColumns().put(edge, relativeData);
-                }
-                if (relativeData.getRequiredColumns().isEmpty() && relativeData.getPendingCheckEdges().isEmpty()) {
-                    region.remove(relativePosition);
-                    relativeData.submit(delegate);
-                } else if (relativeData.getPendingCheckEdges().isEmpty()) {
-                    cachedPendingSolving.add(relativeData);
-                }
-            }
-        }
-        return true;
-    }
-
-    protected void solveColumn(ColumnData columnData) {
-        ChunkCoordPair position = columnData.getPosition();
-        synchronized (this) {
-            Preconditions.checkArgument(processedColumns.add(position), "Duplicate chunk processed, unable to solve.");
-            columnData.getPendingCheckEdges().removeIf(edge -> solveEdge(position, edge, columnData));
-            if (columnData.getRequiredColumns().isEmpty() && columnData.getPendingCheckEdges().isEmpty()) {
-                columnData.submit(delegate);
-            } else {
-                Map<ChunkCoordPair, ColumnData> region = pending.computeIfAbsent(position.getRegion(), (ignored) -> new Object2ReferenceOpenHashMap<>());
-                region.put(position, columnData);
-                if (columnData.getPendingCheckEdges().isEmpty()) {
-                    cachedPendingSolving.add(columnData);
-                }
-            }
-            processPendingSolve();
-        }
-    }
-
-    @Override
-    public Task<Void> convertColumn(ChunkerColumn column) {
-        Set<Edge> outgoingEdges = column.getRequiredPreTransformEdges();
-        EnumSet<Edge> pendingCheckEdges = EnumSet.allOf(Edge.class);
-        Map<Edge, ColumnData> requiredColumns = new EnumMap<>(Edge.class);
-
-        if (outgoingEdges != null) {
-            for (Edge edge : outgoingEdges) {
-                requiredColumns.put(edge, null);
-            }
-        }
-
-        ColumnData columnData = new ColumnData(
-                column.getPosition(),
-                column,
-                requiredColumns,
-                pendingCheckEdges
-        );
-
-        solveColumn(columnData);
-        return Task.async("PreTransform Convert", TaskWeight.LOW, () -> {});
-    }
-
-    @Override
-    public Task<Void> flushRegion(RegionCoordPair regionCoordPair) {
-        synchronized (this) {
-            incompleteRegions.remove(regionCoordPair);
-            Map<ChunkCoordPair, ColumnData> region = pending.get(regionCoordPair);
-
-            if (region == null) {
-                return delegate.flushRegion(regionCoordPair);
-            }
-
-            transformCluster(region.values());
-            region.clear();
-            pending.remove(regionCoordPair);
-
-            markAsEmpty(regionCoordPair.getChunk(0, 0), EnumSet.of(Edge.NEGATIVE_X, Edge.NEGATIVE_Z));
-            markAsEmpty(regionCoordPair.getChunk(31, 0), EnumSet.of(Edge.POSITIVE_X, Edge.NEGATIVE_Z));
-            markAsEmpty(regionCoordPair.getChunk(0, 31), EnumSet.of(Edge.NEGATIVE_X, Edge.POSITIVE_Z));
-            markAsEmpty(regionCoordPair.getChunk(31, 31), EnumSet.of(Edge.POSITIVE_X, Edge.POSITIVE_Z));
-
-            for (int x = 1; x < 31; x++) {
-                markAsEmpty(regionCoordPair.getChunk(x, 0), EnumSet.of(Edge.NEGATIVE_Z));
-                markAsEmpty(regionCoordPair.getChunk(x, 31), EnumSet.of(Edge.POSITIVE_Z));
-            }
-
-            for (int z = 1; z < 31; z++) {
-                markAsEmpty(regionCoordPair.getChunk(0, z), EnumSet.of(Edge.NEGATIVE_X));
-                markAsEmpty(regionCoordPair.getChunk(31, z), EnumSet.of(Edge.POSITIVE_X));
-            }
-        }
-        return delegate.flushRegion(regionCoordPair);
-    }
-
-    protected void markAsEmpty(ChunkCoordPair chunkCoordPair, EnumSet<Edge> checkedEdges) {
-        if (processedColumns.contains(chunkCoordPair)) return;
-        checkedEdges.forEach(edge -> solveEdge(chunkCoordPair, edge, null));
-        processPendingSolve();
-    }
-
-    protected void handlePreTransform(ChunkerColumn column, Map<Edge, ColumnData> requiredColumns) {
-        Map<Edge, ChunkerColumn> columns = new Object2ObjectOpenHashMap<>(requiredColumns.size());
-        requiredColumns.forEach(((edge, columnData) -> {
-            if (columnData == null) return;
-            columns.put(edge, columnData.getColumn());
-        }));
-        column.preTransform(columns);
-    }
-
-    protected void transformCluster(Collection<ColumnData> cluster) {
-        for (ColumnData pendingData : cluster) {
-            handlePreTransform(pendingData.getColumn(), pendingData.getRequiredColumns());
-        }
-        for (ColumnData pendingData : cluster) {
-            pendingData.submit(delegate);
-        }
-    }
-
-    @Override
-    public Task<Void> flushColumns() {
-        return Task.async("Submitting remaining columns", TaskWeight.NORMAL, () -> {
-            synchronized (this) {
-                for (Map.Entry<RegionCoordPair, Map<ChunkCoordPair, ColumnData>> region : pending.entrySet()) {
-                    transformCluster(region.getValue().values());
-                }
-                pending.clear();
-            }
-        }).thenUnwrap("Calling delegate flushColumns", TaskWeight.NORMAL, () -> delegate.flushColumns());
-    }
-
-    protected static class ColumnData {
+    private static final class ColumnData {
         private final ChunkCoordPair position;
         private final ChunkerColumn column;
-        private final Map<Edge, ColumnData> requiredColumns;
-        private final EnumSet<Edge> pendingCheckEdges;
+        private final EnumSet<Edge> requiredEdges;
+        private final EnumSet<Edge> pendingCheckEdges = EnumSet.allOf(Edge.class);
+        private final Map<Edge, ColumnData> neighbours = new EnumMap<>(Edge.class);
+        private boolean queued;
+        private boolean transformed;
         private boolean submitted;
 
-        public ColumnData(ChunkCoordPair position, ChunkerColumn column, Map<Edge, ColumnData> requiredColumns, EnumSet<Edge> pendingCheckEdges) {
-            this.position = position;
+        private ColumnData(ChunkerColumn column) {
+            this.position = column.getPosition();
             this.column = column;
-            this.requiredColumns = requiredColumns;
-            this.pendingCheckEdges = pendingCheckEdges;
+            requiredEdges = column.getRequiredPreTransformEdges().isEmpty()
+                    ? EnumSet.noneOf(Edge.class)
+                    : EnumSet.copyOf(column.getRequiredPreTransformEdges());
         }
 
-        public ChunkCoordPair getPosition() { return position; }
-        public ChunkerColumn getColumn() { return column; }
-        public Map<Edge, ColumnData> getRequiredColumns() { return requiredColumns; }
-        public EnumSet<Edge> getPendingCheckEdges() { return pendingCheckEdges; }
+        private void link(Edge edge, ColumnData neighbour) {
+            neighbours.put(edge, neighbour);
+            resolve(edge);
+        }
 
-        public void submit(ColumnConversionHandler delegate) {
-            Preconditions.checkArgument(!submitted, "Duplicate submission occurred for column!");
-            submitted = true;
-            delegate.convertColumn(column);
+        private void resolve(Edge edge) {
+            pendingCheckEdges.remove(edge);
+        }
+
+        private void transform() {
+            Map<Edge, ChunkerColumn> requiredNeighbours = new EnumMap<>(Edge.class);
+            for (Edge edge : requiredEdges) {
+                ColumnData neighbour = neighbours.get(edge);
+                if (neighbour != null) requiredNeighbours.put(edge, neighbour.column);
+            }
+            column.preTransform(requiredNeighbours);
+            transformed = true;
         }
     }
 }

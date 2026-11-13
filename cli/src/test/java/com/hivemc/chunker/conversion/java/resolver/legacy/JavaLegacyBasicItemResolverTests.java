@@ -27,6 +27,8 @@ import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.enchant
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.firework.ChunkerFireworkExplosion;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.firework.ChunkerFireworkShape;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.firework.ChunkerFireworks;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.map.ChunkerExplorerMap;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.map.ChunkerMapDecoration;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.itemstack.potion.ChunkerPotionType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerEntityType;
 import com.hivemc.chunker.conversion.intermediate.column.entity.type.ChunkerVanillaEntityType;
@@ -62,9 +64,26 @@ public class JavaLegacyBasicItemResolverTests {
             ChunkerItemProperty.ENTITY,
             ChunkerItemProperty.OMINOUS_BOTTLE_AMPLIFIER,
             ChunkerItemProperty.BUNDLE_CONTENTS,
-            ChunkerItemProperty.LODESTONE_DATA
+            ChunkerItemProperty.LODESTONE_DATA,
+            ChunkerItemProperty.EXPLORER_MAP // Inferred from the map decoration
     );
     public static final Map<Class<? extends Enum<?>>, Set<?>> UNSUPPORTED_ENUMS = Map.of(
+            ChunkerExplorerMap.class, Set.of(
+                    ChunkerExplorerMap.ABANDONED_CAMP,
+                    ChunkerExplorerMap.BURIED_ANCIENT_CITY,
+                    ChunkerExplorerMap.BURIED_MINESHAFT,
+                    ChunkerExplorerMap.BURIED_TREASURE,
+                    ChunkerExplorerMap.BURIED_TRIAL_CHAMBERS,
+                    ChunkerExplorerMap.DESERT_PYRAMID,
+                    ChunkerExplorerMap.DESERT_VILLAGE,
+                    ChunkerExplorerMap.JUNGLE_PYRAMID,
+                    ChunkerExplorerMap.PLAINS_VILLAGE,
+                    ChunkerExplorerMap.SAVANNA_VILLAGE,
+                    ChunkerExplorerMap.SNOWY_VILLAGE,
+                    ChunkerExplorerMap.SWAMP_HUT,
+                    ChunkerExplorerMap.TAIGA_VILLAGE,
+                    ChunkerExplorerMap.WARM_OCEAN_RUINS
+            ),
             ChunkerVanillaEntityType.class, Set.of(
                     ChunkerVanillaEntityType.MARKER,
                     ChunkerVanillaEntityType.LIGHTNING_BOLT,
@@ -120,6 +139,7 @@ public class JavaLegacyBasicItemResolverTests {
                     ChunkerVanillaEntityType.PALE_OAK_BOAT,
                     ChunkerVanillaEntityType.MANGROVE_BOAT,
                     ChunkerVanillaEntityType.BAMBOO_RAFT,
+                    ChunkerVanillaEntityType.POPLAR_BOAT,
                     ChunkerVanillaEntityType.OAK_CHEST_BOAT,
                     ChunkerVanillaEntityType.SPRUCE_CHEST_BOAT,
                     ChunkerVanillaEntityType.BIRCH_CHEST_BOAT,
@@ -130,6 +150,7 @@ public class JavaLegacyBasicItemResolverTests {
                     ChunkerVanillaEntityType.PALE_OAK_CHEST_BOAT,
                     ChunkerVanillaEntityType.MANGROVE_CHEST_BOAT,
                     ChunkerVanillaEntityType.BAMBOO_CHEST_RAFT,
+                    ChunkerVanillaEntityType.POPLAR_CHEST_BOAT,
                     ChunkerVanillaEntityType.PHANTOM,
                     ChunkerVanillaEntityType.TURTLE,
                     ChunkerVanillaEntityType.COD,
@@ -153,7 +174,9 @@ public class JavaLegacyBasicItemResolverTests {
                     ChunkerVanillaEntityType.NAUTILUS,
                     ChunkerVanillaEntityType.PARCHED,
                     ChunkerVanillaEntityType.ZOMBIE_NAUTILUS,
-                    ChunkerVanillaEntityType.SULFUR_CUBE
+                    ChunkerVanillaEntityType.SULFUR_CUBE,
+                    ChunkerVanillaEntityType.CUSHION,
+                    ChunkerVanillaEntityType.FROSTBITE
             ),
             ChunkerPotionType.class, Set.of(
                     ChunkerPotionType.EMPTY,
@@ -306,6 +329,10 @@ public class JavaLegacyBasicItemResolverTests {
                     new ChunkerItemDisplay(JsonTextUtil.fromText("Hi"), List.of(), Color.RED),
                     new ChunkerItemDisplay(JsonTextUtil.fromText("Hi"), List.of(JsonTextUtil.fromText("Hi"), JsonTextUtil.fromText("Hello")), null)
             };
+        } else if (asClass.equals(ChunkerMapDecoration.class)) {
+            return (T[]) Stream.of(generatePropertyValues(ChunkerExplorerMap.class, property))
+                    .map(a -> new ChunkerMapDecoration((ChunkerExplorerMap) a, 12.5D, -34.5D, 180F))
+                    .toArray(ChunkerMapDecoration[]::new);
         } else if (asClass.equals(ChunkerFireworks.class)) {
             return (T[]) new ChunkerFireworks[]{
                     new ChunkerFireworks((byte) 2, Collections.emptyList()),

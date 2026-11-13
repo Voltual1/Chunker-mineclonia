@@ -3,7 +3,6 @@ package com.hivemc.chunker.conversion.encoding.base.writer;
 import com.hivemc.chunker.conversion.handlers.pretransform.manager.PreTransformManager;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.chunk.RegionCoordPair;
-import com.hivemc.chunker.scheduling.task.Task;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -14,10 +13,9 @@ public interface ColumnWriter {
      * Called when a column needs to be written.
      *
      * @param chunkerColumn the column that has been read.
-     * @return a task that is completed when the column has been written.
      * @throws Exception if something went wrong.
      */
-    Task<Void> writeColumn(ChunkerColumn chunkerColumn) throws Exception;
+    void writeColumn(ChunkerColumn chunkerColumn) throws Exception;
 
     /**
      * Called when all the column writing has completed.
