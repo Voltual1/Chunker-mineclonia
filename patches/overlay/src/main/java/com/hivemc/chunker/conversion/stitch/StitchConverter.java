@@ -51,19 +51,7 @@ public class StitchConverter implements Converter {
 
     public boolean isCancelled() {
         return cancelled;
-    }
-
-    @Override
-    public void awaitMemoryPause() {
-        while (memoryPaused && !cancelled) {
-            try {
-                Thread.sleep(100);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                break;
-            }
-        }
-    }
+    }    
 
     @Override
     public boolean shouldLevelDBCompaction() { return true; }
