@@ -1,6 +1,7 @@
 package com.hivemc.chunker.conversion.intermediate.column.blockentity;
 
 import com.google.gson.JsonElement;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.identifier.type.block.ChunkerBlockType;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import org.jetbrains.annotations.Nullable;
 
@@ -18,6 +19,10 @@ public abstract class BlockEntity {
     private JsonElement customName;
     @Nullable
     private CompoundTag originalNBT;
+
+    // 新增：保存该 BlockEntity 对应的方块类型，便于在转换时获取方块上下文
+    @Nullable
+    private ChunkerBlockType blockType;
 
     /**
      * Get the X position of the block entity in global co-ordinates.
@@ -128,15 +133,34 @@ public abstract class BlockEntity {
         this.originalNBT = originalNBT;
     }
 
+    /**
+     * 获取对应的方块类型。
+     *
+     * @return 对应的方块类型，如果未设置则为 null。
+     */
+    @Nullable
+    public ChunkerBlockType getBlockType() {
+        return blockType;
+    }
+
+    /**
+     * 设置对应的方块类型。
+     *
+     * @param blockType 对应的方块类型。
+     */
+    public void setBlockType(@Nullable ChunkerBlockType blockType) {
+        this.blockType = blockType;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof BlockEntity that)) return false;
-        return getX() == that.getX() && getY() == that.getY() && getZ() == that.getZ() && isMovable() == that.isMovable() && Objects.equals(getCustomName(), that.getCustomName());
+        return getX() == that.getX() && getY() == that.getY() && getZ() == that.getZ() && isMovable() == that.isMovable() && Objects.equals(getCustomName(), that.getCustomName()) && Objects.equals(getBlockType(), that.getBlockType());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(getX(), getY(), getZ(), isMovable(), getCustomName());
+        return Objects.hash(getX(), getY(), getZ(), isMovable(), getCustomName(), getBlockType());
     }
 }

@@ -199,6 +199,40 @@ public interface Converter {
     Optional<ChunkerLevel> level();
 
     /**
+     * Increment the count of active columns being processed.
+     * Used for tracking concurrency / workload.
+     */
+    default void incrementActiveColumns() {
+    }
+
+    /**
+     * Decrement the count of active columns being processed.
+     */
+    default void decrementActiveColumns() {
+    }
+
+    /**
+     * Block the current thread until a free column processing slot is available.
+     */
+    default void awaitFreeColumnSlot() {
+    }
+
+    /**
+     * Block the current thread if the memory monitor has signaled a pause.
+     */
+    default void awaitMemoryPause() {
+    }
+
+    /**
+     * Whether the conversion has been cancelled.
+     *
+     * @return true if the conversion should stop.
+     */
+    default boolean isCancelled() {
+        return false;
+    }
+
+    /**
      * The type of missing mapping.
      */
     enum MissingMappingType {
