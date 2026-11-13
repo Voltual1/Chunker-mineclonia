@@ -51,10 +51,47 @@ public class Spritesheet {
     /**
      * Compiles all the sprites into a single spritesheet image.
      *
-     * @return the compiled spritesheet image (here returning a 1x1 transparent placeholder to skip processing)
+     * @return the compiled spritesheet image
      */
     @NotNull
     public BufferedImage compile() {
-        return new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        int width = 0;
+        int height = 0;
+
+        for (Image[] row : this.rows) {
+            int rowWidth = 0;
+            for (Image sprite : row) {
+                rowWidth += sprite.getWidth(null);
+            }
+
+            width = Math.max(width, rowWidth);
+            height += firstPresent(row).getHeight(null);
+        }
+
+        BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+
+        int y = 0;
+        for (Image[] row : this.rows) {
+            int x = 0;
+            for (Image sprite : row) {
+                image.getGraphics().drawImage(sprite, x, y, null);
+                x += sprite.getWidth(null);
+            }
+
+            y += firstPresent(row).getHeight(null);
+        }
+
+        return image;
+    }
+
+    @NotNull
+    private static Image firstPresent(Image[] row) {
+        for (Image sprite : row) {
+            if (sprite != null) {
+                return sprite;
+            }
+        }
+
+        throw new IllegalArgumentException("No sprites present in row");
     }
 }

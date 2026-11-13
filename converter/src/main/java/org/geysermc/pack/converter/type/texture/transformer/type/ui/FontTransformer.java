@@ -27,13 +27,11 @@
 package org.geysermc.pack.converter.type.texture.transformer.type.ui;
 
 import com.google.auto.service.AutoService;
-import com.google.common.io.BaseEncoding;
 import net.kyori.adventure.key.Key;
 import org.geysermc.pack.converter.type.texture.transformer.TextureTransformer;
 import org.geysermc.pack.converter.type.texture.transformer.TransformContext;
 import org.geysermc.pack.converter.util.ImageUtil;
 import org.geysermc.pack.converter.util.KeyUtil;
-import org.geysermc.pack.converter.util.StringDesugar;
 import org.jetbrains.annotations.NotNull;
 import team.unnamed.creative.font.BitMapFontProvider;
 import team.unnamed.creative.font.Font;
@@ -52,6 +50,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -119,6 +118,9 @@ public class FontTransformer implements TextureTransformer {
             fontData.computeCache(context, images);
         }
 
+        // A formatter for our hex value, used when writing the glyph files
+        HexFormat hexFormat = HexFormat.of();
+
         for (Map.Entry<Byte, List<UnicodeFontData>> data : containedCharacters.entrySet()) {
             if (data.getValue().isEmpty()) continue; // We have nothing to work with
 
@@ -150,7 +152,7 @@ public class FontTransformer implements TextureTransformer {
 
                 BufferedImage javaImage = fontData.readJavaImage(images);
                 if (javaImage == null) {
-                    context.warn(StringDesugar.formatted("Missing font file, unable to write character '%s'.", fontData.character()));
+                    context.warn("Missing font file, unable to write character '%s'.".formatted(fontData.character()));
                     continue;
                 }
 
@@ -167,8 +169,8 @@ public class FontTransformer implements TextureTransformer {
                 float scale = Math.min(scaleX, scaleY); // Prevent stretching, use the minimum one
 
                 // Since we don't stretch fully, we should offset to ensure the character appears correctly in bedrock
-                int xOffset = (size - (int)(dataWidth * scale)) / 2;
-                int yOffset = (size - (int)(dataHeight * scale)) / 2;
+                int xOffset = (size - dataWidth) / 2;
+                int yOffset = (size - dataHeight) / 2;
 
                 g.drawImage(
                         ImageUtil.scale(
@@ -187,12 +189,10 @@ public class FontTransformer implements TextureTransformer {
                 );
             }
 
-            // 使用 Guava 的 BaseEncoding 替换 java.util.HexFormat
-            String hexDigits = BaseEncoding.base16().encode(new byte[] { data.getKey() });
-
             context.bedrockResourcePack().addExtraFile(
                     ImageUtil.toByteArray(bedrockImage, "png"),
-                    StringDesugar.formatted("font/glyph_%s.png", hexDigits)
+                    "font/glyph_%s.png"
+                            .formatted(hexFormat.toHexDigits(data.getKey()).toUpperCase())
             );
         }
     }
@@ -239,7 +239,7 @@ public class FontTransformer implements TextureTransformer {
             }
 
             if (font == null) {
-                context.warn(StringDesugar.formatted("Unable to find font %s, continuing without.", referenceFontProvider.id().asString()));
+                context.warn("Unable to find font %s, continuing without.".formatted(referenceFontProvider.id().asString()));
                 return unicodeFontData;
             }
 
@@ -516,11 +516,6 @@ public class FontTransformer implements TextureTransformer {
 
         @Override
         public void computeCache(TransformContext context, Map<Key, BufferedImage> imageCache) {
-            // 修复致命问题：检查缓存是否存在，防止循环内数万次的高 CPU ImageIO.read 调用导致死锁。
-            if (imageCache.containsKey(textureName)) {
-                return;
-            }
-
             Texture texture = context.pollOrPeekVanilla(textureName);
 
             if (texture != null) {

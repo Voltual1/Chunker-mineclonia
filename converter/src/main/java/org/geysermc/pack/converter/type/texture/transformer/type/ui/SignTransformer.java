@@ -43,21 +43,22 @@ import java.util.List;
 @AutoService(TextureTransformer.class)
 public class SignTransformer implements TextureTransformer {
     private static final List<SignData> SIGNS = List.of(
-            new SignData("acacia", "sign_acacia"),
-            new SignData("bamboo", "bamboo_sign"),
-            new SignData("birch", "sign_birch"),
-            new SignData("cherry", "cherry_sign"),
-            new SignData("crimson", "sign_crimson"),
-            new SignData("dark_oak", "sign_darkoak"),
-            new SignData("jungle", "sign_jungle"),
-            new SignData("mangrove", "mangrove_sign"),
-            new SignData("oak", "sign"),
-            new SignData("pale_oak", "pale_oak_sign"),
-            new SignData("spruce", "sign_spruce"),
-            new SignData("warped", "sign_warped")
+            new SignData("acacia_sign", "sign_acacia"),
+            new SignData("bamboo_sign", "bamboo_sign"),
+            new SignData("birch_sign", "sign_birch"),
+            new SignData("cherry_sign", "cherry_sign"),
+            new SignData("crimson_sign", "sign_crimson"),
+            new SignData("dark_oak_sign", "sign_darkoak"),
+            new SignData("jungle_sign", "sign_jungle"),
+            new SignData("mangrove_sign", "mangrove_sign"),
+            new SignData("oak_sign", "sign"),
+            new SignData("pale_oak_sign", "pale_oak_sign"),
+            new SignData("poplar_sign", "poplar_sign"),
+            new SignData("spruce_sign", "sign_spruce"),
+            new SignData("warped_sign", "sign_warped")
     );
 
-    private static final String JAVA_LOCATION = "entity/signs/%s.png";
+    private static final String JAVA_LOCATION = "block/%s.png";
     private static final String BEDROCK_LOCATION = "ui/%s.png";
 
     @Override
@@ -74,7 +75,7 @@ public class SignTransformer implements TextureTransformer {
 
             Graphics g = bedrockImage.getGraphics();
 
-            g.drawImage(ImageUtil.crop(javaImage, (int) (2 * scale), (int) (2 * scale), (int) (scale * 24), (int) (scale * 12)), 0, 0, null);
+            g.drawImage(ImageUtil.crop(javaImage, 0, (int) (2 * scale), (int) (scale * 24), (int) (scale * 12)), 0, 0, null);
 
             context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, BEDROCK_LOCATION.formatted(signData.bedrockName)), bedrockImage, "png");
         }

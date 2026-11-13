@@ -24,10 +24,17 @@
  *
  */
 
-package org.geysermc.pack.converter.util;
+package org.geysermc.pack.converter.type.texture.transformer.type.particle;
 
-public class StringDesugar {
-    public static String formatted(String format, Object... args) {
-        return String.format(format, args);
+import com.google.auto.service.AutoService;
+import org.geysermc.pack.converter.type.texture.transformer.TextureTransformer;
+
+@AutoService(TextureTransformer.class)
+public class YellowPoplarLeafParticleTransformer extends BaseLeafParticleTransformer {
+    public YellowPoplarLeafParticleTransformer() {
+        super(
+                "particle/yellow_poplar_leaves_atlas.png", 1, 4,
+                "particle/yellow_poplar_1.png", "particle/yellow_poplar_2.png", "particle/yellow_poplar_3.png", "particle/yellow_poplar_4.png"
+        );
     }
 }

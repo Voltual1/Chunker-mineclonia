@@ -48,8 +48,32 @@ public class AtlasTransformer implements TextureTransformer {
 
     @Override
     public void transform(@NotNull TransformContext context) throws IOException {
-        // 临时跳过图集合并以防卡死
-        return;
+        for (AtlasData atlas : ATLASES) {
+            String javaName = atlas.javaName();
+            String bedrockName = atlas.bedrockName();
+            int atlasCount = atlas.altasCount();
+
+            BufferedImage atlasImage = null;
+            for (int i = 0; i <= atlasCount; i++) {
+                Texture texture = context.poll(KeyUtil.key(Key.MINECRAFT_NAMESPACE, String.format(javaName, String.format("%1$2s", i).replace(" ", "0"))));
+                if (texture == null) {
+                    continue;
+                }
+
+                BufferedImage stepImage = this.readImage(texture);
+                if (atlasImage == null) {
+                    context.debug(String.format("Creating atlas %s", bedrockName));
+                    atlasImage = new BufferedImage(stepImage.getWidth(), stepImage.getHeight() * (atlasCount + 1), BufferedImage.TYPE_INT_ARGB);
+                }
+
+                atlasImage.getGraphics().drawImage(stepImage, 0, (stepImage.getHeight() * i), null);
+            }
+
+            if (atlasImage != null) {
+                context.offer(KeyUtil.key(Key.MINECRAFT_NAMESPACE, bedrockName), atlasImage, "png");
+                context.debug(String.format("Created atlas %s", bedrockName));
+            }
+        }
     }
 
     record AtlasData(String javaName, String bedrockName, int altasCount) {
