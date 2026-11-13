@@ -388,6 +388,11 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
     @Override
     public void writeCustomLevelSetting(ChunkerLevelSettings chunkerLevelSettings, CompoundTag output, String targetName, Object value) {
         // Check for next update
+        if (targetName.equals("WinterDrop2026")) {
+            // Not supported
+            return;
+        }
+
         if (targetName.equals("AutumnDrop2026")) {
             // Not supported
             return;
@@ -431,6 +436,12 @@ public class BedrockLevelWriter implements LevelWriter, BedrockReaderWriter {
         // Write flat world version
         if (targetName.equals("FlatWorldVersion")) {
             output.put("WorldVersion", (int) value);
+            return;
+        }
+
+        // Write the permissions
+        if (targetName.equals("playerPermissionsLevel")) {
+            writePermissions(output, (int) value);
             return;
         }
 

@@ -283,6 +283,11 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
 
     @Override
     public @Nullable Object readCustomLevelSetting(@NotNull CompoundTag root, @NotNull ChunkerLevelSettings chunkerLevelSettings, @NotNull String targetName, @NotNull Class<?> type) {
+        // Check for WinterDrop2026 support
+        if (targetName.equals("WinterDrop2026")) {
+            return false;
+        }
+
         // Check for AutumnDrop2026 support
         if (targetName.equals("AutumnDrop2026")) {
             return false;
@@ -326,6 +331,16 @@ public class BedrockLevelReader implements LevelReader, BedrockReaderWriter {
         // Read flat world version
         if (targetName.equals("FlatWorldVersion")) {
             return root.getInt("WorldVersion", 0);
+        }
+
+        // Read the default permissions given to players
+        if (targetName.equals("playerPermissionsLevel")) {
+            // Before 1.19.10 the permissions were held inside the abilities compound
+            CompoundTag source = root.contains(targetName) ? root : root.getCompound("abilities");
+            if (source == null) return null;
+
+            // Use a number as the field isn't always written as an int
+            return source.getOptionalValue(targetName, Number.class).map(Number::intValue).orElse(null);
         }
 
         // Default implementation for seed
