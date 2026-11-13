@@ -27,6 +27,11 @@ jobs:
           java-version: "25"
           distribution: "temurin"
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
@@ -38,31 +43,7 @@ jobs:
 
       - name: Patch Java Source Code
         run: |
-          # 1. 检索并注释掉 System.exit
-          echo "正在注释 System.exit..."
-          find . -name "*.java" -exec sed -i -E 's/(System\.exit\s*\([^)]*\)\s*;?)/\/\/ \1/g' {} +
-
-          FILE_1=$(find . -name "ChunkerBlockIdentifier.java" | head -n 1)
-          if [ -n "$FILE_1" ]; then
-              echo "正在修复: $FILE_1"
-              sed -i -E 's/!builder\.isEmpty\(\)/builder.length() > 0/g' "$FILE_1"
-              sed -i -E 's/builder\.isEmpty\(\)/builder.length() == 0/g' "$FILE_1"
-          else
-              echo "错误: 未找到 ChunkerBlockIdentifier.java" && exit 1
-          fi
-
-          FILE_2=$(find . -name "FontUtil.java" | head -n 1)
-          if [ -n "$FILE_2" ]; then
-              echo "正在修复: $FILE_2"
-              sed -i -E 's/!currentLine\.isEmpty\(\)/currentLine.length() > 0/g' "$FILE_2"
-              sed -i -E 's/currentLine\.isEmpty\(\)/currentLine.length() == 0/g' "$FILE_2"
-              sed -i -E 's/!currentWord\.isEmpty\(\)/currentWord.length() > 0/g' "$FILE_2"
-              sed -i -E 's/currentWord\.isEmpty\(\)/currentWord.length() == 0/g' "$FILE_2"
-          else
-              echo "错误: 未找到 FontUtil.java" && exit 1
-          fi
-
-          echo "===  修复完成！ ==="
+          python patches/chunker_patch.py
           
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -86,7 +67,6 @@ jobs:
         env:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_LATEST_HOME }} # 隐式注入 GitHub Runner 自带的 NDK
         run: |
-          chmod +x ./buildall.sh
           ./buildall.sh
 
       - name: Build with Gradle

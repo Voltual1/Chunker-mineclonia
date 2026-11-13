@@ -1,0 +1,21 @@
+NOTICE
+
+This cli module is based on the following upstream sources from the
+HiveGamesOSS/Chunker repository (commit 50aaf6d82e8b68929279161b790d95fdddfe0a40):
+
+  - cli/data
+    https://github.com/HiveGamesOSS/Chunker/tree/50aaf6d82e8b68929279161b790d95fdddfe0a40/cli/data
+
+  - cli/src
+    https://github.com/HiveGamesOSS/Chunker/tree/50aaf6d82e8b68929279161b790d95fdddfe0a40/cli/src
+
+In addition to the upstream code, this repository applies its own overlay
+patches on top of the above sources. The overlay patches are maintained in
+this repository and may modify, add to, or replace parts of the upstream
+cli/data and cli/src contents.
+
+All upstream code remains subject to its original license terms. The overlay
+patches are subject to the license terms of this repository.
+
+When updating from upstream, re-apply the overlay patches and review this
+NOTICE for accuracy.
