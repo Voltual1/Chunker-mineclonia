@@ -26,10 +26,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
@@ -75,7 +77,10 @@ public class ServiceRegistry {
 
     public void registerServiceProviders(Iterator<?> providers) {
         for (Iterator<?> iterator = providers; iterator.hasNext();) {
-            categories.addProvider(iterator.next(), null);
+            Object provider = iterator.next();
+            if (provider != null) {
+                categories.addProvider(provider, null);
+            }
         }
     }
 
@@ -585,18 +590,18 @@ public class ServiceRegistry {
     
     static class LookupProvidersIterator<T> implements Iterator {
 
-        private Set<String> providerNames = new HashSet<String>();
-        private Iterator<String> it = null;
-        private ClassLoader loader = null;
+        private final List<Object> instances = new ArrayList<Object>();
+        private Iterator<Object> it = null;
         
         public LookupProvidersIterator(Class<T> providerClass, ClassLoader loader) {
-            this.loader = loader != null ? loader : ServiceRegistry.class.getClassLoader();
+            ClassLoader primaryLoader = loader != null ? loader : ServiceRegistry.class.getClassLoader();
+            ClassLoader appLoader = ServiceRegistry.class.getClassLoader();
+            Set<String> providerNames = new HashSet<String>();
             
-            Enumeration<URL> e = null;
             try {
-                e = this.loader.getResources("META-INF/services/" + providerClass.getName()); //$NON-NLS-1$
-                if (!e.hasMoreElements() && ServiceRegistry.class.getClassLoader() != null && this.loader != ServiceRegistry.class.getClassLoader()) {
-                    e = ServiceRegistry.class.getClassLoader().getResources("META-INF/services/" + providerClass.getName()); //$NON-NLS-1$
+                Enumeration<URL> e = primaryLoader.getResources("META-INF/services/" + providerClass.getName()); //$NON-NLS-1$
+                if (!e.hasMoreElements() && appLoader != null && primaryLoader != appLoader) {
+                    e = appLoader.getResources("META-INF/services/" + providerClass.getName()); //$NON-NLS-1$
                 }
                 while (e.hasMoreElements()) {
                     Set<String> names = parse((URL)e.nextElement());
@@ -606,7 +611,33 @@ public class ServiceRegistry {
                 // Ignored
             }
 
-            it = providerNames.iterator();
+            for (String name : providerNames) {
+                try {
+                    Class<?> clazz = loadClassWithFallback(name, primaryLoader, appLoader);
+                    instances.add(clazz.newInstance());
+                } catch (Throwable t) {
+                    System.err.println("WARN: Failed to instantiate ImageIO SPI " + name + ": " + t);
+                    t.printStackTrace();
+                }
+            }
+
+            it = instances.iterator();
+        }
+
+        private static Class<?> loadClassWithFallback(String name, ClassLoader primary, ClassLoader secondary) throws ClassNotFoundException {
+            if (primary != null) {
+                try {
+                    return Class.forName(name, true, primary);
+                } catch (ClassNotFoundException ignored) {
+                }
+            }
+            if (secondary != null && secondary != primary) {
+                try {
+                    return Class.forName(name, true, secondary);
+                } catch (ClassNotFoundException ignored) {
+                }
+            }
+            return Class.forName(name);
         }
         
         /*
@@ -667,27 +698,7 @@ public class ServiceRegistry {
         }
 
         public Object next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
-            
-            String name = (String)it.next();
-            try {
-                Class<?> clazz;
-                try {
-                    clazz = Class.forName(name, true, loader);
-                } catch (ClassNotFoundException e) {
-                    ClassLoader fallbackLoader = ServiceRegistry.class.getClassLoader();
-                    if (fallbackLoader != null && fallbackLoader != loader) {
-                        clazz = Class.forName(name, true, fallbackLoader);
-                    } else {
-                        throw e;
-                    }
-                }
-                return clazz.newInstance();
-            } catch (Exception e) {
-                throw new ServiceConfigurationError(e.toString(), e);
-            }
+            return it.next();
         }
 
         public void remove() {
