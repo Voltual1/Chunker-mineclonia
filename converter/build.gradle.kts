@@ -73,6 +73,15 @@ abstract class PatchIIOUtilTransform : TransformAction<PatchParameters> {
 }
 
 dependencies {
+    registerTransform(PatchIIOUtilTransform::class) {
+        from.attribute(Attribute.of("artifactType", String::class.java), "jar")
+        to.attribute(Attribute.of("artifactType", String::class.java), "jar")
+        
+        parameters.patchFiles.from(rootProject.file("patches"))
+    }
+}
+
+dependencies {
     api(project(":pack-schema-api"))
     compileOnly(project(":bedrock-pack-schema")) // Is provided by pack-schema-api for consumers, but not for us during compile time
     implementation("com.google.code.gson:gson:2.10.1")
@@ -88,6 +97,8 @@ dependencies {
     api("team.unnamed:creative-serializer-minecraft:1.14.4") {
         exclude(group = "team.unnamed", module = "creative-api")
     }
+    
+    api(libs.guava)
 
     compileOnly("com.google.auto.service:auto-service:1.0.1")
     annotationProcessor("com.google.auto.service:auto-service:1.0.1")
