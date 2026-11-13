@@ -23,8 +23,6 @@
  */
 package team.unnamed.creative.metadata.pack;
 
-import net.kyori.examination.ExaminableProperty;
-import net.kyori.examination.string.StringExaminer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.Stream;
@@ -62,22 +60,19 @@ record PackFormatImpl(@NotNull FormatVersion min, @NotNull FormatVersion max) im
     }
 
     @Override
+    public boolean isInRange(final @NotNull PackFormat format) {
+        return isInRange(format.min()) || isInRange(format.max());
+    }
+
+    @Override
     @Deprecated
     public boolean isInRange(int format) {
         return isInRange(FormatVersion.of(format));
     }
 
     @Override
-    public @NotNull Stream<? extends ExaminableProperty> examinableProperties() {
-        return Stream.of(
-                ExaminableProperty.of("min", min),
-                ExaminableProperty.of("max", max)
-        );
-    }
-
-    @Override
     public @NotNull String toString() {
-        return examine(StringExaminer.simpleEscaping());
+        return getClass().getSimpleName() + "{" + "min=" + min + ", max=" + max + "}";
     }
 
     @Override

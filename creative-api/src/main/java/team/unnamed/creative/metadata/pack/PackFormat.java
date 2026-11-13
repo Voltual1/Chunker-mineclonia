@@ -23,7 +23,6 @@
  */
 package team.unnamed.creative.metadata.pack;
 
-import net.kyori.examination.Examinable;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 
@@ -37,7 +36,7 @@ import org.jetbrains.annotations.NotNull;
  * @since 1.1.0
  */
 @ApiStatus.NonExtendable
-public interface PackFormat extends Examinable {
+public interface PackFormat {
 
     PackFormat UNKNOWN = new PackFormatImpl(FormatVersion.of(0), FormatVersion.of(0));
 
@@ -91,6 +90,21 @@ public interface PackFormat extends Examinable {
      * @since 1.8.4
      */
     boolean isInRange(final FormatVersion version);
+
+    /**
+     * Determines whether the given {@link PackFormat} is in the
+     * range of this pack format.
+     *
+     * <p>The check is inclusive; it returns {@code true} when the given version
+     * equals {@link #min()} or {@link #max()}.</p>
+     *
+     * @param format The format to check.
+     * @return True if the versions for this format is in the range.
+     * @sinceMinecraft 1.21.9
+     * @sincePackFormat 86
+     * @since 1.13.7
+     */
+    boolean isInRange(final PackFormat format);
 
     /**
      * Determines whether the given {@code format} is in the

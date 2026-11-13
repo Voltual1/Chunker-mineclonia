@@ -25,7 +25,6 @@ package team.unnamed.creative.atlas;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.key.Keyed;
-import net.kyori.examination.Examinable;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
@@ -60,20 +59,30 @@ import java.util.List;
  * @since 1.0.0
  */
 @ApiStatus.NonExtendable
-public interface Atlas extends ResourcePackPart, Keyed, Examinable {
+public interface Atlas extends ResourcePackPart, Keyed {
 
     Key BLOCKS = Key.key("blocks");
     Key BANNER_PATTERNS = Key.key("banner_patterns");
-    Key BEDS = Key.key("beds");
     Key CHESTS = Key.key("chests");
     Key SHIELD_PATTERNS = Key.key("shield_patterns");
     Key SHULKER_BOXES = Key.key("shulker_boxes");
-    Key SIGNS = Key.key("signs");
     Key MOB_EFFECTS = Key.key("mob_effects");
     Key PAINTINGS = Key.key("paintings");
     Key PARTICLES = Key.key("particles");
     Key ARMOR_TRIMS = Key.key("armor_trims");
     Key DECORATED_POT = Key.key("decorated_pot");
+
+    
+    /**
+     * @deprecated Removed in Minecraft 26.2+
+     */
+    @Deprecated
+    Key SIGNS = Key.key("signs");
+    /**
+     * @deprecated Removed in Minecraft 26.2+
+     */
+    @Deprecated
+    Key BEDS = Key.key("beds");
 
     /**
      * Key for the GUI texture atlas.

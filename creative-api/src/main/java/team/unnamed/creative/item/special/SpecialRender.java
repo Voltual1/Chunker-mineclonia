@@ -24,7 +24,6 @@
 package team.unnamed.creative.item.special;
 
 import net.kyori.adventure.key.Key;
-import net.kyori.examination.Examinable;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import team.unnamed.creative.base.CubeFace;
@@ -41,7 +40,7 @@ import team.unnamed.creative.base.WoodType;
  * @sinceMinecraft 1.21.4
  * @sincePackFormat 43
  */
-public interface SpecialRender extends Examinable {
+public interface SpecialRender {
     /**
      * Returns a special renderer which renders a banner with
      * patterns from the {@code minecraft:banner_patterns} component
@@ -178,7 +177,9 @@ public interface SpecialRender extends Examinable {
      * @since 1.8.0
      * @sinceMinecraft 1.21.4
      * @sincePackFormat 43
+     * @deprecated For Minecraft 26.2+, signs use Block-Models & Textures
      */
+    @Deprecated(since = "1.14.0")
     static @NotNull SignSpecialRender hangingSign(final @NotNull WoodType woodType, final @Nullable Key texture) {
         return new SignSpecialRenderImpl(true, woodType, texture);
     }

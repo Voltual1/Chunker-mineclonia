@@ -25,7 +25,6 @@ package team.unnamed.creative.equipment;
 
 import net.kyori.adventure.key.Key;
 import net.kyori.adventure.key.Keyed;
-import net.kyori.examination.Examinable;
 import org.jetbrains.annotations.Contract;
 import org.jetbrains.annotations.NotNull;
 import team.unnamed.creative.overlay.ResourceContainer;
@@ -43,7 +42,7 @@ import java.util.Map;
  * @since 1.8.0
  * @sinceMinecraft 1.21.2
  */
-public interface Equipment extends ResourcePackPart, Keyed, Examinable {
+public interface Equipment extends ResourcePackPart, Keyed {
     /**
      * Returns the key of this equipment, which can
      * be referenced by the {@code equippable} component
@@ -363,6 +362,19 @@ public interface Equipment extends ResourcePackPart, Keyed, Examinable {
         @Contract("_ -> this")
         default @NotNull Builder addCamelHuskSaddle(@NotNull EquipmentLayer layer) {
             return addLayer(EquipmentLayerType.CAMEL_HUSK_SADDLE, layer);
+        }
+
+        /**
+         * Adds a humanoid baby layer to the equipment.
+         *
+         * @param layer The layer to add
+         * @return This builder
+         * @since 1.14.0
+         * @sinceMinecraft 26.2
+         */
+        @Contract("_ -> this")
+        default @NotNull Builder addHumanoidBaby(@NotNull EquipmentLayer layer) {
+            return addLayer(EquipmentLayerType.HUMANOID_BABY, layer);
         }
         //#endregion
 

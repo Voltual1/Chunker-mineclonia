@@ -2,7 +2,7 @@ plugins {
     `java-library`
 }
 
-version = "1.13.6"
+version = "1.14.4"
 
 java.sourceCompatibility = JavaVersion.VERSION_21
 

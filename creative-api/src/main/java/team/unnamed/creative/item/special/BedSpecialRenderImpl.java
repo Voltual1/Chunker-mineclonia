@@ -24,14 +24,13 @@
 package team.unnamed.creative.item.special;
 
 import net.kyori.adventure.key.Key;
-import net.kyori.examination.ExaminableProperty;
-import net.kyori.examination.string.StringExaminer;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 
+@Deprecated(since = "1.14.0")
 record BedSpecialRenderImpl(Key texture) implements BedSpecialRender {
     BedSpecialRenderImpl(final @NotNull Key texture) {
         this.texture = requireNonNull(texture, "texture");
@@ -43,10 +42,8 @@ record BedSpecialRenderImpl(Key texture) implements BedSpecialRender {
     }
 
     @Override
-    public @NotNull Stream<? extends ExaminableProperty> examinableProperties() {
-        return Stream.of(
-                ExaminableProperty.of("texture", texture)
-        );
+    public @NotNull String toString() {
+        return getClass().getSimpleName() + "{" + "texture=" + texture + "}";
     }
 
     @Override
@@ -56,8 +53,4 @@ record BedSpecialRenderImpl(Key texture) implements BedSpecialRender {
         return texture.equals(that.texture);
     }
 
-    @Override
-    public @NotNull String toString() {
-        return examine(StringExaminer.simpleEscaping());
-    }
 }

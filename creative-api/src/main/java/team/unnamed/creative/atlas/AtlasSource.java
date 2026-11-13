@@ -24,7 +24,6 @@
 package team.unnamed.creative.atlas;
 
 import net.kyori.adventure.key.Key;
-import net.kyori.examination.Examinable;
 import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -48,7 +47,7 @@ import java.util.Map;
  * @since 1.0.0
  */
 @ApiStatus.NonExtendable
-public interface AtlasSource extends Examinable {
+public interface AtlasSource {
 
     /**
      * Creates a new {@link SingleAtlasSource}, single
@@ -161,7 +160,24 @@ public interface AtlasSource extends Examinable {
      * @since 1.0.0
      */
     static @NotNull PalettedPermutationsAtlasSource palettedPermutations(final @NotNull List<Key> textures, final @NotNull Key paletteKey, final @NotNull Map<String, Key> permutations) {
-        return new PalettedPermutationsAtlasSourceImpl(textures, paletteKey, permutations);
+        return palettedPermutations(textures, paletteKey, permutations, PalettedPermutationsAtlasSource.DEFAULT_SEPARATOR);
+    }
+
+    /**
+     * Creates a new {@link PalettedPermutationsAtlasSource}, paletted permutations
+     * atlas sources dynamically generate textures in-memory with specific color sets.
+     *
+     * @param textures     A list of the base textures
+     * @param paletteKey   The key of the palette file that defines the set of key pixel
+     *                     colors to swap out with the color palettes defined.
+     * @param permutations A map of permutations from suffix to a key of a color palette file
+     * @param separator    The separator placed between the base texture name and the permutation suffix
+     * @sincePackFormat 13
+     * @sinceMinecraft 1.19.4
+     * @since 1.14.3
+     */
+    static @NotNull PalettedPermutationsAtlasSource palettedPermutations(final @NotNull List<Key> textures, final @NotNull Key paletteKey, final @NotNull Map<String, Key> permutations, final @NotNull String separator) {
+        return new PalettedPermutationsAtlasSourceImpl(textures, paletteKey, permutations, separator);
     }
 
 }

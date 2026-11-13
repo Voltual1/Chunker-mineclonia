@@ -24,15 +24,12 @@
 package team.unnamed.creative.font;
 
 import net.kyori.adventure.key.Key;
-import net.kyori.examination.ExaminableProperty;
-import net.kyori.examination.string.StringExaminer;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Unmodifiable;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 import static java.util.Objects.requireNonNull;
 import static team.unnamed.creative.util.MoreCollections.immutableListOf;
@@ -62,7 +59,7 @@ final class BitMapFontProviderImpl implements BitMapFontProvider {
         if (characters.isEmpty())
             throw new IllegalArgumentException("Character list is empty");
 
-        // 显式退回使用 get(0) 避开 Java 21 SequencedCollection.getFirst() 在 Android 端的运行时错误
+        // 显式使用 get(0) 避免 Java 21 SequencedCollection.getFirst() 在 Android 端的运行时错误
         String sample = characters.get(0);
         int codePointCount = sample.codePointCount(0, sample.length());
         for (String character : characters) {
@@ -115,18 +112,8 @@ final class BitMapFontProviderImpl implements BitMapFontProvider {
     }
 
     @Override
-    public @NotNull Stream<? extends ExaminableProperty> examinableProperties() {
-        return Stream.of(
-                ExaminableProperty.of("height", height),
-                ExaminableProperty.of("ascent", ascent),
-                ExaminableProperty.of("file", file),
-                ExaminableProperty.of("chars", characters)
-        );
-    }
-
-    @Override
-    public String toString() {
-        return examine(StringExaminer.simpleEscaping());
+    public @NotNull String toString() {
+        return getClass().getSimpleName() + "{" + "height=" + height + ", ascent=" + ascent + ", file=" + file + ", chars=" + characters + "}";
     }
 
     @Override
