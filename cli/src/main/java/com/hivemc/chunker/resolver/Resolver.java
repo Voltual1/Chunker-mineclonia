@@ -1,9 +1,9 @@
-// [file name]: com.hivemc.chunker.resolver.Resolver.java
 package com.hivemc.chunker.resolver;
 
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.github.benmanes.caffeine.cache.LoadingCache;
+
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 
 /**
  * A resolver represents a way to resolve an input/output to an intermediate format.
@@ -54,25 +54,22 @@ public interface Resolver<T, U> {
      * Create a cached version of this resolver.
      * This is used when the result is an immutable object.
      *
-     * @return a cached version which uses a ConcurrentHashMap based lazy loading cache.
+     * @return a cached version which uses a loading cache.
      */
     default Resolver<T, U> cached() {
         Resolver<T, U> original = this;
-        return new Resolver<T, U>() {
-            // FIX R8 Reflection Crash: Replaced Caffeine with pure ConcurrentHashMap
-            private final ConcurrentMap<T, Optional<U>> toCache = new ConcurrentHashMap<>();
-            private final ConcurrentMap<U, Optional<T>> fromCache = new ConcurrentHashMap<>();
+        return new Resolver<>() {
+            private final LoadingCache<T, Optional<U>> toCache = Caffeine.newBuilder().build(original::to);
+            private final LoadingCache<U, Optional<T>> fromCache = Caffeine.newBuilder().build(original::from);
 
             @Override
             public Optional<U> to(T input) {
-                if (input == null) return Optional.empty();
-                return toCache.computeIfAbsent(input, original::to);
+                return toCache.get(input);
             }
 
             @Override
             public Optional<T> from(U input) {
-                if (input == null) return Optional.empty();
-                return fromCache.computeIfAbsent(input, original::from);
+                return fromCache.get(input);
             }
         };
     }

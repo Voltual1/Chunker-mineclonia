@@ -10,8 +10,6 @@ import com.hivemc.chunker.nbt.tags.Tag;
 import com.hivemc.chunker.nbt.tags.TagWithName;
 import com.hivemc.chunker.nbt.tags.collection.CompoundTag;
 import com.hivemc.chunker.nbt.tags.collection.ListTag;
-import com.hivemc.chunker.scheduling.task.Task;
-import com.hivemc.chunker.scheduling.task.TaskWeight;
 
 import java.util.Map;
 import java.util.Objects;
@@ -27,10 +25,11 @@ public class ColumnWriter extends com.hivemc.chunker.conversion.encoding.java.v1
     }
 
     @Override
-    protected Task<TagWithName<?>> writeChunks(ChunkerColumn column) {
-        return super.writeChunks(column).then("Rename sections to lowercase", TaskWeight.LOW, tag -> {
-            return tag == null ? null : new TagWithName<>("sections", tag.tag());
-        });
+    protected TagWithName<?> writeChunks(ChunkerColumn column) {
+        TagWithName<?> tag = super.writeChunks(column);
+
+        // Use Sections with lowercase s
+        return tag == null ? null : new TagWithName<>("sections", tag.tag());
     }
 
     @Override
