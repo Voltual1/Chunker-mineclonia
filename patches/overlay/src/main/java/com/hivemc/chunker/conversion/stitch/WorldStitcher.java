@@ -20,6 +20,7 @@ import com.hivemc.chunker.conversion.handlers.pretransform.ColumnPreTransformWri
 import com.hivemc.chunker.conversion.handlers.writer.ColumnWriterConversionHandler;
 import com.hivemc.chunker.conversion.intermediate.column.ChunkerColumn;
 import com.hivemc.chunker.conversion.intermediate.column.biome.ChunkerBiome;
+import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.conversion.intermediate.level.ChunkerLevel;
 import com.hivemc.chunker.conversion.intermediate.world.ChunkerWorld;
 import com.hivemc.chunker.conversion.intermediate.world.Dimension;
@@ -27,7 +28,6 @@ import com.hivemc.chunker.pruning.PruningConfig;
 import com.hivemc.chunker.scheduling.task.Environment;
 import com.hivemc.chunker.scheduling.task.Task;
 import com.hivemc.chunker.scheduling.task.TaskWeight;
-import com.hivemc.chunker.conversion.intermediate.column.chunk.ChunkCoordPair;
 import com.hivemc.chunker.scheduling.task.TrackedTask;
 import org.iq80.leveldb.CompressionType;
 import org.iq80.leveldb.DB;
@@ -145,10 +145,10 @@ public class WorldStitcher {
                                 try {
                                     ColumnWriter columnWriter = targetWorldWriter.writeWorld(world);
 
-                                    // 核心平移拦截器：动态修改绝对坐标
-                                    ColumnConversionHandler baseHandler = new ColumnWriterConversionHandler(columnWriter, converter) {
+                                    // 核心平移拦截器：单参数调用官方 ColumnWriterConversionHandler，重写 void 方法
+                                    ColumnConversionHandler baseHandler = new ColumnWriterConversionHandler(columnWriter) {
                                         @Override
-                                        public Task<Void> convertColumn(ChunkerColumn column) {
+                                        public void convertColumn(ChunkerColumn column) {
                                             ChunkerColumn targetColumn = column;
                                             if (chunkOffsetX != 0 || chunkOffsetZ != 0) {
                                                 ChunkCoordPair newPos = new ChunkCoordPair(column.getPosition().chunkX() + chunkOffsetX, column.getPosition().chunkZ() + chunkOffsetZ);
@@ -173,7 +173,7 @@ public class WorldStitcher {
                                                 }
                                             }
                                             processedChunks.incrementAndGet();
-                                            return super.convertColumn(targetColumn);
+                                            super.convertColumn(targetColumn);
                                         }
                                     };
                                     
