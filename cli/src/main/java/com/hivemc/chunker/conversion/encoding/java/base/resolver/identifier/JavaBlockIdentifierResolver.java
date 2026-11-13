@@ -554,6 +554,9 @@ public class JavaBlockIdentifierResolver extends ChunkerBlockIdentifierResolver 
                         .put("minecraft:fire_coral_wall_fan", ChunkerVanillaBlockType.FIRE_CORAL_WALL_FAN)
                         .put("minecraft:horn_coral_wall_fan", ChunkerVanillaBlockType.HORN_CORAL_WALL_FAN)
                         .put("minecraft:tube_coral_wall_fan", ChunkerVanillaBlockType.TUBE_CORAL_WALL_FAN)
+                        .build(),
+                JavaStateGroups.CORAL_WALL_FAN));
+        register(BlockMapping.group(ImmutableMultimap.<String, ChunkerVanillaBlockType>builder()
                         .put("minecraft:ladder", ChunkerVanillaBlockType.LADDER)
                         .put("minecraft:ender_chest", ChunkerVanillaBlockType.ENDER_CHEST)
                         .build(),
@@ -591,13 +594,13 @@ public class JavaBlockIdentifierResolver extends ChunkerBlockIdentifierResolver 
                         .put("minecraft:stone_pressure_plate", ChunkerVanillaBlockType.STONE_PRESSURE_PLATE)
                         .build(),
                 JavaStateGroups.POWERED));
+        register(BlockMapping.of("minecraft:chorus_plant", ChunkerVanillaBlockType.CHORUS_PLANT, JavaStateGroups.CONNECTABLE));
         register(BlockMapping.group(ImmutableMultimap.<String, ChunkerVanillaBlockType>builder()
                         .put("minecraft:brown_mushroom_block", ChunkerVanillaBlockType.BROWN_MUSHROOM_BLOCK)
-                        .put("minecraft:chorus_plant", ChunkerVanillaBlockType.CHORUS_PLANT)
                         .put("minecraft:mushroom_stem", ChunkerVanillaBlockType.MUSHROOM_STEM)
                         .put("minecraft:red_mushroom_block", ChunkerVanillaBlockType.RED_MUSHROOM_BLOCK)
                         .build(),
-                JavaStateGroups.CONNECTABLE));
+                JavaStateGroups.MUSHROOM_BLOCK));
         register(BlockMapping.group(ImmutableMultimap.<String, ChunkerVanillaBlockType>builder()
                         .put("minecraft:frosted_ice", ChunkerVanillaBlockType.FROSTED_ICE)
                         .put("minecraft:nether_wart", ChunkerVanillaBlockType.NETHER_WART)
@@ -708,11 +711,8 @@ public class JavaBlockIdentifierResolver extends ChunkerBlockIdentifierResolver 
                         .put("minecraft:stripped_spruce_wood", ChunkerVanillaBlockType.STRIPPED_SPRUCE_WOOD)
                         .build(),
                 JavaStateGroups.AXIS));
-        register(BlockMapping.group(ImmutableMultimap.<String, ChunkerVanillaBlockType>builder()
-                        .put("minecraft:furnace", ChunkerVanillaBlockType.FURNACE)
-                        .put("minecraft:redstone_wall_torch", ChunkerVanillaBlockType.REDSTONE_WALL_TORCH)
-                        .build(),
-                JavaStateGroups.FACING_HORIZONTAL_LIT));
+        register(BlockMapping.of("minecraft:furnace", ChunkerVanillaBlockType.FURNACE, JavaStateGroups.FACING_HORIZONTAL_LIT));
+        register(BlockMapping.of("minecraft:redstone_wall_torch", ChunkerVanillaBlockType.REDSTONE_WALL_TORCH, JavaStateGroups.REDSTONE_WALL_TORCH));
         register(BlockMapping.group(ImmutableMultimap.<String, ChunkerVanillaBlockType>builder()
                         .put("minecraft:large_fern", ChunkerVanillaBlockType.LARGE_FERN)
                         .put("minecraft:lilac", ChunkerVanillaBlockType.LILAC)
@@ -829,7 +829,7 @@ public class JavaBlockIdentifierResolver extends ChunkerBlockIdentifierResolver 
                             .put("minecraft:dead_horn_coral", ChunkerVanillaBlockType.DEAD_HORN_CORAL)
                             .put("minecraft:dead_tube_coral", ChunkerVanillaBlockType.DEAD_TUBE_CORAL)
                             .build(),
-                    JavaStateGroups.WATERLOGGED));
+                    JavaStateGroups.CORAL));
         }
 
         // 1.14
@@ -1709,6 +1709,117 @@ public class JavaBlockIdentifierResolver extends ChunkerBlockIdentifierResolver 
             register(BlockMapping.of("minecraft:sulfur_brick_stairs", ChunkerVanillaBlockType.SULFUR_BRICK_STAIRS, JavaStateGroups.STAIRS));
             register(BlockMapping.of("minecraft:sulfur_brick_wall", ChunkerVanillaBlockType.SULFUR_BRICK_WALL, JavaStateGroups.WALL));
             register(BlockMapping.of("minecraft:sulfur_spike", ChunkerVanillaBlockType.SULFUR_SPIKE, JavaStateGroups.POINTED_DRIPSTONE));
+        }
+
+        // 26.3
+        if (version.isGreaterThanOrEqual(26, 3, 0)) {
+            // New poplar blocks
+            register(BlockMapping.of("minecraft:potted_poplar_sapling", ChunkerVanillaBlockType.POTTED_POPLAR_SAPLING));
+            register(BlockMapping.of("minecraft:poplar_sapling", ChunkerVanillaBlockType.POPLAR_SAPLING, JavaStateGroups.SAPLING));
+            register(BlockMapping.of("minecraft:poplar_log", ChunkerVanillaBlockType.POPLAR_LOG, JavaStateGroups.AXIS));
+            register(BlockMapping.of("minecraft:poplar_wood", ChunkerVanillaBlockType.POPLAR_WOOD, JavaStateGroups.AXIS));
+            register(BlockMapping.of("minecraft:stripped_poplar_log", ChunkerVanillaBlockType.STRIPPED_POPLAR_LOG, JavaStateGroups.AXIS));
+            register(BlockMapping.of("minecraft:stripped_poplar_wood", ChunkerVanillaBlockType.STRIPPED_POPLAR_WOOD, JavaStateGroups.AXIS));
+            register(BlockMapping.of("minecraft:poplar_planks", ChunkerVanillaBlockType.POPLAR_PLANKS));
+            register(BlockMapping.of("minecraft:poplar_stairs", ChunkerVanillaBlockType.POPLAR_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:poplar_slab", ChunkerVanillaBlockType.POPLAR_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:poplar_fence", ChunkerVanillaBlockType.POPLAR_FENCE, JavaStateGroups.CONNECTABLE_HORIZONTAL));
+            register(BlockMapping.of("minecraft:poplar_fence_gate", ChunkerVanillaBlockType.POPLAR_FENCE_GATE, JavaStateGroups.FENCE_GATE));
+            register(BlockMapping.of("minecraft:poplar_door", ChunkerVanillaBlockType.POPLAR_DOOR, JavaStateGroups.DOOR));
+            register(BlockMapping.of("minecraft:poplar_trapdoor", ChunkerVanillaBlockType.POPLAR_TRAPDOOR, JavaStateGroups.TRAPDOOR));
+            register(BlockMapping.of("minecraft:poplar_button", ChunkerVanillaBlockType.POPLAR_BUTTON, JavaStateGroups.BUTTON));
+            register(BlockMapping.of("minecraft:poplar_pressure_plate", ChunkerVanillaBlockType.POPLAR_PRESSURE_PLATE, JavaStateGroups.POWERED));
+            register(BlockMapping.of("minecraft:poplar_shelf", ChunkerVanillaBlockType.POPLAR_SHELF, JavaStateGroups.SHELF));
+
+            // New poplar signs
+            register(BlockMapping.of("minecraft:poplar_sign", ChunkerVanillaBlockType.POPLAR_SIGN, JavaStateGroups.SIGN));
+            register(BlockMapping.of("minecraft:poplar_wall_sign", ChunkerVanillaBlockType.POPLAR_WALL_SIGN, JavaStateGroups.FACING_HORIZONTAL_WATERLOGGED));
+            register(BlockMapping.of("minecraft:poplar_hanging_sign", ChunkerVanillaBlockType.POPLAR_HANGING_SIGN, JavaStateGroups.HANGING_SIGN));
+            register(BlockMapping.of("minecraft:poplar_wall_hanging_sign", ChunkerVanillaBlockType.POPLAR_WALL_HANGING_SIGN, JavaStateGroups.WALL_HANGING_SIGN));
+
+            // New poplar leaves
+            register(BlockMapping.of("minecraft:orange_poplar_leaves", ChunkerVanillaBlockType.ORANGE_POPLAR_LEAVES, JavaStateGroups.LEAVES));
+            register(BlockMapping.of("minecraft:red_poplar_leaves", ChunkerVanillaBlockType.RED_POPLAR_LEAVES, JavaStateGroups.LEAVES));
+            register(BlockMapping.of("minecraft:yellow_poplar_leaves", ChunkerVanillaBlockType.YELLOW_POPLAR_LEAVES, JavaStateGroups.LEAVES));
+
+            // New straw bed
+            register(BlockMapping.of("minecraft:straw_bed", ChunkerVanillaBlockType.STRAW_BED, JavaStateGroups.BED));
+
+            // New plants
+            register(BlockMapping.of("minecraft:red_shrub", ChunkerVanillaBlockType.RED_SHRUB));
+            register(BlockMapping.of("minecraft:shelf_mushroom", ChunkerVanillaBlockType.SHELF_MUSHROOM, JavaStateGroups.SHELF_MUSHROOM));
+
+            // New wool slabs
+            register(BlockMapping.of("minecraft:white_wool_slab", ChunkerVanillaBlockType.WHITE_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:orange_wool_slab", ChunkerVanillaBlockType.ORANGE_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:magenta_wool_slab", ChunkerVanillaBlockType.MAGENTA_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:light_blue_wool_slab", ChunkerVanillaBlockType.LIGHT_BLUE_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:yellow_wool_slab", ChunkerVanillaBlockType.YELLOW_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:lime_wool_slab", ChunkerVanillaBlockType.LIME_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:pink_wool_slab", ChunkerVanillaBlockType.PINK_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:gray_wool_slab", ChunkerVanillaBlockType.GRAY_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:light_gray_wool_slab", ChunkerVanillaBlockType.LIGHT_GRAY_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:cyan_wool_slab", ChunkerVanillaBlockType.CYAN_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:purple_wool_slab", ChunkerVanillaBlockType.PURPLE_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:blue_wool_slab", ChunkerVanillaBlockType.BLUE_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:brown_wool_slab", ChunkerVanillaBlockType.BROWN_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:green_wool_slab", ChunkerVanillaBlockType.GREEN_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:red_wool_slab", ChunkerVanillaBlockType.RED_WOOL_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:black_wool_slab", ChunkerVanillaBlockType.BLACK_WOOL_SLAB, JavaStateGroups.SLAB));
+
+            // New wool stairs
+            register(BlockMapping.of("minecraft:white_wool_stairs", ChunkerVanillaBlockType.WHITE_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:orange_wool_stairs", ChunkerVanillaBlockType.ORANGE_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:magenta_wool_stairs", ChunkerVanillaBlockType.MAGENTA_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:light_blue_wool_stairs", ChunkerVanillaBlockType.LIGHT_BLUE_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:yellow_wool_stairs", ChunkerVanillaBlockType.YELLOW_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:lime_wool_stairs", ChunkerVanillaBlockType.LIME_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:pink_wool_stairs", ChunkerVanillaBlockType.PINK_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:gray_wool_stairs", ChunkerVanillaBlockType.GRAY_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:light_gray_wool_stairs", ChunkerVanillaBlockType.LIGHT_GRAY_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:cyan_wool_stairs", ChunkerVanillaBlockType.CYAN_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:purple_wool_stairs", ChunkerVanillaBlockType.PURPLE_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:blue_wool_stairs", ChunkerVanillaBlockType.BLUE_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:brown_wool_stairs", ChunkerVanillaBlockType.BROWN_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:green_wool_stairs", ChunkerVanillaBlockType.GREEN_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:red_wool_stairs", ChunkerVanillaBlockType.RED_WOOL_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:black_wool_stairs", ChunkerVanillaBlockType.BLACK_WOOL_STAIRS, JavaStateGroups.STAIRS));
+
+            // New concrete slabs
+            register(BlockMapping.of("minecraft:white_concrete_slab", ChunkerVanillaBlockType.WHITE_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:orange_concrete_slab", ChunkerVanillaBlockType.ORANGE_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:magenta_concrete_slab", ChunkerVanillaBlockType.MAGENTA_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:light_blue_concrete_slab", ChunkerVanillaBlockType.LIGHT_BLUE_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:yellow_concrete_slab", ChunkerVanillaBlockType.YELLOW_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:lime_concrete_slab", ChunkerVanillaBlockType.LIME_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:pink_concrete_slab", ChunkerVanillaBlockType.PINK_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:gray_concrete_slab", ChunkerVanillaBlockType.GRAY_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:light_gray_concrete_slab", ChunkerVanillaBlockType.LIGHT_GRAY_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:cyan_concrete_slab", ChunkerVanillaBlockType.CYAN_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:purple_concrete_slab", ChunkerVanillaBlockType.PURPLE_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:blue_concrete_slab", ChunkerVanillaBlockType.BLUE_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:brown_concrete_slab", ChunkerVanillaBlockType.BROWN_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:green_concrete_slab", ChunkerVanillaBlockType.GREEN_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:red_concrete_slab", ChunkerVanillaBlockType.RED_CONCRETE_SLAB, JavaStateGroups.SLAB));
+            register(BlockMapping.of("minecraft:black_concrete_slab", ChunkerVanillaBlockType.BLACK_CONCRETE_SLAB, JavaStateGroups.SLAB));
+
+            // New concrete stairs
+            register(BlockMapping.of("minecraft:white_concrete_stairs", ChunkerVanillaBlockType.WHITE_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:orange_concrete_stairs", ChunkerVanillaBlockType.ORANGE_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:magenta_concrete_stairs", ChunkerVanillaBlockType.MAGENTA_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:light_blue_concrete_stairs", ChunkerVanillaBlockType.LIGHT_BLUE_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:yellow_concrete_stairs", ChunkerVanillaBlockType.YELLOW_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:lime_concrete_stairs", ChunkerVanillaBlockType.LIME_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:pink_concrete_stairs", ChunkerVanillaBlockType.PINK_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:gray_concrete_stairs", ChunkerVanillaBlockType.GRAY_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:light_gray_concrete_stairs", ChunkerVanillaBlockType.LIGHT_GRAY_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:cyan_concrete_stairs", ChunkerVanillaBlockType.CYAN_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:purple_concrete_stairs", ChunkerVanillaBlockType.PURPLE_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:blue_concrete_stairs", ChunkerVanillaBlockType.BLUE_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:brown_concrete_stairs", ChunkerVanillaBlockType.BROWN_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:green_concrete_stairs", ChunkerVanillaBlockType.GREEN_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:red_concrete_stairs", ChunkerVanillaBlockType.RED_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
+            register(BlockMapping.of("minecraft:black_concrete_stairs", ChunkerVanillaBlockType.BLACK_CONCRETE_STAIRS, JavaStateGroups.STAIRS));
         }
     }
 }

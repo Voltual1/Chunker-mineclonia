@@ -318,6 +318,13 @@ public class BedrockStateTypes {
             .mapping(0, CoralFanDirection.EAST_WEST)
             .mapping(1, CoralFanDirection.NORTH_SOUTH)
             .build();
+    public static final TypeMapping<String, StairShape> CORNER = new TypeMapping.Builder<String, StairShape>()
+            .mapping("none", StairShape.STRAIGHT)
+            .mapping("inner_left", StairShape.INNER_LEFT)
+            .mapping("inner_right", StairShape.INNER_RIGHT)
+            .mapping("outer_left", StairShape.OUTER_LEFT)
+            .mapping("outer_right", StairShape.OUTER_RIGHT)
+            .build();
     public static final TypeMapping<Boolean, Creaking> CREAKING_BOOL = new TypeMapping.Builder<Boolean, Creaking>()
             .mapping(false, Creaking.DORMANT)
             .mapping(false, Creaking.DISABLED)
@@ -510,6 +517,10 @@ public class BedrockStateTypes {
             .mapping("hanging", GrindstoneAttachmentType.CEILING)
             .mapping("side", GrindstoneAttachmentType.WALL)
             .mapping("multiple", GrindstoneAttachmentType.MULTIPLE)
+            .build();
+    public static final TypeMapping<Integer, Age_1> GROWTH = new TypeMapping.Builder<Integer, Age_1>()
+            .mapping(0, Age_1._0)
+            .mapping(1, Age_1._1)
             .build();
     public static final TypeMapping<Boolean, Half> HALF = new TypeMapping.Builder<Boolean, Half>()
             .mapping(false, Half.BOTTOM)
@@ -781,6 +792,11 @@ public class BedrockStateTypes {
             .mapping(13, RailShape.NORTH_SOUTH) // Legacy state which falls back to north-south
             .mapping(14, RailShape.NORTH_SOUTH) // Legacy state which falls back to north-south
             .mapping(15, RailShape.NORTH_SOUTH) // Legacy state which falls back to north-south
+            .build();
+    public static final TypeMapping<String, RedstoneConnection> REDSTONE_CONNECTION = new TypeMapping.Builder<String, RedstoneConnection>()
+            .mapping("none", RedstoneConnection.NONE)
+            .mapping("side", RedstoneConnection.SIDE)
+            .mapping("up", RedstoneConnection.UP)
             .build();
     public static final TypeMapping<Integer, Bool> REDSTONE_SIGNAL_TO_BOOL = new TypeMapping.Builder<Integer, Bool>()
             .mapping(0, Bool.FALSE)
