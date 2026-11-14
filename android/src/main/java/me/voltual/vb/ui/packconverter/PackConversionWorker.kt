@@ -10,9 +10,6 @@ import com.anggrayudi.storage.extension.openOutputStream
 import com.anggrayudi.storage.extension.fromTreeUri
 import com.anggrayudi.storage.file.makeFile
 import com.anggrayudi.storage.file.openOutputStream
-import com.twelvemonkeys.imageio.plugins.tga.TGAImageReaderSpi
-import com.twelvemonkeys.imageio.plugins.tga.TGAImageWriterSpi
-import javax.imageio.spi.IIORegistry
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.geysermc.pack.converter.PackConverter
@@ -72,15 +69,6 @@ class PackConversionWorker(
 
                 logger.info("系统：释放并配置 AWT 颜色映射参数...")
                 IccProfileStore.install(context.cacheDir)
-
-                try {
-                    val registry = IIORegistry.getDefaultInstance()
-                    registry.registerServiceProvider(TGAImageReaderSpi())
-                    registry.registerServiceProvider(TGAImageWriterSpi())
-                    logger.info("系统：已显式注册 TwelveMonkeys TGA ImageIO 插件。")
-                } catch (t: Throwable) {
-                    logger.error("系统：显式注册 TGA ImageIO 插件失败（请检查 imageio-core 是否已打入 DEX 或被 R8 裁剪）", t)
-                }
 
                 logger.info("系统：正在从 SAF 拷贝输入材质包...")
                 
