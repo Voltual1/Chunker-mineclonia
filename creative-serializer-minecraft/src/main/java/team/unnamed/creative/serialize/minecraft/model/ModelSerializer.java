@@ -1,0 +1,626 @@
+/*
+ * This file is part of creative, licensed under the MIT license
+ *
+ * Copyright (c) 2021-2025 Unnamed Team
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package team.unnamed.creative.serialize.minecraft.model;
+
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.stream.JsonWriter;
+import net.kyori.adventure.key.Key;
+import org.jetbrains.annotations.ApiStatus;
+import org.jetbrains.annotations.Nullable;
+import team.unnamed.creative.base.Axis3D;
+import team.unnamed.creative.base.CubeFace;
+import team.unnamed.creative.base.Vector2Float;
+import team.unnamed.creative.base.Vector3Float;
+import team.unnamed.creative.metadata.pack.FormatVersion;
+import team.unnamed.creative.metadata.pack.PackFormat;
+import team.unnamed.creative.model.Element;
+import team.unnamed.creative.model.ElementFace;
+import team.unnamed.creative.model.ElementRotation;
+import team.unnamed.creative.model.ItemOverride;
+import team.unnamed.creative.model.ItemPredicate;
+import team.unnamed.creative.model.ItemTransform;
+import team.unnamed.creative.model.Model;
+import team.unnamed.creative.model.ModelTexture;
+import team.unnamed.creative.model.ModelTextures;
+import team.unnamed.creative.overlay.ResourceContainer;
+import team.unnamed.creative.serialize.minecraft.GsonUtil;
+import team.unnamed.creative.serialize.minecraft.ResourceCategoryImpl;
+import team.unnamed.creative.serialize.minecraft.base.KeySerializer;
+import team.unnamed.creative.serialize.minecraft.io.JsonResourceDeserializer;
+import team.unnamed.creative.serialize.minecraft.io.JsonResourceSerializer;
+import team.unnamed.creative.texture.TextureUV;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.logging.Logger;
+
+@ApiStatus.Internal
+public final class ModelSerializer implements JsonResourceSerializer<Model>, JsonResourceDeserializer<Model> {
+
+    private static final float MINECRAFT_UV_UNIT = 16F;
+    private static final Logger LOGGER = Logger.getLogger(ModelSerializer.class.getName());
+
+    public static final ModelSerializer INSTANCE;
+    public static final ResourceCategoryImpl<Model> CATEGORY;
+
+    static {
+        INSTANCE = new ModelSerializer();
+        CATEGORY = new ResourceCategoryImpl<>(
+                "models",
+                ".json",
+                ResourceContainer::models,
+                ModelSerializer.INSTANCE
+        );
+    }
+
+    @Override
+    public void serializeToJson(Model model, JsonWriter writer, PackFormat packFormat) throws IOException {
+        writer.beginObject();
+
+        // parent
+        Key parent = model.parent();
+        if (parent != null) {
+            writer.name("parent").value(KeySerializer.toString(parent));
+        }
+
+        // display
+        Map<ItemTransform.Type, ItemTransform> display = model.display();
+        if (!display.isEmpty()) {
+            writer.name("display").beginObject();
+            for (Map.Entry<ItemTransform.Type, ItemTransform> entry : display.entrySet()) {
+                writer.name(entry.getKey().name().toLowerCase(Locale.ROOT));
+                writeItemTransform(writer, entry.getValue());
+            }
+            writer.endObject();
+        }
+
+        // elements
+        List<Element> elements = model.elements();
+        if (!elements.isEmpty()) {
+            writer.name("elements").beginArray();
+            int minPackFormat = packFormat.min().major();
+            boolean writeLegacy = minPackFormat < FormatVersion.FORMAT_1_21_11;
+
+            if (writeLegacy) for (Element element : elements) {
+                ElementRotation rotation = element.rotation();
+                if (rotation == null) continue;
+                writeLegacy = rotation.containsLegacyRotation(writeLegacy, minPackFormat);
+            }
+
+            List<String> clampedUvs = shouldClampUv(packFormat) ? new ArrayList<>() : null;
+            for (Element element : elements) {
+                writeElement(writer, element, writeLegacy, clampedUvs);
+            }
+            writer.endArray();
+
+            if (clampedUvs != null && !clampedUvs.isEmpty()) LOGGER.warning("""
+                Model %s has UV-mapping outside its texture on: %s.
+                Clamped to the 0-16 range since 26.1+ fails to bake such models,
+                fix the UV-mapping in the model to get rid of this warning
+                """.formatted(model.key(), String.join(", ", clampedUvs))
+            );
+        }
+
+        boolean ambientOcclusion = model.ambientOcclusion();
+        if (ambientOcclusion != Model.DEFAULT_AMBIENT_OCCLUSION) {
+            // only write if not default value
+            writer.name("ambientocclusion").value(ambientOcclusion);
+        }
+
+        writeTextures(writer, model.textures());
+
+        Model.GuiLight guiLight = model.guiLight();
+        if (guiLight != null) {
+            // only write if not default
+            writer.name("gui_light").value(guiLight.name().toLowerCase(Locale.ROOT));
+        }
+
+        List<ItemOverride> overrides = model.overrides();
+        if (!overrides.isEmpty()) {
+            writer.name("overrides").beginArray();
+            for (ItemOverride override : overrides) {
+                writeItemOverride(writer, override);
+            }
+            writer.endArray();
+        }
+        writer.endObject();
+    }
+
+    @Override
+    public Model deserializeFromJson(JsonElement node, Key key, PackFormat packFormat) {
+
+        JsonObject objectNode = node.getAsJsonObject();
+
+        // parent
+        Key parent = null;
+        if (objectNode.has("parent")) {
+            parent = Key.key(objectNode.get("parent").getAsString());
+        }
+
+        // display
+        Map<ItemTransform.Type, ItemTransform> display = new LinkedHashMap<>();
+        if (objectNode.has("display")) {
+            JsonObject displayNode = objectNode.getAsJsonObject("display");
+            for (Map.Entry<String, JsonElement> entry : displayNode.entrySet()) {
+                ItemTransform.Type type = ItemTransform.Type.valueOf(entry.getKey().toUpperCase(Locale.ROOT));
+                display.put(type, readItemTransform(entry.getValue()));
+            }
+        }
+
+        // elements
+        List<Element> elements = new ArrayList<>();
+        if (objectNode.has("elements")) {
+            for (JsonElement elementNode : objectNode.getAsJsonArray("elements")) {
+                elements.add(readElement(elementNode, packFormat));
+            }
+        }
+
+        ModelTextures texture = ModelTextures.builder().build();
+
+        if (objectNode.has("textures")) {
+            texture = readTextures(objectNode.get("textures"));
+        }
+
+        Model.GuiLight guiLight = null;
+        if (objectNode.has("gui_light")) {
+            // only write if not default
+            guiLight = Model.GuiLight.valueOf(objectNode.get("gui_light").getAsString().toUpperCase(Locale.ROOT));
+        }
+
+        List<ItemOverride> overrides = new ArrayList<>();
+        if (objectNode.has("overrides")) {
+            for (JsonElement overrideNode : objectNode.getAsJsonArray("overrides")) {
+                overrides.add(readItemOverride(overrideNode));
+            }
+        }
+
+        return Model.model()
+                .key(key)
+                .parent(parent)
+                .display(display)
+                .elements(elements)
+                .ambientOcclusion(GsonUtil.getBoolean(objectNode, "ambientocclusion", Model.DEFAULT_AMBIENT_OCCLUSION))
+                .textures(texture)
+                .guiLight(guiLight)
+                .overrides(overrides)
+                .build();
+    }
+
+    private static void writeElement(JsonWriter writer, Element element, boolean writeLegacy, @Nullable List<String> clampedUvs) throws IOException {
+        writer.beginObject().name("from");
+        GsonUtil.writeVector3Float(writer, element.from());
+        writer.name("to");
+        GsonUtil.writeVector3Float(writer, element.to());
+
+        ElementRotation rotation = element.rotation();
+        if (rotation != null) {
+            writer.name("rotation");
+            writeElementRotation(writer, rotation, writeLegacy);
+        }
+
+        boolean shade = element.shade();
+        if (shade != Element.DEFAULT_SHADE) {
+            // only write if not equal to default value
+            writer.name("shade").value(shade);
+        }
+
+        int lightEmission = element.lightEmission();
+        if (lightEmission != 0) {
+            writer.name("light_emission").value(lightEmission);
+        }
+
+        // faces
+        writer.name("faces").beginObject();
+        for (Map.Entry<CubeFace, ElementFace> entry : element.faces().entrySet()) {
+            CubeFace type = entry.getKey();
+            ElementFace face = entry.getValue();
+
+            writer.name(type.name().toLowerCase(Locale.ROOT))
+                    .beginObject();
+
+            // an omitted UV falls back to the one Minecraft derives from the element,
+            // which is just as out-of-bounds when the element itself is
+            TextureUV defaultUv = getDefaultUvForFace(type, element.from(), element.to());
+            TextureUV uv = face.uv() == null ? defaultUv : face.uv();
+            if (clampedUvs != null) {
+                uv = clampUv(uv, type, clampedUvs);
+            }
+            if (!uv.equals(defaultUv)) {
+                writer.name("uv");
+                writer.beginArray();
+                writer.value(uv.from().x() * MINECRAFT_UV_UNIT);
+                writer.value(uv.from().y() * MINECRAFT_UV_UNIT);
+                writer.value(uv.to().x() * MINECRAFT_UV_UNIT);
+                writer.value(uv.to().y() * MINECRAFT_UV_UNIT);
+                writer.endArray();
+            }
+            writer.name("texture").value(face.texture());
+            if (face.cullFace() != null) {
+                writer.name("cullface").value(face.cullFace().name().toLowerCase(Locale.ROOT));
+            }
+            if (face.rotation() != ElementFace.DEFAULT_ROTATION) {
+                writer.name("rotation").value(face.rotation());
+            }
+            if (face.tintIndex() != ElementFace.DEFAULT_TINT_INDEX) {
+                writer.name("tintindex").value(face.tintIndex());
+            }
+            writer.endObject();
+        }
+        writer.endObject().endObject();
+    }
+
+    /**
+     * Determines whether UVs should be clamped for the given target pack format.
+     *
+     * <p>Minecraft 26.1+ refuses to bake a model when a face samples outside its
+     * texture, older versions just rendered whatever was next to it in the atlas.
+     * A major of zero means the target format is unknown, assume the newest behavior.</p>
+     */
+    private static boolean shouldClampUv(PackFormat packFormat) {
+        int max = packFormat.max().major();
+        return max == 0 || max >= FormatVersion.FORMAT_26_1;
+    }
+
+    private static TextureUV clampUv(TextureUV uv, CubeFace face, List<String> clampedUvs) {
+        Vector2Float from = uv.from();
+        Vector2Float to = uv.to();
+        Vector2Float clampedFrom = new Vector2Float(clamp01(from.x()), clamp01(from.y()));
+        Vector2Float clampedTo = new Vector2Float(clamp01(to.x()), clamp01(to.y()));
+
+        if (clampedFrom.equals(from) && clampedTo.equals(to)) return uv;
+
+        clampedUvs.add("%s [%s, %s, %s, %s]".formatted(
+                face.name().toLowerCase(Locale.ROOT),
+                from.x() * MINECRAFT_UV_UNIT, from.y() * MINECRAFT_UV_UNIT,
+                to.x() * MINECRAFT_UV_UNIT, to.y() * MINECRAFT_UV_UNIT
+        ));
+        return TextureUV.uv(clampedFrom, clampedTo);
+    }
+
+    private static float clamp01(float value) {
+        return Math.min(Math.max(value, 0F), 1F);
+    }
+
+    private static TextureUV getDefaultUvForFace(CubeFace face, Vector3Float from, Vector3Float to) {
+        from = from.divide(MINECRAFT_UV_UNIT);
+        to = to.divide(MINECRAFT_UV_UNIT);
+        return switch (face) {
+            case WEST -> TextureUV.uv(from.z(), 1F - to.y(), to.z(), 1F - from.y());
+            case EAST -> TextureUV.uv(1F - to.z(), 1F - to.y(), 1F - from.z(), 1F - from.y());
+            case DOWN -> TextureUV.uv(from.x(), 1F - to.z(), to.x(), 1F - from.z());
+            case UP -> TextureUV.uv(from.x(), from.z(), to.x(), to.z());
+            case NORTH -> TextureUV.uv(1F - to.x(), 1F - to.y(), 1F - from.x(), 1F - from.y());
+            case SOUTH -> TextureUV.uv(from.x(), 1F - to.y(), to.x(), 1F - from.y());
+            default -> throw new IllegalArgumentException("Unknown face: " + face);
+        };
+    }
+
+    private static Element readElement(JsonElement node, PackFormat packFormat) {
+        JsonObject objectNode = node.getAsJsonObject();
+        ElementRotation rotation = null;
+
+        if (objectNode.has("rotation")) {
+            rotation = readElementRotation(objectNode.get("rotation"), packFormat);
+        }
+
+        Map<CubeFace, ElementFace> faces = new LinkedHashMap<>();
+        for (Map.Entry<String, JsonElement> entry : objectNode.getAsJsonObject("faces").entrySet()) {
+            CubeFace face = CubeFace.valueOf(entry.getKey().toUpperCase(Locale.ROOT));
+            JsonObject elementFaceNode = entry.getValue().getAsJsonObject();
+            TextureUV uv = null;
+            if (elementFaceNode.has("uv")) {
+                JsonArray array = elementFaceNode.getAsJsonArray("uv");
+                float u1 = array.get(0).getAsFloat();
+                float v1 = array.get(1).getAsFloat();
+                float u2 = array.get(2).getAsFloat();
+                float v2 = array.get(3).getAsFloat();
+
+                // reading stays lenient, out-of-bounds UVs are clamped on write
+                uv = TextureUV.uv(
+                    new Vector2Float(u1, v1).divide(MINECRAFT_UV_UNIT),
+                    new Vector2Float(u2, v2).divide(MINECRAFT_UV_UNIT)
+                );
+            }
+
+            CubeFace cullFace = null;
+            if (elementFaceNode.has("cullface")) {
+                try {
+                    cullFace = CubeFace.valueOf(elementFaceNode.get("cullface").getAsString().toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException e) {
+                    continue;
+                }
+            }
+
+            faces.put(
+                    face,
+                    ElementFace.face()
+                            .uv(uv)
+                            .texture(elementFaceNode.get("texture").getAsString())
+                            .cullFace(cullFace)
+                            .rotation(GsonUtil.getInt(elementFaceNode, "rotation", ElementFace.DEFAULT_ROTATION))
+                            .tintIndex(GsonUtil.getInt(elementFaceNode, "tintindex", ElementFace.DEFAULT_TINT_INDEX))
+                            .build()
+            );
+        }
+
+        return Element.element()
+                .from(GsonUtil.readVector3Float(objectNode.get("from")))
+                .to(GsonUtil.readVector3Float(objectNode.get("to")))
+                .rotation(rotation)
+                .shade(GsonUtil.getBoolean(objectNode, "shade", Element.DEFAULT_SHADE))
+                .lightEmission(GsonUtil.getInt(objectNode, "light_emission", 0))
+                .faces(faces)
+                .build();
+    }
+
+    private static void writeElementRotation(JsonWriter writer, ElementRotation rotation, boolean writeLegacy) throws IOException {
+        writer.beginObject().name("origin");
+        GsonUtil.writeVector3Float(writer, rotation.origin());
+
+        if (!writeLegacy) {
+            writer.name("x").value(rotation.rotation().x())
+                    .name("y").value(rotation.rotation().y())
+                    .name("z").value(rotation.rotation().z());
+        } else {
+            writer.name("axis").value(rotation.axis().name().toLowerCase(Locale.ROOT))
+                    .name("angle").value(rotation.angle());
+        }
+
+        boolean rescale = rotation.rescale();
+        if (rescale != ElementRotation.DEFAULT_RESCALE) {
+            // only write if not equal to default value
+            writer.name("rescale").value(rescale);
+        }
+        writer.endObject();
+    }
+
+    private static ElementRotation readElementRotation(JsonElement node, PackFormat packFormat) {
+        JsonObject objectNode = node.getAsJsonObject();
+        Vector3Float rotation;
+        if (objectNode.has("axis") && objectNode.has("angle")) {
+            Axis3D axis = Axis3D.valueOf(objectNode.get("axis").getAsString().toUpperCase(Locale.ROOT));
+            float angle = objectNode.get("angle").getAsFloat();
+            float abs = Math.abs(angle);
+            if (packFormat.min().major() < FormatVersion.FORMAT_1_21_11 && (abs > 45f || abs < -45f)) {
+                throw new IllegalArgumentException("Angle must be between [-45.0, 45.0] (inclusive), but was " + abs);
+            }
+            rotation = Vector3Float.ZERO.with(axis, angle);
+        } else {
+            float x = objectNode.get("x").getAsFloat();
+            float y = objectNode.get("y").getAsFloat();
+            float z = objectNode.get("z").getAsFloat();
+            rotation = new Vector3Float(x, y, z);
+        }
+        return ElementRotation.builder().rotation(rotation)
+                .origin(GsonUtil.readVector3Float(objectNode.get("origin")))
+                .rescale(GsonUtil.getBoolean(objectNode, "rescale", ElementRotation.DEFAULT_RESCALE))
+                .build();
+    }
+
+    private static void writeItemOverride(JsonWriter writer, ItemOverride override) throws IOException {
+        writer.beginObject().name("predicate").beginObject();
+        for (ItemPredicate predicate : override.predicate()) {
+            writer.name(predicate.name());
+            Object value = predicate.value();
+
+            // match the type of the value and write it
+            switch (value) {
+                case Long l -> writer.value(l);
+                case Float v -> writer.value(v);
+                case Double d -> writer.value(d);
+                case Number number -> writer.value(number);
+                case String s -> writer.value(s);
+                case Boolean b -> writer.value(b);
+                default -> throw new IOException("Unknown predicate value type: " + value.getClass().getName());
+            }
+        }
+        writer.endObject()
+                .name("model").value(KeySerializer.toString(override.model()))
+                .endObject();
+    }
+
+    private static ItemOverride readItemOverride(JsonElement node) {
+        JsonObject objectNode = node.getAsJsonObject();
+        Key key = Key.key(objectNode.get("model").getAsString());
+        List<ItemPredicate> predicates = new ArrayList<>();
+        for (Map.Entry<String, JsonElement> predicateEntry : objectNode.getAsJsonObject("predicate").entrySet()) {
+            Object object = getObject(predicateEntry);
+            predicates.add(ItemPredicate.custom(predicateEntry.getKey(), object));
+        }
+        return ItemOverride.of(key, predicates);
+    }
+
+    private static Object getObject(Map.Entry<String, JsonElement> predicateEntry) {
+        JsonElement value = predicateEntry.getValue();
+        // TODO: better transformation
+        Object object;
+        if (value.isJsonPrimitive()) {
+            JsonPrimitive primitive = value.getAsJsonPrimitive();
+            if (primitive.isNumber()) {
+                object = primitive.getAsNumber();
+            } else if (primitive.isBoolean()) {
+                object = primitive.getAsBoolean();
+            } else {
+                object = primitive.getAsString();
+            }
+        } else {
+            object = value.getAsString();
+        }
+        return object;
+    }
+
+    private static void writeItemTransform(JsonWriter writer, ItemTransform transform) throws IOException {
+        writer.beginObject();
+        Vector3Float rotation = transform.rotation();
+        if (!rotation.equals(ItemTransform.DEFAULT_ROTATION)) {
+            writer.name("rotation");
+            GsonUtil.writeVector3Float(writer, rotation);
+        }
+        Vector3Float translation = transform.translation();
+        if (!translation.equals(ItemTransform.DEFAULT_TRANSLATION)) {
+            writer.name("translation");
+            GsonUtil.writeVector3Float(writer, translation);
+        }
+        Vector3Float scale = transform.scale();
+        if (!scale.equals(ItemTransform.DEFAULT_SCALE)) {
+            writer.name("scale");
+            GsonUtil.writeVector3Float(writer, scale);
+        }
+        writer.endObject();
+    }
+
+    private static ItemTransform readItemTransform(JsonElement node) {
+        JsonObject objectNode = node.getAsJsonObject();
+        Vector3Float rotation = ItemTransform.DEFAULT_ROTATION;
+        Vector3Float translation = ItemTransform.DEFAULT_TRANSLATION;
+        Vector3Float scale = ItemTransform.DEFAULT_SCALE;
+        if (objectNode.has("rotation")) {
+            rotation = GsonUtil.readVector3Float(objectNode.get("rotation"));
+        }
+        if (objectNode.has("translation")) {
+            translation = GsonUtil.readVector3Float(objectNode.get("translation"));
+            // clamp translations between -80 and 80 (what Minecraft does)
+            translation = new Vector3Float(
+                    Math.max(-80F, Math.min(80F, translation.x())),
+                    Math.max(-80F, Math.min(80F, translation.y())),
+                    Math.max(-80F, Math.min(80F, translation.z()))
+            );
+        }
+        if (objectNode.has("scale")) {
+            scale = GsonUtil.readVector3Float(objectNode.get("scale"));
+            // set max to 4 (what Minecraft does)
+            scale = new Vector3Float(
+                    Math.min(4F, scale.x()),
+                    Math.min(4F, scale.y()),
+                    Math.min(4F, scale.z())
+            );
+        }
+        return ItemTransform.transform(rotation, translation, scale);
+    }
+
+    private static void writeTextures(JsonWriter writer, ModelTextures texture) throws IOException {
+        ModelTexture particle = texture.particle();
+        final List<ModelTexture> layers = texture.layers();
+        final Map<String, ModelTexture> variables = texture.variables();
+
+        if (particle == null && layers.isEmpty() && variables.isEmpty()) {
+            // do not write if completely empty
+            return;
+        }
+
+        writer.name("textures");
+        writer.beginObject();
+        for (int i = 0; i < layers.size(); i++) {
+            writer.name("layer" + i);
+            writeModelTexture(writer, layers.get(i));
+        }
+        for (Map.Entry<String, ModelTexture> variable : variables.entrySet()) {
+            writer.name(variable.getKey());
+            writeModelTexture(writer, variable.getValue());
+        }
+        writer.name("particle");
+        if (particle == null) {
+            if (!layers.isEmpty()) particle = layers.getFirst();
+            else particle = variables.values().stream().findFirst().orElse(null);
+        }
+        writeModelTexture(writer, particle);
+        writer.endObject();
+    }
+
+    private static void writeModelTexture(JsonWriter writer, ModelTexture texture) throws IOException {
+        if (!texture.forceTranslucent()) {
+            if (texture.reference() != null) {
+                writer.value("#" + texture.reference());
+            } else {
+                writer.value(KeySerializer.toString(texture.key()));
+            }
+        } else {
+            writer.beginObject();
+            writer.name("sprite");
+            if (texture.reference() != null) {
+                writer.value("#" + texture.reference());
+            } else {
+                writer.value(KeySerializer.toString(texture.key()));
+            }
+            writer.name("force_translucent").value(texture.forceTranslucent());
+        }
+
+    }
+
+    private static ModelTextures readTextures(JsonElement node) {
+
+        JsonObject objectNode = node.getAsJsonObject();
+        ModelTexture particle = null;
+        List<ModelTexture> layers = new ArrayList<>(objectNode.entrySet().size());
+        Map<String, ModelTexture> variables = new LinkedHashMap<>();
+
+        for (Map.Entry<String, JsonElement> entry : objectNode.entrySet()) {
+            String key = entry.getKey();
+            JsonElement value = entry.getValue();
+
+            String sprite;
+            boolean forceTranslucent = ModelTexture.DEFAULT_FORCE_TRANSLUCENT;
+            if (value.isJsonPrimitive()) {
+                sprite = value.getAsString();
+            } else if (value instanceof JsonObject jsonObject) {
+                sprite = jsonObject.get("sprite").getAsString();
+                forceTranslucent = jsonObject.get("force_translucent").getAsBoolean();
+            } else sprite = "#missingno";
+            ModelTexture parsed = readTextureField(sprite, forceTranslucent, key, layers, variables);
+            if ("particle".equals(key)) particle = parsed;
+        }
+
+        return ModelTextures.builder()
+                .particle(particle)
+                .layers(layers)
+                .variables(variables)
+                .build();
+    }
+
+    private static ModelTexture readTextureField(String valueString, boolean translucent, String key, List<ModelTexture> layers, Map<String, ModelTexture> variables) {
+        ModelTexture texture = valueString.charAt(0) == '#'
+                ? ModelTexture.ofReference(valueString.substring(1), translucent)
+                : ModelTexture.ofKey(Key.key(valueString), translucent);
+
+        if ("particle".equals(key)) {
+            return texture;
+        } else if (key.startsWith("layer")) {
+            int layer = Integer.parseInt(key.substring("layer".length()));
+            // TODO: Fix
+            layers.add(texture);
+        } else {
+            variables.put(key, texture);
+        }
+
+        return null;
+    }
+
+}
