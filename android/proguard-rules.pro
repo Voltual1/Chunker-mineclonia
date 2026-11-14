@@ -31,10 +31,7 @@
      public *;
 }
 
--keep class com.twelvemonkeys.imageio.spi.ImageReaderSpiBase { *; }
--keep class com.twelvemonkeys.imageio.spi.ImageWriterSpiBase { *; }
--keep class com.twelvemonkeys.imageio.spi.ReaderWriterProviderInfo { *; }
--keep class com.twelvemonkeys.imageio.spi.ProviderInfo { *; }
+-dontwarn com.twelvemonkeys.imageio.spi.**
 
 -keep class * implements picocli.CommandLine$ITypeConverter {
      public <init>();
