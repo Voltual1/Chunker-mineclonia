@@ -21,18 +21,16 @@ package javax.imageio.spi;
 
 import org.apache.harmony.x.imageio.internal.nls.Messages;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.net.URL;
-import java.util.Enumeration;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.NoSuchElementException;
+import java.util.ServiceConfigurationError;
+import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.Stack;
 
@@ -51,11 +49,54 @@ public class ServiceRegistry {
     }
 
     public static <T> Iterator<T> lookupProviders(Class<T> providerClass, ClassLoader loader) {
-        return new LookupProvidersIterator(providerClass, loader);
+        if (providerClass == null) {
+            throw new IllegalArgumentException(Messages.getString("imageio.5E"));
+        }
+        ClassLoader targetLoader = loader != null ? loader : providerClass.getClassLoader();
+        List<T> providers = new ArrayList<T>();
+        Set<Class<?>> loadedClasses = new HashSet<Class<?>>();
+
+        collectProviders(ServiceLoader.load(providerClass, targetLoader), providers, loadedClasses);
+
+        ClassLoader appLoader = ServiceRegistry.class.getClassLoader();
+        if (appLoader != null && appLoader != targetLoader) {
+            collectProviders(ServiceLoader.load(providerClass, appLoader), providers, loadedClasses);
+        }
+
+        return providers.iterator();
     }
 
     public static <T> Iterator<T> lookupProviders(Class<T> providerClass) {
-        return lookupProviders(providerClass, Thread.currentThread().getContextClassLoader());
+        if (providerClass == null) {
+            throw new IllegalArgumentException(Messages.getString("imageio.5E"));
+        }
+        ClassLoader contextLoader = Thread.currentThread().getContextClassLoader();
+        ClassLoader providerLoader = providerClass.getClassLoader();
+        ClassLoader targetLoader = (contextLoader != null && contextLoader != ClassLoader.getSystemClassLoader())
+                ? contextLoader
+                : providerLoader;
+        return lookupProviders(providerClass, targetLoader);
+    }
+
+    private static <T> void collectProviders(ServiceLoader<T> serviceLoader, List<T> providers, Set<Class<?>> loadedClasses) {
+        Iterator<T> iterator = serviceLoader.iterator();
+        while (true) {
+            try {
+                if (!iterator.hasNext()) {
+                    break;
+                }
+                T provider = iterator.next();
+                if (provider != null && loadedClasses.add(provider.getClass())) {
+                    providers.add(provider);
+                }
+            } catch (ServiceConfigurationError e) {
+                System.err.println("WARN: ServiceLoader failed to load ImageIO SPI: " + e.getMessage());
+                e.printStackTrace();
+            } catch (Throwable t) {
+                System.err.println("WARN: Unexpected error loading ImageIO SPI: " + t.getMessage());
+                t.printStackTrace();
+            }
+        }
     }
 
     public <T> boolean registerServiceProvider(T provider, Class<T> category) {
@@ -64,7 +105,10 @@ public class ServiceRegistry {
 
     public void registerServiceProviders(Iterator<?> providers) {
         for (Iterator<?> iterator = providers; iterator.hasNext();) {
-            categories.addProvider(iterator.next(), null);
+            Object provider = iterator.next();
+            if (provider != null) {
+                categories.addProvider(provider, null);
+            }
         }
     }
 
@@ -569,135 +613,6 @@ public class ServiceRegistry {
         
         public void remove() {
             throw new UnsupportedOperationException();
-        }
-    }
-    
-    static class LookupProvidersIterator<T> implements Iterator {
-
-        private Set<String> providerNames = new HashSet<String>();
-        private Iterator<String> it = null;
-        private ClassLoader loader = null;
-        
-        public LookupProvidersIterator(Class<T> providerClass, ClassLoader loader) {
-            this.loader = loader;
-            
-            Enumeration<URL> e = null;
-            try {
-                e = loader.getResources("META-INF/services/"+providerClass.getName()); //$NON-NLS-1$
-                while (e.hasMoreElements()) {
-                    Set<String> names = parse((URL)e.nextElement());
-                    providerNames.addAll(names);
-                }
-            } catch (IOException e1) {
-                // Ignored
-            }
-
-            it = providerNames.iterator();
-        }
-        
-        /*
-         * Parse the provider-configuration file as specified 
-         * @see <a href="http://java.sun.com/j2se/1.5.0/docs/guide/jar/jar.html#Provider Configuration File">JAR File Specification</a>
-         */
-        private Set<String> parse(URL u) {
-            InputStream input = null;
-            BufferedReader reader = null;
-            Set<String> names = new HashSet<String>();
-            try {
-                input = u.openStream();
-                reader = new BufferedReader(new InputStreamReader(input, "utf-8")); //$NON-NLS-1$
-                
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    // The comment character is '#' (0x23)
-                    // on each line all characters following the first comment character are ignored
-                    int sharpIndex = line.indexOf('#');
-                    if (sharpIndex>=0) {
-                        line = line.substring(0, sharpIndex);
-                    }
-                    
-                    // Whitespaces are ignored
-                    line = line.trim();
-                    
-                    if (line.length()>0) {
-                        // a java class name, check if identifier correct
-                        char[] namechars = line.toCharArray();
-                        for (int i = 0; i < namechars.length; i++) {
-                            if (!(Character.isJavaIdentifierPart(namechars[i]) || namechars[i] == '.')) {
-                                throw new ServiceConfigurationError(Messages.getString("imageio.99", line));
-                            }
-                        }
-                        names.add(line);
-                    }
-                }
-            } catch (IOException e) {
-                throw new ServiceConfigurationError(e.toString());
-            } finally {
-                try {
-                    if (reader != null) {
-                        reader.close();
-                    }
-                    if (input != null) {
-                        input.close();
-                    }
-                } catch (IOException e) {
-                    throw new ServiceConfigurationError(e.toString());
-                }
-            }
-            
-            return names;
-        }
-        
-        public boolean hasNext() {
-            return it.hasNext();
-        }
-
-        public Object next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
-            
-            String name = (String)it.next();
-            try {
-                return Class.forName(name, true, loader).newInstance();
-            } catch (Exception e) {
-                throw new ServiceConfigurationError(e.toString());
-            }
-        }
-
-        public void remove() {
-            throw new UnsupportedOperationException();   
-        }
-    }
-    
-    /**
-     * An Error that can be thrown when something wrong occurs in loading a service
-     * provider.
-     */
-    static class ServiceConfigurationError extends Error {
-        
-        private static final long serialVersionUID = 74132770414881L;
-
-        /**
-         * The constructor
-         * 
-         * @param msg
-         *            the message of this error
-         */
-        public ServiceConfigurationError(String msg) {
-            super(msg);
-        }
-
-        /**
-         * The constructor
-         * 
-         * @param msg
-         *            the message of this error
-         * @param cause 
-         *            the cause of this error
-         */
-        public ServiceConfigurationError(String msg, Throwable cause) {
-            super(msg, cause);
         }
     }
 }
