@@ -94,10 +94,7 @@ dependencies {
     api("net.kyori:adventure-text-serializer-gson:4.14.0")
     api("net.kyori:adventure-text-serializer-legacy:4.14.0")
     api(project(":creative-api"))
-    implementation(project(":creative-serializer-minecraft"))
-    api("team.unnamed:creative-serializer-minecraft:1.14.4") {
-        exclude(group = "team.unnamed", module = "creative-api")
-    }
+    implementation(project(":creative-serializer-minecraft"))    
     
     api(libs.guava)
 
