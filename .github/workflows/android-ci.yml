@@ -43,7 +43,7 @@ jobs:
 
       - name: Patch Java Source Code
         run: |
-          python patches/chunker_patch.py
+          python patches/apply_patches.py
           
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
