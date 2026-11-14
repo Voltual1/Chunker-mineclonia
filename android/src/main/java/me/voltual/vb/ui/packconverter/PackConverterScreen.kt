@@ -1,5 +1,8 @@
 package me.voltual.vb.ui.packconverter
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -10,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.automirrored.outlined.Help
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.*
@@ -17,11 +21,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.anggrayudi.storage.compose.rememberLauncherForFilePicker
 import com.anggrayudi.storage.compose.rememberLauncherForFolderPicker
+import kotlinx.coroutines.launch
 import me.voltual.vb.core.ui.components.MarkDownText
 import me.voltual.vb.core.ui.theme.AppShapes
 import me.voltual.vb.core.ui.theme.BBQButton
@@ -36,6 +42,9 @@ fun PackConverterScreen(
     modifier: Modifier = Modifier,
     viewModel: PackConverterViewModel = koinViewModel()
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
     val packName by viewModel.packName.collectAsState()
     val inputUri by viewModel.inputUri.collectAsState()
     val outputTreeUri by viewModel.outputTreeUri.collectAsState()
@@ -62,12 +71,9 @@ fun PackConverterScreen(
     val helpMarkdown = """
         ### 材质转码协议说明 (Java to Bedrock)
         
-        ■ **核心限制**：当前逻辑仅支持 Java 版 ZIP 压缩介质转码至 Bedrock 标准格式。
-        ■ **精灵图跳过**：已自动跳过 Spritesheet 合并以防止转换时间过长
-        ■ **免责声明**：本组件基于上游 [PackConverter](https://github.com/GeyserMC/PackConverter) 开发，目前处于 WIP 阶段。部分自定义物品映射可能失效。
+        ■ **核心限制**：当前上游逻辑仅支持 Java 版 ZIP 压缩介质转码至 Bedrock 标准格式。
+        ■ **免责声明**：本组件基于上游 [PackConverter](https://github.com/GeyserMC/PackConverter) 移植开发，目前处于 WIP 阶段而非生产级别
         
-        ---
-        **AUTHOR: GEYSER_MC / VOLTUAL**
     """.trimIndent()
 
     if (showHelpDialog) {
@@ -94,45 +100,52 @@ fun PackConverterScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // 顶部战术标识（修复帮助按钮被挤压的问题）
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // 顶部控制与配置区：支持小屏滚动，防止把下方的终端挤出屏幕
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f, fill = false)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 顶部战术标识
             Row(
-                modifier = Modifier.weight(1f), // 确保标题行占满可用空间且不挤压右侧
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(modifier = Modifier.size(width = 4.dp, height = 20.dp).background(MaterialTheme.colorScheme.primary))
-                Spacer(Modifier.width(12.dp))
-                Text(
-                    text = "ASSET_TRANSCODER_BAY // 转码分析舱",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontSize = 16.sp),
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                )
-            }
-            
-            Spacer(modifier = Modifier.width(8.dp))
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.size(width = 4.dp, height = 20.dp).background(MaterialTheme.colorScheme.primary))
+                    Spacer(Modifier.width(12.dp))
+                    Text(
+                        text = "ASSET_TRANSCODER_BAY // 转码分析舱",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Black, fontSize = 16.sp),
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                    )
+                }
+                
+                Spacer(modifier = Modifier.width(8.dp))
 
-            IconButton(
-                onClick = { showHelpDialog = true },
-                modifier = Modifier.size(36.dp) // 固定大小，防止变形
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Outlined.Help,
-                    contentDescription = "Manual",
-                    tint = MaterialTheme.colorScheme.primary
-                )
+                IconButton(
+                    onClick = { showHelpDialog = true },
+                    modifier = Modifier.size(36.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Outlined.Help,
+                        contentDescription = "Manual",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
-        }
 
-        // 1. 转码指令集配置
-        Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            // 1. 转码指令集配置
             OutlinedTextField(
                 value = packName,
                 onValueChange = { viewModel.setPackName(it) },
@@ -208,53 +221,100 @@ fun PackConverterScreen(
                     }
                 }
             }
-        }
 
-        // 2. 战术参数开关
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), AppShapes.small)
-                .padding(horizontal = 12.dp, vertical = 4.dp)
-        ) {
-            Checkbox(
-                checked = debugMode,
-                onCheckedChange = { viewModel.setDebugMode(it) },
-                enabled = !isRunning,
-                colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.secondary)
-            )
-            Spacer(Modifier.width(8.dp))
-            Text("ENABLE_TRACE_LOG // 开启调试模式追踪", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
-        }
+            // 2. 战术参数开关
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.1f), AppShapes.small)
+                    .padding(horizontal = 12.dp, vertical = 4.dp)
+            ) {
+                Checkbox(
+                    checked = debugMode,
+                    onCheckedChange = { viewModel.setDebugMode(it) },
+                    enabled = !isRunning,
+                    colors = CheckboxDefaults.colors(checkedColor = MaterialTheme.colorScheme.secondary)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("ENABLE_TRACE_LOG // 开启调试模式追踪", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+            }
 
-        // 3. 执行启动按钮
-        BBQButton(
-            onClick = { viewModel.startConversion() },
-            enabled = !isRunning && inputUri != null && outputTreeUri != null,
-            modifier = Modifier.fillMaxWidth().height(56.dp),
-            text = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isRunning) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("TRANSCODING_IN_PROGRESS...", fontWeight = FontWeight.Black)
-                    } else {
-                        Icon(Icons.Default.Build, null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text("START_TRANSCODE // 启动重构", fontWeight = FontWeight.Black)
+            // 3. 执行启动按钮
+            BBQButton(
+                onClick = { viewModel.startConversion() },
+                enabled = !isRunning && inputUri != null && outputTreeUri != null,
+                modifier = Modifier.fillMaxWidth().height(52.dp),
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isRunning) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = MaterialTheme.colorScheme.onPrimary, strokeWidth = 2.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("TRANSCODING_IN_PROGRESS...", fontWeight = FontWeight.Black)
+                        } else {
+                            Icon(Icons.Default.Build, null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text("START_TRANSCODE // 启动重构", fontWeight = FontWeight.Black)
+                        }
                     }
                 }
-            }
-        )
+            )
+        }
 
-        // 4. 转码监控区
-        Column(modifier = Modifier.fillMaxWidth().weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Terminal, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
-                Spacer(Modifier.width(8.dp))
-                Text("LIVE_TELEMETRY // 实时转码流", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.primary)
+        // 4. 转码监控区：保底最小高度，并在大屏上自适应撑满剩余高度
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .heightIn(min = 260.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Terminal, null, modifier = Modifier.size(14.dp), tint = MaterialTheme.colorScheme.primary)
+                    Spacer(Modifier.width(8.dp))
+                    Text("LIVE_TELEMETRY // 实时转码流", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, letterSpacing = 1.sp), color = MaterialTheme.colorScheme.primary)
+                }
+
+                // 一键复制终端输出按钮
+                IconButton(
+                    onClick = {
+                        val activeSession = session
+                        if (activeSession != null) {
+                            val outputText = activeSession.emulator.screen.getTranscriptText().trim()
+                            if (outputText.isNotEmpty()) {
+                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                                val clip = ClipData.newPlainText("Terminal Log", outputText)
+                                clipboard?.setPrimaryClip(clip)
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("终端日志已复制到剪贴板")
+                                }
+                            } else {
+                                scope.launch {
+                                    snackbarHostState.showSnackbar("终端暂无输出内容")
+                                }
+                            }
+                        } else {
+                            scope.launch {
+                                snackbarHostState.showSnackbar("当前无激活的转码会话")
+                            }
+                        }
+                    },
+                    modifier = Modifier.size(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ContentCopy,
+                        contentDescription = "复制日志",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
+
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
