@@ -23,9 +23,7 @@
  */
 package team.unnamed.creative.base;
 
-import org.jetbrains.annotations.ApiStatus;
 import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Unmodifiable;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -36,7 +34,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
-import java.util.Arrays;
 import java.util.concurrent.Callable;
 
 import static java.util.Objects.requireNonNull;
@@ -60,7 +57,7 @@ public interface Writable {
         }
 
         @Override
-        public String toString() {
+        public @NotNull String toString() {
             return "Writable.EMPTY";
         }
 
@@ -132,27 +129,6 @@ public interface Writable {
             }
             return resource;
         });
-    }
-
-    /**
-     * Creates a new {@link Writable} instance that represents
-     * the named resource at the caller class loader.
-     *
-     * @param name The full resource name
-     * @return The {@link Writable} representation
-     * @since 1.1.0
-     * @deprecated Use {@link #resource(ClassLoader, String)} instead
-     */
-    @Deprecated
-    @ApiStatus.ScheduledForRemoval(inVersion = "2.0.0")
-    static @NotNull Writable resource(final @NotNull String name) {
-        requireNonNull(name, "name");
-        // 使用 Android 安全兼容的上下文类加载器，移除了不兼容的 sun.reflect.Reflection 依赖
-        ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-        if (classLoader == null) {
-            classLoader = Writable.class.getClassLoader();
-        }
-        return resource(classLoader, name);
     }
 
     /**
@@ -244,12 +220,11 @@ public interface Writable {
 
             @Override
             public byte @NotNull [] toByteArray() {
-                // 用 Arrays.copyOf 替代 bytes.clone()
-                return Arrays.copyOf(bytes, bytes.length);
+                return bytes.clone();
             }
 
             @Override
-            public String toString() {
+            public @NotNull String toString() {
                 return "Writable.copyInputStream";
             }
 
@@ -266,8 +241,7 @@ public interface Writable {
      * @since 1.0.0
      */
     static @NotNull Writable bytes(final byte @NotNull [] bytes) {
-        // 用 Arrays.copyOf 替代 bytes.clone()
-        final byte[] b = Arrays.copyOf(bytes, bytes.length);
+        final byte[] b = bytes.clone();
         return new Writable() {
 
             @Override
@@ -278,8 +252,7 @@ public interface Writable {
 
             @Override
             public byte @NotNull [] toByteArray() {
-                // 用 Arrays.copyOf 替代 b.clone()
-                return Arrays.copyOf(b, b.length);
+                return b.clone();
             }
 
             @Override
@@ -312,8 +285,7 @@ public interface Writable {
 
             @Override
             public byte @NotNull [] toByteArray() {
-                // 用 Arrays.copyOf 替代 bytes.clone()
-                return Arrays.copyOf(bytes, bytes.length);
+                return bytes.clone();
             }
 
             @Override
@@ -322,7 +294,7 @@ public interface Writable {
             }
 
             @Override
-            public String toString() {
+            public @NotNull String toString() {
                 return "Writable { type='utf8', value='" + string + "' }";
             }
         };

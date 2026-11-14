@@ -27,7 +27,6 @@
 package org.geysermc.pack.converter.type.texture.transformer.type.ui;
 
 import com.google.auto.service.AutoService;
-import com.google.common.io.BaseEncoding;
 import net.kyori.adventure.key.Key;
 import org.geysermc.pack.converter.type.texture.transformer.TextureTransformer;
 import org.geysermc.pack.converter.type.texture.transformer.TransformContext;
@@ -51,6 +50,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 
@@ -117,6 +117,9 @@ public class FontTransformer implements TextureTransformer {
 
             fontData.computeCache(context, images);
         }
+
+        // A formatter for our hex value, used when writing the glyph files
+        HexFormat hexFormat = HexFormat.of();
 
         for (Map.Entry<Byte, List<UnicodeFontData>> data : containedCharacters.entrySet()) {
             if (data.getValue().isEmpty()) continue; // We have nothing to work with
@@ -186,12 +189,10 @@ public class FontTransformer implements TextureTransformer {
                 );
             }
 
-            // 使用 Guava 的 BaseEncoding 替换 java.util.HexFormat 以兼容低版本 Android
-            String hexDigits = BaseEncoding.base16().encode(new byte[] { data.getKey() });
-
             context.bedrockResourcePack().addExtraFile(
                     ImageUtil.toByteArray(bedrockImage, "png"),
-                    "font/glyph_%s.png".formatted(hexDigits)
+                    "font/glyph_%s.png"
+                            .formatted(hexFormat.toHexDigits(data.getKey()).toUpperCase())
             );
         }
     }
@@ -515,11 +516,6 @@ public class FontTransformer implements TextureTransformer {
 
         @Override
         public void computeCache(TransformContext context, Map<Key, BufferedImage> imageCache) {
-            // 修复致命问题：检查缓存是否存在，防止循环内数万次的高 CPU ImageIO.read 调用导致死锁。
-            if (imageCache.containsKey(textureName)) {
-                return;
-            }
-
             Texture texture = context.pollOrPeekVanilla(textureName);
 
             if (texture != null) {
