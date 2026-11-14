@@ -12,7 +12,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
-import androidx.window.core.layout.WindowWidthSizeClass
+import androidx.window.core.layout.WindowSizeClass
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
@@ -112,9 +112,9 @@ fun MainScreenContent(
 
     val topAppBarController = LocalTopAppBarController.current
 
-    // Adaptive感知：只要设备的宽度超过手机(COMPACT)，无论是折叠屏还是平板，均触发大屏常驻中控模式
-    val adaptiveInfo = currentWindowAdaptiveInfo()
-    val isExpandedScreen = adaptiveInfo.windowSizeClass.windowWidthSizeClass != WindowWidthSizeClass.COMPACT
+    // Adaptive感知：只要设备的宽度超过手机(COMPACT，即达到 MEDIUM 600dp)，无论是折叠屏还是平板，均触发大屏常驻中控模式
+    val adaptiveInfo = currentWindowAdaptiveInfo(supportLargeAndXLargeWidth = true)
+    val isExpandedScreen = adaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_MEDIUM_LOWER_BOUND)
 
     // 抽离统一的侧边栏战术内容
     val innerDrawerContent = @Composable {
